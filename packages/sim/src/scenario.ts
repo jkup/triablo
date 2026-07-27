@@ -14,6 +14,16 @@ import { UNIVERSAL_INVARIANTS } from './invariants'
 export interface Scenario {
   readonly name: string
   readonly description: string
+  /**
+   * Work-in-progress: an executable specification whose systems do not exist
+   * yet. Smoke and the test suite skip wip scenarios (visibly), so a qa agent
+   * can land a deliberately-failing scenario without turning `npm run verify`
+   * red for every other agent in flight. `sim -- run` still runs them.
+   *
+   * A wip flag is a debt with a cap: the test suite fails if more than
+   * MAX_WIP_SCENARIOS are flagged at once, so they cannot quietly accumulate.
+   */
+  readonly wip?: boolean
   /** How many ticks a run lasts unless overridden. */
   readonly defaultTicks: number
   /** Spawn entities and register systems. Must be deterministic. */

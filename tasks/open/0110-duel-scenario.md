@@ -30,6 +30,12 @@ Do not implement the systems that make it pass. A different agent does that.
 
 ## Requirements
 
+Register the scenario with `wip: true`. This keeps it out of smoke and the test
+suite (visibly — smoke prints a skip line), so `npm run verify` stays green for
+every other agent while the systems it specifies are still unbuilt. Task 0120
+removes the flag as part of making it pass. Note there is a hard cap on
+simultaneous wip scenarios, enforced by a test; do not raise the cap.
+
 The scenario spawns two combatants from monster content, gives them positions,
 and lets them fight. Its invariants should assert:
 
@@ -51,19 +57,12 @@ valuable part of this task: be specific.
 
 - [ ] `npm run sim -- run duel --seed 1 --verbose` runs and reports a failure
       that clearly names what is missing.
-- [ ] `npm run typecheck` and `npm run lint` pass. The scenario compiles even
-      though it fails at runtime.
+- [ ] `npm run verify` passes — the scenario is registered `wip: true`, and
+      smoke prints a `skip duel (wip ...)` line rather than failing.
 - [ ] `tasks/open/0120-make-duel-pass.md` exists, names its files in scope, and
-      its acceptance criteria are runnable commands.
+      its acceptance criteria are runnable commands (including removing the
+      wip flag and recording a golden replay for the passing duel).
 - [ ] You did **not** modify `packages/core`.
-
-## Notes for the implementer
-
-`npm run verify` will fail while this task is open, because smoke runs every
-registered scenario. Note that in the Outcome section — it is expected, and
-0120 clears it. If that turns out to block other agents in practice, say so;
-gating the scenario behind an "expected to fail" flag is a reasonable follow-up
-but is not this task.
 
 ---
 

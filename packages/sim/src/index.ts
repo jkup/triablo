@@ -6,7 +6,7 @@ export type { RunOptions, RunResult, Scenario, Violation } from './scenario'
 export { finiteNumbers, maxEntities, UNIVERSAL_INVARIANTS } from './invariants'
 export type { Invariant } from './invariants'
 
-export { getScenario, SCENARIO_NAMES, SCENARIOS } from './scenarios'
+export { getScenario, MAX_WIP_SCENARIOS, SCENARIO_NAMES, SCENARIOS } from './scenarios'
 
 export { blessReplay, checkAllReplays, checkReplay, loadReplays, REPLAY_DIR } from './replays'
 export type { Replay, ReplayOutcome } from './replays'

@@ -1,7 +1,0 @@
-{
-  "scenario": "content-smoke",
-  "seed": 1,
-  "ticks": 300,
-  "hash": "58b1407873f93e1f",
-  "note": "Guards the content-to-simulation seam. A mismatch means either a monster's authored stats changed, or seconds-to-ticks conversion changed. Editing monster content is expected to trip this."
-}

@@ -1,0 +1,7 @@
+{
+  "scenario": "content-seam",
+  "seed": 1,
+  "ticks": 300,
+  "hash": "f654eb09b7964b65",
+  "note": "Guards the content-to-simulation seam over a FIXED monster roster. A mismatch means a rostered monster's authored stats changed, or seconds-to-ticks conversion / ECS semantics changed. Adding NEW content cannot trip this — that is by design, so parallel content agents never contend on this file."
+}

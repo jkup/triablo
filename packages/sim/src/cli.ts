@@ -80,7 +80,8 @@ function commandList(): void {
   for (const name of SCENARIO_NAMES) {
     const scenario = SCENARIOS[name]
     if (scenario === undefined) continue
-    console.log(`  ${name.padEnd(width)}  ${scenario.description}`)
+    const wip = scenario.wip === true ? '  [wip: skipped by smoke]' : ''
+    console.log(`  ${name.padEnd(width)}  ${scenario.description}${wip}`)
     console.log(`  ${' '.repeat(width)}  default ${scenario.defaultTicks} ticks`)
   }
   console.log('')
@@ -153,6 +154,12 @@ function commandSmoke(args: Args): number {
 
   for (const name of SCENARIO_NAMES) {
     const scenario = getScenario(name)
+    if (scenario.wip === true) {
+      // Visible, not silent: a skipped scenario that looked like a pass would
+      // be exactly the kind of quiet hole this harness exists to prevent.
+      console.log(`  skip  ${name}  (wip — run it directly with \`sim -- run ${name}\`)`)
+      continue
+    }
     const ticks = tickOverride === undefined ? scenario.defaultTicks : numberFlag(args, 'ticks', 0)
     const problems: string[] = []
 

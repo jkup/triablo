@@ -1,5 +1,6 @@
 import type { Scenario } from '../scenario'
 
+import { contentSeam } from './content-seam'
 import { contentSmoke } from './content-smoke'
 import { harnessSelftest } from './harness-selftest'
 
@@ -12,11 +13,18 @@ import { harnessSelftest } from './harness-selftest'
  * should not collide.
  */
 export const SCENARIOS: Readonly<Record<string, Scenario>> = {
+  [contentSeam.name]: contentSeam,
   [contentSmoke.name]: contentSmoke,
   [harnessSelftest.name]: harnessSelftest,
 }
 
 export const SCENARIO_NAMES: readonly string[] = Object.keys(SCENARIOS).sort()
+
+/**
+ * The ceiling on simultaneously-wip scenarios. Raising this number is a
+ * decision for the human roadmap owner, not a fix for a failing test.
+ */
+export const MAX_WIP_SCENARIOS = 2
 
 export function getScenario(name: string): Scenario {
   const scenario = SCENARIOS[name]
