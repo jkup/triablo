@@ -41,6 +41,7 @@ mostly disjoint.
 | `qa` | tests, replays, scenarios | **Writes failing tests. Never fixes them.** |
 | `balance` | content numbers only | Works from sim reports. No code changes. |
 | `integrator` | reviews, merges | Resolves conflicts, enforces the gate. |
+| `planner` | `tasks/open/` only | Refills the queue by deriving tasks from the current phase of `docs/ROADMAP.md`. Never invents features, never reorders phases, never edits the roadmap itself. |
 
 The `qa` split is deliberate. An agent that writes both the implementation and
 the test that validates it will make them agree with each other rather than

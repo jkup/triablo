@@ -79,11 +79,35 @@ See `docs/DEFINITION_OF_DONE.md`. Short version: the gate is green, you added a
 test that would fail without your change, and you did not expand scope beyond
 the task file.
 
+## Landing work
+
+Everything reaches `main` through a PR — direct pushes are rejected server-side.
+
+1. Branch (or worktree), work until `npm run verify` is green.
+2. Fill in your task file's Outcome section; move it to `tasks/done/` in the
+   same commit.
+3. Push and `gh pr create`. Merge with `gh pr merge --squash --auto` once an
+   integrator review comment exists; auto-merge fires when checks pass.
+4. If `main` moved under you, `gh pr update-branch` (or merge `main` locally)
+   and let checks re-run.
+
+CI runs `verify` plus a `guard` job. The guard fails any PR that touches
+gate-defining files (`.claude/`, `.github/`, the configs, `package.json`,
+this file, the core docs) — that failure is not a bug, it means the change
+needs a human's `gate-change` label. Split such changes out of your PR and
+flag them in your task file instead. The guard also fails replay changes that
+arrive without a task-file change explaining them.
+
 ## Things that are not your call
 
 - Changing the layering, the gate, or the determinism rules.
+- Editing anything the guard protects: `.claude/`, `.github/`, lint/ts/vitest
+  configs, `package.json`, coverage thresholds, `CLAUDE.md`, `ARCHITECTURE.md`,
+  `DEFINITION_OF_DONE.md`, `ROADMAP.md`.
 - Deleting or weakening a failing test to get green. Fix the code, or report
   that the test encodes a wrong expectation and stop.
+- Skipping tests, raising the wip-scenario cap, or lowering coverage
+  thresholds. All three are lint/test failures anyway.
 - Adding a dependency that is not already in `package.json`.
 
 ## Running this unattended
