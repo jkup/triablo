@@ -1,7 +1,8 @@
 name: verify
 
 # The gate. Nothing merges to main unless this is green.
-# It must stay identical to `npm run verify` so an agent can reproduce CI locally.
+# `verify` must stay identical to `npm run verify` so an agent can reproduce CI
+# locally. `guard` protects the gate itself — see below.
 on:
   push:
     branches: [main]
@@ -14,10 +15,11 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -25,3 +27,67 @@ jobs:
       - run: npm ci
 
       - run: npm run verify
+
+  # Agents can edit anything, including the files that define the gate. This
+  # job makes those edits visible instead of silent: a PR touching a protected
+  # path fails until a human applies the `gate-change` label.
+  #
+  # Honest limitation: a PR can modify this very workflow, and the modified
+  # version is what runs on that PR. This is a tripwire against a cooperative
+  # agent taking a shortcut, not a defense against an adversarial one — which
+  # is why docs/RUNNING-AGENTS.md includes auditing `.github/` history when you
+  # return to the repo.
+  guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HAS_GATE_CHANGE_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'gate-change') }}
+      BASE_SHA: ${{ github.event.pull_request.base.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Protected paths require the gate-change label
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+          echo "changed files:"; echo "$CHANGED" | sed 's/^/  /'
+
+          PROTECTED_PATTERN='^(\.github/|\.claude/|CLAUDE\.md|docs/ARCHITECTURE\.md|docs/DEFINITION_OF_DONE\.md|docs/ROADMAP\.md|eslint\.config\.js|tsconfig\.json|vitest\.config\.ts|package\.json|package-lock\.json|scripts/)'
+          TOUCHED_PROTECTED=$(echo "$CHANGED" | grep -E "$PROTECTED_PATTERN" || true)
+
+          if [ -n "$TOUCHED_PROTECTED" ] && [ "$HAS_GATE_CHANGE_LABEL" != "true" ]; then
+            echo ""
+            echo "This PR modifies files that define the verification gate:"
+            echo "$TOUCHED_PROTECTED" | sed 's/^/  /'
+            echo ""
+            echo "Changing the gate is a human decision. If this change is intended,"
+            echo "a human applies the 'gate-change' label to this PR and re-runs this"
+            echo "check. If you are an agent: this is not your call — split the gate"
+            echo "change out of this PR and flag it in your task file's Outcome."
+            exit 1
+          fi
+          echo "ok: no unauthorized gate changes"
+
+      - name: Replay blessings must be recorded in a task file
+        run: |
+          set -euo pipefail
+          CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
+
+          TOUCHED_REPLAYS=$(echo "$CHANGED" | grep -E '^packages/sim/replays/' || true)
+          TOUCHED_TASKS=$(echo "$CHANGED" | grep -E '^tasks/' || true)
+
+          if [ -n "$TOUCHED_REPLAYS" ] && [ -z "$TOUCHED_TASKS" ]; then
+            echo ""
+            echo "This PR changes golden replays with no task-file change:"
+            echo "$TOUCHED_REPLAYS" | sed 's/^/  /'
+            echo ""
+            echo "A blessed replay is a claim that simulation behavior changed on"
+            echo "purpose. The claim must be written down: record which replays"
+            echo "changed and what behavior change explains it in the task file's"
+            echo "Outcome section, in this same PR."
+            exit 1
+          fi
+          echo "ok: replay changes are documented (or there are none)"
