@@ -4,3 +4,9 @@
 // Other packages import `@triablo/core` — never a path inside it.
 
 export const CORE_VERSION = '0.0.0'
+
+export { createRng, Rng } from './rng'
+export type { RngState, Weighted } from './rng'
+
+export { asTicks, secondsToTicks, TICK_HZ, ticksToSeconds } from './time'
+export type { Ticks } from './time'
