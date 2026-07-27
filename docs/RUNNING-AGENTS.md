@@ -83,24 +83,33 @@ Consequences:
 
 ## The loop
 
-1. Pick the highest-priority task from `tasks/open/`.
-2. Work in a fresh worktree: `git worktree add ../triablo-task-0100 -b task/0100-damage-pipeline`
-   (`.claude/settings.json` configures `node_modules` to be symlinked into
-   worktrees automatically — no reinstall per agent).
-3. Iterate until `npm run verify` is green locally.
-4. Fill in the task file's **Outcome** section; move it to `tasks/done/` in the
-   same commit.
-5. Push, `gh pr create`.
-6. A **separate integrator agent with fresh context** reviews the diff against
-   the task's acceptance criteria — not against the diff's own internal logic —
-   and posts its findings as a PR comment. Fresh context matters: an agent
-   reviewing its own work grades the reasoning it already committed to.
-7. If the review passes: `gh pr merge --squash --auto` (auto-merge fires when
-   checks go green). If not: back to step 3 with the review comment as input.
+The whole procedure is packaged as slash commands — this is the intended
+interface:
+
+- **`/work-task 0100`** — one agent works one task end-to-end: resolve, branch,
+  implement within scope, green gate, Outcome filled, PR, auto-merge. Its full
+  procedure lives in `.claude/commands/work-task.md`.
+- **`/dispatch 0130 0200 0210`** — one session becomes the orchestrator: it
+  spawns a role-matched worker per task in an isolated worktree
+  (`.claude/settings.json` symlinks `node_modules` in automatically), then a
+  **fresh-context integrator per PR**, routes findings back to workers, and
+  reports a final table. It refuses overlapping scopes and warns on more than
+  one `systems` task per batch.
+
+The roles themselves are agent definitions in `.claude/agents/` — the
+constraints are configuration, not convention:
+
+| Agent | Hard limits baked in |
+|---|---|
+| `systems-dev` | core/sim only; determinism rules front and center |
+| `content-author` | `packages/content/data/` only; runs on a cheaper model |
+| `qa-author` | writes failing specs; never touches implementation |
+| `integrator` | **no Edit/Write tools at all** — it physically cannot "fix it while reviewing"; verdicts only |
+| `planner` | writes `tasks/open/` files only; derives from the roadmap, never invents |
 
 The rule worth enforcing rigidly: **the agent that writes the implementation
-does not write the test that validates it.** That is what the `qa` role exists
-for, and why 0110/0120 are split.
+does not write the test that validates it** — and with these definitions, the
+integrator's read-only toolset enforces its half of that mechanically.
 
 ## Keeping the backlog alive
 
