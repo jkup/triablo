@@ -255,6 +255,36 @@ export class World {
     return (this.eventQueues.get(type.id) ?? []) as T[]
   }
 
+  // ------------------------------------------------------------------- trace
+
+  /**
+   * Attach a human-readable trace sink.
+   *
+   * This is how an agent reads what the simulation actually did. Systems call
+   * `world.trace()` at interesting moments; the sim CLI attaches a sink under
+   * `--verbose` and prints a timestamped log. Nothing is recorded by default.
+   *
+   * Trace output is never part of the state hash, so adding or removing a trace
+   * call cannot break a golden replay.
+   */
+  setTraceSink(sink: ((tick: number, message: string) => void) | undefined): void {
+    this.traceSink = sink
+  }
+
+  private traceSink: ((tick: number, message: string) => void) | undefined
+
+  /**
+   * Record an explanation of something that just happened.
+   *
+   * Takes a thunk so that the message is not built at all when tracing is off —
+   * which is the normal case, including every one of the thousands of runs in a
+   * nightly balance sweep.
+   */
+  trace(message: () => string): void {
+    if (this.traceSink === undefined) return
+    this.traceSink(this.currentTick, message())
+  }
+
   // ----------------------------------------------------------------- systems
 
   addSystem(system: System): void {

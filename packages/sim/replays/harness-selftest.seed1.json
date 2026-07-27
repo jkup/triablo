@@ -1,0 +1,7 @@
+{
+  "scenario": "harness-selftest",
+  "seed": 1,
+  "ticks": 400,
+  "hash": "8ba1ca82a94b10f8",
+  "note": "Guards the ECS itself: entity id allocation, deferred destruction, event ordering within a tick, and RNG stream position. A mismatch here means core simulation semantics changed."
+}

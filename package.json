@@ -13,7 +13,11 @@
     "test": "vitest run",
     "content:validate": "tsx packages/content/src/cli.ts",
     "content:bake": "tsx scripts/bake-content.ts",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run content:validate"
+    "sim": "tsx packages/sim/src/cli.ts",
+    "sim:smoke": "tsx packages/sim/src/cli.ts smoke",
+    "replay:check": "tsx packages/sim/src/cli.ts replay",
+    "replay:bless": "tsx packages/sim/src/cli.ts replay --bless",
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run content:validate && npm run sim:smoke && npm run replay:check"
   },
   "dependencies": {
     "zod": "^3.25.76"
