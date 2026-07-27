@@ -1,0 +1,17 @@
+{
+  "id": "skeleton-warrior",
+  "name": "Skeleton Warrior",
+  "family": "undead",
+  "level": 1,
+  "stats": {
+    "life": 32,
+    "armor": 4,
+    "damage": 5,
+    "damageType": "physical",
+    "attackIntervalSeconds": 1.4,
+    "moveSpeed": 2.6
+  },
+  "behaviors": ["melee-chase"],
+  "lootTable": "skeleton-common",
+  "tags": ["trash"]
+}

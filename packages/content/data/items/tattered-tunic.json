@@ -1,0 +1,11 @@
+{
+  "id": "tattered-tunic",
+  "name": "Tattered Tunic",
+  "slot": "chest",
+  "itemClass": "light-armor",
+  "levelRequirement": 1,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 4, "max": 9 }
+  ],
+  "tags": ["starter"]
+}

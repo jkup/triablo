@@ -1,0 +1,11 @@
+{
+  "id": "rusted-cleaver",
+  "name": "Rusted Cleaver",
+  "slot": "main-hand",
+  "itemClass": "axe",
+  "levelRequirement": 1,
+  "implicits": [
+    { "stat": "damage", "mode": "flat", "min": 3, "max": 6 }
+  ],
+  "tags": ["starter", "two-handed"]
+}

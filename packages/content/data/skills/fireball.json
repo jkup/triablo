@@ -1,0 +1,11 @@
+{
+  "id": "fireball",
+  "name": "Fireball",
+  "class": "sorcerer",
+  "description": "Hurl a fiery projectile that explodes on impact.",
+  "resourceCost": 25,
+  "cooldownSeconds": 0,
+  "castTimeSeconds": 0.5,
+  "damage": { "type": "fire", "weaponMultiplier": 1.6 },
+  "tags": ["core", "ranged", "area"]
+}

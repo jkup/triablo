@@ -1,0 +1,9 @@
+{
+  "id": "skeleton-common",
+  "name": "Skeleton (common)",
+  "entries": [
+    { "item": "rusted-cleaver", "weight": 45 },
+    { "item": "tattered-tunic", "weight": 45 },
+    { "item": "copper-band", "weight": 10 }
+  ]
+}

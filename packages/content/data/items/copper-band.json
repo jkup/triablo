@@ -1,0 +1,9 @@
+{
+  "id": "copper-band",
+  "name": "Copper Band",
+  "slot": "ring",
+  "itemClass": "jewelry",
+  "levelRequirement": 3,
+  "implicits": [],
+  "tags": ["starter"]
+}

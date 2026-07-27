@@ -1,0 +1,17 @@
+{
+  "id": "skeleton-archer",
+  "name": "Skeleton Archer",
+  "family": "undead",
+  "level": 2,
+  "stats": {
+    "life": 24,
+    "armor": 2,
+    "damage": 7,
+    "damageType": "physical",
+    "attackIntervalSeconds": 1.8,
+    "moveSpeed": 2.2
+  },
+  "behaviors": ["ranged-kite"],
+  "lootTable": "skeleton-common",
+  "tags": ["trash", "ranged"]
+}

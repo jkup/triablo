@@ -1,0 +1,26 @@
+{
+  "id": "keen",
+  "name": "Keen",
+  "kind": "prefix",
+  "slots": ["main-hand"],
+  "tiers": [
+    {
+      "tier": 3,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 1, "max": 2 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 15,
+      "weight": 60,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 2, "max": 4 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 40,
+      "weight": 20,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 4, "max": 7 }]
+    }
+  ]
+}

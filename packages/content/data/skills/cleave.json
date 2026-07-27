@@ -1,0 +1,11 @@
+{
+  "id": "cleave",
+  "name": "Cleave",
+  "class": "barbarian",
+  "description": "Swing in a wide arc, striking every enemy in front of you.",
+  "resourceCost": 0,
+  "cooldownSeconds": 0,
+  "castTimeSeconds": 0.4,
+  "damage": { "type": "physical", "weaponMultiplier": 0.8 },
+  "tags": ["basic", "melee", "area"]
+}
