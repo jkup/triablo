@@ -23,5 +23,23 @@ export default defineConfig({
   test: {
     include: ['packages/**/*.test.ts'],
     environment: 'node',
+    coverage: {
+      provider: 'v8',
+      include: ['packages/*/src/**'],
+      // The cli.ts entrypoints are process.exit-heavy and are exercised for
+      // real by `npm run verify` itself (content:validate, sim:smoke,
+      // replay:check all invoke them end to end).
+      exclude: ['packages/*/src/cli.ts', '**/*.test.ts'],
+      // A ratchet, not a target: these sit below current coverage and exist to
+      // stop it drifting down unnoticed. Raising them when coverage improves
+      // is welcome; lowering them to get a PR green is a definition-of-done
+      // violation.
+      thresholds: {
+        lines: 80,
+        functions: 85,
+        branches: 85,
+        statements: 80,
+      },
+    },
   },
 })

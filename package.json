@@ -9,8 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
+    "lint": "eslint . --max-warnings=0 --no-inline-config",
+    "test": "vitest run --coverage",
     "content:validate": "tsx packages/content/src/cli.ts",
     "content:bake": "tsx scripts/bake-content.ts",
     "sim": "tsx packages/sim/src/cli.ts",

@@ -18,6 +18,14 @@ const NONDETERMINISM = [
   },
 ]
 
+// Disabling a test is a way to reach green without fixing anything, which the
+// definition of done explicitly names as not-done. `.todo` remains available
+// for genuinely unwritten tests.
+const TEST_ESCAPES = ['it', 'test', 'describe'].flatMap((object) => [
+  { object, property: 'skip', message: 'Fix the test or the code; do not skip it. (.todo is allowed for unwritten tests.)' },
+  { object, property: 'only', message: 'Remove .only before committing — it silently disables the rest of the suite.' },
+])
+
 const NODE_BUILTINS = [
   'fs',
   'path',
@@ -47,8 +55,14 @@ export default tseslint.config(
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/consistent-type-imports': 'error',
+      // ts-expect-error and friends are listed in the definition of done as
+      // not-done: they convert a loud compile failure into a quiet runtime one.
+      '@typescript-eslint/ban-ts-comment': [
+        'error',
+        { 'ts-expect-error': true, 'ts-ignore': true, 'ts-nocheck': true },
+      ],
       eqeqeq: ['error', 'always', { null: 'ignore' }],
-      'no-restricted-properties': ['error', ...NONDETERMINISM],
+      'no-restricted-properties': ['error', ...NONDETERMINISM, ...TEST_ESCAPES],
     },
   },
 
