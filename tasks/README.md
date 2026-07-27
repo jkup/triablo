@@ -49,7 +49,10 @@ with reality.
 
 ## Lifecycle
 
-1. Pick the highest-priority file in `tasks/open/`.
+1. Work the task you were **assigned** in your spawn prompt. Only self-select
+   from `tasks/open/` (highest priority first) when running solo — with
+   parallel agents, two picking the same task is duplicate work discovered at
+   PR time, so assignment belongs to whoever spawns the agents.
 2. Work in a git worktree so parallel agents do not collide.
 3. Run `npm run verify` until green.
 4. Fill in the **Outcome** section of the task file.

@@ -15,9 +15,20 @@ have read the simulation output proving the behavior you claimed.
 
 1. Read the task file you were assigned (`tasks/open/*.md`). It names the files
    you may touch and the acceptance criteria you must meet.
-2. Read `docs/ARCHITECTURE.md` if your change crosses a package boundary.
+2. Read `docs/ARCHITECTURE.md` if your change crosses a package boundary, and
+   `docs/DESIGN.md` for anything player-facing — it is the creative direction,
+   it is human-owned, and where your instinct disagrees with it, it wins.
 3. Do not redesign shared interfaces. If a task seems to require it, stop and
    say so in the task file instead of doing it.
+
+## Judgment calls get written down
+
+If you settle something the task file did not specify and future work will
+build on it — a formula's constant, what a rarity means, an edge-case ruling —
+record it as a numbered file in `docs/decisions/` (format in its README) in the
+same PR. The human owner reviews that directory to steer the game; an
+unrecorded decision is invisible and may be silently rebuilt differently by the
+next agent.
 
 ## The gate
 
@@ -103,7 +114,7 @@ arrive without a task-file change explaining them.
 - Changing the layering, the gate, or the determinism rules.
 - Editing anything the guard protects: `.claude/`, `.github/`, lint/ts/vitest
   configs, `package.json`, coverage thresholds, `CLAUDE.md`, `ARCHITECTURE.md`,
-  `DEFINITION_OF_DONE.md`, `ROADMAP.md`.
+  `DEFINITION_OF_DONE.md`, `ROADMAP.md`, `DESIGN.md`.
 - Deleting or weakening a failing test to get green. Fix the code, or report
   that the test encodes a wrong expectation and stop.
 - Skipping tests, raising the wip-scenario cap, or lowering coverage

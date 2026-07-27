@@ -7,6 +7,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    # labeled/unlabeled matter: the guard's verdict depends on the gate-change
+    # label, so applying it must re-run the check — without these types a
+    # labeled PR would stay stuck on the stale failing guard run.
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 concurrency:
   group: verify-${{ github.ref }}
@@ -55,7 +59,7 @@ jobs:
           CHANGED=$(git diff --name-only "$BASE_SHA"...HEAD)
           echo "changed files:"; echo "$CHANGED" | sed 's/^/  /'
 
-          PROTECTED_PATTERN='^(\.github/|\.claude/|CLAUDE\.md|docs/ARCHITECTURE\.md|docs/DEFINITION_OF_DONE\.md|docs/ROADMAP\.md|eslint\.config\.js|tsconfig\.json|vitest\.config\.ts|package\.json|package-lock\.json|scripts/)'
+          PROTECTED_PATTERN='^(\.github/|\.claude/|CLAUDE\.md|docs/ARCHITECTURE\.md|docs/DEFINITION_OF_DONE\.md|docs/ROADMAP\.md|docs/DESIGN\.md|eslint\.config\.js|tsconfig\.json|vitest\.config\.ts|package\.json|package-lock\.json|scripts/)'
           TOUCHED_PROTECTED=$(echo "$CHANGED" | grep -E "$PROTECTED_PATTERN" || true)
 
           if [ -n "$TOUCHED_PROTECTED" ] && [ "$HAS_GATE_CHANGE_LABEL" != "true" ]; then

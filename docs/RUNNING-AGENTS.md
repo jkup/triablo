@@ -3,6 +3,37 @@
 Human-facing. How to actually let this thing run — including fully unattended,
 for days.
 
+## How to steer (you keep the wheel)
+
+You own four levers; everything else is delegated.
+
+1. **`docs/DESIGN.md`** — what the game *is*: pillars, tone, non-goals. Agents
+   defer to it on every player-facing call. Editing it is the highest-leverage
+   steering you can do; five minutes there outweighs an hour of PR review.
+2. **`docs/ROADMAP.md`** — what gets built and in what order.
+3. **The `gate-change` label** — nothing about the rules changes without you.
+4. **Task priority** — write a priority-0 task file and it jumps every queue.
+   ("Combat feels floaty, see decision 0007 — revisit attack intervals" is a
+   perfectly good task.)
+
+Because `main` is protected, your own edits also go through a PR — for
+guard-protected files, label your PR `gate-change` yourself. Or simply tell an
+agent what you want changed and label the PR it opens.
+
+**Read `docs/decisions/` first every time you return.** It is the log of every
+judgment call made in your absence, built for exactly this review. Veto by
+superseding (see its README) — the veto is itself one small PR.
+
+**Play the game at every milestone.** From phase 2 on, taste is the input
+agents cannot generate. A 20-minute session that produces two priority-0 task
+files is the most valuable contribution anyone will make to this repo that
+week.
+
+**Scale gradually.** Run one or two agents until a few PRs have merged
+cleanly, then widen. Content tasks parallelize almost without limit; keep
+core-systems work to one or two agents at a time — strict up-to-date checks
+serialize merges anyway, and core PRs are the expensive ones to rebase.
+
 ## The trust model, in one paragraph
 
 Agents are treated as **cooperative but fallible**: the controls here stop an
@@ -54,7 +85,8 @@ Consequences:
 
 1. Pick the highest-priority task from `tasks/open/`.
 2. Work in a fresh worktree: `git worktree add ../triablo-task-0100 -b task/0100-damage-pipeline`
-   (symlink `node_modules` in rather than reinstalling).
+   (`.claude/settings.json` configures `node_modules` to be symlinked into
+   worktrees automatically — no reinstall per agent).
 3. Iterate until `npm run verify` is green locally.
 4. Fill in the task file's **Outcome** section; move it to `tasks/done/` in the
    same commit.
@@ -113,6 +145,9 @@ git log --stat --oneline -- '**/*.test.ts' | head -50
 # 5. Is the game actually progressing, or just churning?
 npm run sim -- list          # scenario count should grow with phases
 ls tasks/done/ | wc -l
+
+# 6. What was decided without you? (read these, not just count them)
+git log --oneline -- docs/decisions/
 ```
 
 Red flags: a `gate-change`-labeled PR you didn't label, a replay blessing whose
