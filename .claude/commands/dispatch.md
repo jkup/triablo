@@ -38,9 +38,20 @@ your own hands this session — everything goes through workers.
    worker run `gh pr update-branch`. A `guard` failure on any PR is a
    human-decision signal: report it, never route around it.
 
+## Refill
+
+7. Once the batch has landed: count the files in `tasks/open/`. If fewer than
+   5 remain, spawn a `planner` agent to refill the queue from the current
+   roadmap phase. The planner opens its own PR (`tasks/` is not
+   guard-protected, so it merges on green checks like any other work). Also
+   hand the planner the "Follow-ups worth a new task" lines from this batch's
+   Outcome sections — it decides which deserve promotion to real task files;
+   workers never mint tasks directly.
+
 ## Report
 
 End with a table: task → PR → state (merged / awaiting checks / blocked-guard
 / failed-review / dropped) plus one line each of integrator findings, and
-list every `docs/decisions/` entry the batch produced. Unfinished workers at
-session end: report what state their worktrees are in so the human can resume.
+list every `docs/decisions/` entry the batch produced. If a planner ran,
+list the task files it created. Unfinished workers at session end: report
+what state their worktrees are in so the human can resume.
