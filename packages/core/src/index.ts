@@ -10,3 +10,15 @@ export type { RngState, Weighted } from './rng'
 
 export { asTicks, secondsToTicks, TICK_HZ, ticksToSeconds } from './time'
 export type { Ticks } from './time'
+
+export { hashString, hashValue, stableStringify } from './hash'
+
+export { defineComponent, defineEvent, World } from './ecs'
+export type {
+  ComponentType,
+  EntityId,
+  EventType,
+  System,
+  WorldOptions,
+  WorldSnapshot,
+} from './ecs'
