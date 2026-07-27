@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "moduleDetection": "force",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+
+    "baseUrl": ".",
+    "paths": {
+      "@triablo/core": ["packages/core/src/index.ts"],
+      "@triablo/content": ["packages/content/src/index.ts"],
+      "@triablo/content/node": ["packages/content/src/node.ts"],
+      "@triablo/sim": ["packages/sim/src/index.ts"],
+      "@triablo/client": ["packages/client/src/index.ts"]
+    }
+  },
+  "include": ["packages/**/*.ts", "scripts/**/*.ts", "*.config.ts"]
+}

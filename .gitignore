@@ -1,0 +1,14 @@
+node_modules/
+dist/
+coverage/
+*.log
+
+# Generated content bundle (rebuilt by `npm run content:bake`).
+# Never commit it: generated files are a merge-conflict magnet when many
+# agents work in parallel.
+packages/content/generated/
+
+# Local, per-machine Claude Code overrides.
+.claude/settings.local.json
+
+.DS_Store
