@@ -85,3 +85,7 @@ the task file.
 - Deleting or weakening a failing test to get green. Fix the code, or report
   that the test encodes a wrong expectation and stop.
 - Adding a dependency that is not already in `package.json`.
+
+## Running this unattended
+
+See `docs/RUNNING-AGENTS.md` for permissions, worktrees, and the review loop.
