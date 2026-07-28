@@ -1,0 +1,9 @@
+{
+  "id": "undead-elite",
+  "name": "Undead Elite",
+  "entries": [
+    { "item": "rusted-cleaver", "weight": 35 },
+    { "item": "tattered-tunic", "weight": 35 },
+    { "item": "copper-band", "weight": 30 }
+  ]
+}

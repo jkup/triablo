@@ -36,21 +36,25 @@ path: it must land without touching any shared file.
 
 ## Acceptance criteria
 
-- [ ] `npm run verify` passes **with zero changes outside the four files in
+- [x] `npm run verify` passes **with zero changes outside the four files in
       scope** — in particular, no replay was re-blessed and no manifest was
       touched. If you needed either, stop: that is a harness bug worth
       reporting, not working around.
-- [ ] `npm run sim -- run content-smoke --seed 1 --verbose` shows all new
+- [x] `npm run sim -- run content-smoke --seed 1 --verbose` shows all new
       monsters spawning and attacking.
-- [ ] `npm run content:validate` reports 5 monsters, 2 loot tables.
+- [x] `npm run content:validate` reports 5 monsters, 2 loot tables.
 
 ---
 
 ## Outcome
 
-*Filled in by the agent that completes the task.*
-
-- **What changed:**
-- **Replays re-blessed:** (must be "none")
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Added three undead monsters (`zombie` — slow/tanky
+  melee-chase, level 2; `bone-mage` — stationary shadow-damage caster,
+  level 3; `grave-hulk` — high-life charge elite, level 5) and one new loot
+  table (`undead-elite`, weighted across the existing rusted-cleaver,
+  tattered-tunic, and copper-band bases). `zombie` and `bone-mage` reuse
+  `skeleton-common`; `grave-hulk` uses `undead-elite`.
+- **Replays re-blessed:** none.
+- **Scope deviations:** none — only the four files named in scope were
+  touched.
+- **Follow-ups worth a new task:** none identified.
