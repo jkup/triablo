@@ -42,7 +42,15 @@ const NODE_BUILTINS = [
 
 export default tseslint.config(
   {
-    ignores: ['node_modules/**', 'dist/**', 'coverage/**', 'packages/content/generated/**'],
+    // .claude/worktrees holds agents' temporary git worktrees; their coverage
+    // and build artifacts must not pollute lint runs in the main checkout.
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'coverage/**',
+      'packages/content/generated/**',
+      '.claude/worktrees/**',
+    ],
   },
 
   js.configs.recommended,

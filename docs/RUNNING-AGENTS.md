@@ -87,8 +87,9 @@ The whole procedure is packaged as slash commands — this is the intended
 interface:
 
 - **`/work-task 0100`** — one agent works one task end-to-end: resolve, branch,
-  implement within scope, green gate, Outcome filled, PR, auto-merge. Its full
-  procedure lives in `.claude/commands/work-task.md`.
+  implement within scope, green gate, Outcome filled, PR, **fresh-context
+  integrator review, then merge** — merges are review-gated, not just
+  CI-gated. Its full procedure lives in `.claude/commands/work-task.md`.
 - **`/dispatch 0130 0200 0210`** — one session becomes the orchestrator: it
   spawns a role-matched worker per task in an isolated worktree
   (`.claude/settings.json` symlinks `node_modules` in automatically), then a
