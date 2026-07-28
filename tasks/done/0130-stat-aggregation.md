@@ -47,9 +47,25 @@ noise in every replay downstream. Decide the rounding rule once and test it.
 
 ## Outcome
 
-*Filled in by the agent that completes the task.*
+*Filled retroactively by the dispatcher after integrator review of PR #7 found
+this section blank (the one CHANGES NEEDED finding — all acceptance criteria
+themselves passed). Content sourced from the worker's report and the
+integrator's independently verified evidence.*
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `computeStats(base, mods)` in
+  `packages/core/src/combat/stats.ts` (+20 tests): flat sums → summed
+  increased as one multiplier → each more separately, canonicalized by
+  sorting before folding so aggregation is bit-exact under any mod-list
+  permutation (order-independence property-tested with 100 trials × 10 seeded
+  shuffles, exact equality). Outputs quantized to 1/10000 half-up
+  (`STAT_SCALE`), clamps consistent with decision 0004. Landed in PR #7.
+- **Replays re-blessed:** none — pure function, no ECS wiring, no callers.
+- **Scope deviations:** none. Three in-scope files plus decision 0005 and
+  this task-file move. Core's `StatMod` shape and 17 `STAT_KEYS` mirror
+  content's `StatModSchema` exactly — no divergence to note (integrator
+  cross-checked key-by-key).
+- **Follow-ups worth a new task:** wire computeStats + computeDamage into an
+  entity stat-sheet component (belongs with 0120's duel work); derived stats
+  (strength → armor etc.) per this task's own out-of-scope note; a sync test
+  asserting core STAT_KEYS === content STAT_KEYS would make the mirror
+  mechanical instead of reviewed.
