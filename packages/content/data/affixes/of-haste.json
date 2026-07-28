@@ -1,0 +1,20 @@
+{
+  "id": "of-haste",
+  "name": "of Haste",
+  "kind": "suffix",
+  "slots": ["feet", "legs"],
+  "tiers": [
+    {
+      "tier": 2,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.03, "max": 0.05 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 20,
+      "weight": 25,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.06, "max": 0.09 }]
+    }
+  ]
+}
