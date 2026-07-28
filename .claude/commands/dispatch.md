@@ -23,7 +23,8 @@ your own hands this session — everything goes through workers.
    `planner`. Each worker's prompt: the full text of its task file, plus the
    instruction to follow the `/work-task` procedure in
    `.claude/commands/work-task.md` from "Execute" onward, and to finish by
-   reporting its PR number.
+   reporting its PR number **without arming auto-merge** — review and merge
+   belong to you, not the worker.
 
 ## Review
 
@@ -34,9 +35,13 @@ your own hands this session — everything goes through workers.
    context is intact) to fix on the same branch; then a fresh integrator
    look. Two failed review cycles → stop that task and escalate to the human
    with both reviews quoted.
-6. APPROVE → confirm auto-merge is armed; if the branch is stale, have the
-   worker run `gh pr update-branch`. A `guard` failure on any PR is a
-   human-decision signal: report it, never route around it.
+6. APPROVE → **you** arm the merge: `gh pr merge <n> --squash --auto`. If it
+   is blocked on branch freshness, `gh pr update-branch <n>` and wait for
+   checks to re-run. A `guard` failure on any PR is a human-decision signal:
+   report it, never route around it.
+   Remove a worker's worktree only after its PR is both merged **and**
+   reviewed — a CHANGES NEEDED verdict needs the worker's branch context
+   intact to fix cheaply.
 
 ## Refill
 

@@ -38,13 +38,23 @@ Work exactly one task to completion: **$ARGUMENTS**
    "Replays re-blessed" and any scope deviations), and `git mv` it to
    `tasks/done/` in the final commit.
 10. Push, then `gh pr create` (title = the task title; body = summary +
-    outcome highlights), then `gh pr merge --squash --auto`.
+    outcome highlights). **Do not arm auto-merge yet — merges are
+    review-gated.** What happens next depends on what you are:
+    - **You can spawn agents** (you are a main session): spawn a fresh
+      `integrator` agent for your PR and wait for its verdict comment.
+      APPROVE → `gh pr merge --squash --auto`. CHANGES NEEDED → fix on the
+      same branch, then request a fresh integrator look; after two failed
+      review cycles, stop and escalate to the human with both reviews quoted.
+    - **You cannot spawn agents** (you are a dispatched worker): report your
+      PR number and stop. The dispatcher owns review and merge; merging your
+      own unreviewed work defeats the reason you were spawned separately.
 11. If the `guard` check fails because your diff touched protected files:
     that label is not yours to apply and not yours to ask for in a comment
     loop — post one PR comment stating exactly which files need the
     `gate-change` label and why, then report back here and stop.
-12. If `main` moved and the merge is blocked on freshness:
-    `gh pr update-branch` (or merge main locally), wait for checks, done.
+12. If `main` moved and the merge is blocked on freshness — and the merge is
+    yours to arm per step 10 — `gh pr update-branch` (or merge main locally),
+    wait for checks, done.
 
 ## Report
 
