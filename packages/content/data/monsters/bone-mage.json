@@ -1,0 +1,17 @@
+{
+  "id": "bone-mage",
+  "name": "Bone Mage",
+  "family": "undead",
+  "level": 3,
+  "stats": {
+    "life": 22,
+    "armor": 1,
+    "damage": 9,
+    "damageType": "shadow",
+    "attackIntervalSeconds": 2.2,
+    "moveSpeed": 0
+  },
+  "behaviors": ["stationary"],
+  "lootTable": "skeleton-common",
+  "tags": ["trash", "caster"]
+}
