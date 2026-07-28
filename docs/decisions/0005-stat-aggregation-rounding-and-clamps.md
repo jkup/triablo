@@ -2,7 +2,7 @@
 
 - **Date:** 2026-07-28
 - **Decided by:** agent (task 0130)
-- **Status:** accepted
+- **Status:** accepted — ratified by owner 2026-07-28
 
 ## Context
 
