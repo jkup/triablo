@@ -1,0 +1,110 @@
+# Dungeon templates: schema, builder, and the hand-authored five-room dungeon
+
+- **Role:** systems
+- **Phase:** 2
+- **Priority:** 2
+- **Depends on:** 0150-grid-pathfinding.md
+
+## Goal
+
+The phase-2 bullet "a five-room dungeon from a hand-authored template" becomes
+real: a new `dungeons` content type (Zod schema + registry plumbing), a pure
+`buildDungeon()` in core that turns a validated template into a walkable
+`Grid` from 0150 plus entrance/exit/spawn data, and one hand-authored
+five-room dungeon that `npm run content:validate` proves is traversable
+entrance-to-exit. Phase 3's procedural generation will recombine rooms; this
+task defines what a room *is*, so its format choices are load-bearing.
+
+## Files in scope
+
+- `packages/content/src/schemas/dungeon.ts` (new schema)
+- `packages/content/src/schemas/index.ts` (add the `dungeons` entry to
+  `CONTENT_TYPES`, re-export — the file's own comment sanctions additive
+  content types)
+- `packages/content/src/registry.ts` (`emptyRawBundle`, the bundle types,
+  `ContentRegistry` field/accessor/counts, reference + reachability checks)
+- `packages/content/src/data.test.ts`, `packages/content/src/registry.test.ts`
+  (only where existing count/coverage assertions must learn the new type)
+- `packages/core/src/world/dungeon.ts` (new), `packages/core/src/world/dungeon.test.ts`
+- `packages/core/src/index.ts` (re-exports only)
+- `packages/content/data/dungeons/<id>.json` (one new file — the five-room
+  dungeon; id and name are yours, tone per `docs/DESIGN.md`, e.g. "bone-crypt")
+
+## Out of scope
+
+- Procedural generation, room rotation/recombination (phase 3).
+- Any ECS wiring: `buildDungeon` returns plain data; nothing spawns monsters
+  at runtime yet. The `spawns` list is inert data for the future game loop.
+- Editing any *existing* schema, and editing `docs/ARCHITECTURE.md` (it is
+  guard-protected; adding a content type is the sanctioned additive path).
+- A sim scenario that walks the dungeon — follow-up once a player entity
+  exists; note it in your Outcome.
+- Diagonal movement decisions. 0150's grid is 4-connected; inherit that.
+
+## Requirements
+
+Template shape (keep it this simple; record refinements in `docs/decisions/`):
+
+- A dungeon is a list of **rooms**. Each room: an `id`, an `offset` `{x, y}`
+  placing it in dungeon space, and `tiles` — an array of equal-length strings.
+  Legend: `#` wall, `.` floor, `E` entrance, `X` exit (both count as floor).
+  Exactly one `E` and one `X` in the whole dungeon (schema-enforced).
+- Rooms' bounding boxes must not overlap; any cell covered by no room is
+  unwalkable. Two rooms connect when floor cells are 4-adjacent across their
+  seam (a doorway is a floor cell on the edge of each). Encode both rules in
+  `buildDungeon` with errors that name the offending rooms.
+- Optional per-room `spawns`: `[{ monster: <id>, x, y }]` in room-local
+  coordinates; must land on floor tiles (builder/validation error otherwise)
+  and reference existing monsters (`checkReferences`).
+- Core cannot import content: define the template's plain-data shape locally
+  in `packages/core/src/world/dungeon.ts`, mirroring the schema exactly, as
+  `damage.ts`/`stats.ts` already do. Note any divergence in your Outcome.
+- Content-side validation runs the real builder: `content` may depend on
+  `core`, so extend the cross-reference pass in `registry.ts` to call
+  `buildDungeon` + `findPath` and report an unreachable `X`, an overlap, or a
+  bad spawn as a `ContentIssue` — caught at `content:validate` time, not at
+  tick 4000 of a run.
+
+## Acceptance criteria
+
+- [ ] `npm run verify` passes; `npm run content:validate` reports 1 dungeon
+      and unchanged counts for every other type.
+- [ ] Core unit test: a hand-built 3-room template builds; `findPath` from
+      entrance to exit is non-null and crosses all three rooms; specific
+      cells assert walkable/unwalkable as expected.
+- [ ] Core unit tests: overlapping rooms → error naming both rooms; spawn on
+      a wall → error; zero or two `E`/`X` → rejected (schema or builder,
+      state which in Outcome).
+- [ ] Content test: a template whose exit room is sealed off produces a
+      validation issue mentioning reachability — proving `content:validate`
+      would catch a broken hand-authored dungeon.
+- [ ] The authored dungeon has exactly 5 rooms, ≥ 3 monster spawns drawn from
+      existing monsters (undead fit the tone), and validates clean.
+- [ ] Zero changes outside the files in scope plus standard landing files
+      (task-file move, `docs/decisions/` entries).
+
+## Notes for the implementer
+
+- Read `packages/content/src/registry.ts` first: `emptyRawBundle` is written
+  longhand *on purpose* so a new type is a compile error until every site is
+  updated — follow the trail the compiler gives you. The disk loader
+  (`node.ts`) is generic; creating `data/dungeons/` is enough.
+- Filename must equal `id`; one dungeon per file; no manifest — ever.
+- The trap: encoding connectivity as an explicit door/edge list *in the
+  schema*. Then the schema can lie about the geometry and every future
+  procedural generator must maintain two representations. Derive connectivity
+  from tiles; the tiles are the single source of truth.
+- Record as numbered decisions: the tile legend, the no-overlap/adjacency
+  connectivity rule, and coordinate conventions (offsets, room-local spawns).
+  Phase-3 dungeon generation builds directly on all three.
+
+---
+
+## Outcome
+
+*Filled in by the agent that completes the task. Leave blank until then.*
+
+- **What changed:**
+- **Replays re-blessed:**
+- **Scope deviations:**
+- **Follow-ups worth a new task:**
