@@ -1,0 +1,11 @@
+{
+  "id": "worn-boots",
+  "name": "Worn Boots",
+  "slot": "feet",
+  "itemClass": "light-armor",
+  "levelRequirement": 1,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 2, "max": 5 }
+  ],
+  "tags": ["starter"]
+}
