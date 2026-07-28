@@ -8,12 +8,12 @@
 ## Goal
 
 The four attributes (`strength`, `dexterity`, `intelligence`, `vitality`)
-exist in `STAT_KEYS` and are already granted by live affixes (`vital`,
-`of-the-bear`), but they do nothing — an item rolling +8 vitality is dead
-weight. This is 0130's explicitly deferred follow-up: after this task,
-attributes contribute derived bonuses inside `computeStats`, so attribute
-affixes change real combat outcomes and phase-3 character progression has a
-foundation.
+exist in `STAT_KEYS`, and one is already granted by a live affix (`vital`
+rolls flat vitality on chest/amulet/ring), but attributes do nothing — an
+item rolling +8 vitality is dead weight. This is 0130's explicitly deferred
+follow-up: after this task, attributes contribute derived bonuses inside
+`computeStats`, so attribute affixes change real combat outcomes and phase-3
+character progression has a foundation.
 
 ## Files in scope
 
@@ -79,10 +79,12 @@ foundation.
   result depend on fold order of unrelated stats. The two-stage structure
   above (attributes → derived flats → the rest) exists to dodge both; keep it
   explicit in the code.
-- Rates: prefer values that keep current content sane — e.g. the `vital`
-  affix's tiers granting vitality should end up worth the same order of
-  magnitude as `max-life` affix tiers, not 10× them. Show the comparison in
-  your decision entry.
+- Rates: prefer values that keep current content sane. The concrete
+  comparison to run: `vital` tiers roll 2–4 / 5–9 flat vitality, while the
+  direct `max-life` affix `of-the-bear` rolls 10–24 / 25–48 flat max-life on
+  overlapping slots — pick a vitality→max-life rate that keeps those two
+  affixes the same order of magnitude, so neither strictly dominates. Show
+  this comparison in your decision entry.
 - Sequencing: nothing here depends on 0120's code, but landing while 0120 is
   in flight means both PRs touch core exports; if you can, rebase after 0120
   merges rather than racing it.

@@ -26,9 +26,11 @@ claim into a handoff doc.
 
 ## Out of scope
 
-- Adding a runtime `DAMAGE_TYPES` array to core just to make a runtime
-  assertion possible. Core's `DamageType` is type-only (`damage.ts:18`); use
-  compile-time assertions instead.
+- Exporting anything new from core for the test's sake. Core's `DamageType`
+  is type-only (`damage.ts:18`), and core's `MOD_MODES` const is
+  module-private (`stats.ts:76`, only the `StatModMode` type is exported) —
+  do not add runtime arrays or new exports to core just to enable runtime
+  assertions; use compile-time assertions instead (see criteria).
 - Unifying the duplication by making one package import the other's values.
   The duplication is a recorded design choice (see the comments at
   `stats.ts:13` and `damage.ts:14`); this task makes it *checked*, not gone.
@@ -37,16 +39,21 @@ claim into a handoff doc.
 ## Acceptance criteria
 
 - [ ] `npm run verify` passes.
-- [ ] The new test asserts **exact array equality** (order included) between
-      core's `STAT_KEYS` and content's `STAT_KEYS`, and between core's
-      `StatModMode` vocabulary and content's `MOD_MODES`. Verify by
-      temporarily removing one key on one side and observing the failure;
-      describe that check in your Outcome (do not commit the breakage).
+- [ ] `STAT_KEYS` (a runtime const exported by both packages) is asserted
+      with **exact array equality** (order included) between core and
+      content. Verify by temporarily removing one key on one side and
+      observing the failure; describe that check in your Outcome (do not
+      commit the breakage).
 - [ ] `DamageType` divergence is caught at the type level: the test file
       contains mutual-assignability assertions between core's `DamageType`
       and `(typeof DAMAGE_TYPES)[number]` from content, such that adding or
       removing a damage type on either side alone makes `npm run typecheck`
       fail. Verify the same way; describe in Outcome.
+- [ ] The mod-mode vocabulary is caught the same type-level way: mutual
+      assignability between core's exported `StatModMode` type and
+      `(typeof MOD_MODES)[number]` from content (content's `MOD_MODES` is
+      exported at runtime; core's counterpart is deliberately private, so
+      the compiler — not a runtime comparison — proves the unions match).
 - [ ] The `computeDamage` doc comment no longer claims the rng is "consumed
       for exactly one decision". It must state the truth: `Rng.chance`
       short-circuits at `p <= 0` (and `p >= 1`), so with `critChance: 0` the
@@ -61,15 +68,19 @@ claim into a handoff doc.
 
 - Core's `STAT_KEYS` lives at `packages/core/src/combat/stats.ts:17` (17
   keys); content's at `packages/content/src/schemas/common.ts:58`. The
-  `DamageType` mirror: `damage.ts:18` vs `common.ts:47`.
-- For the type-level check, the usual shape is a pair of `satisfies`/
+  `DamageType` mirror: `damage.ts:18` vs `common.ts:47`. The mode mirror:
+  core's `StatModMode` type at `stats.ts:51` vs content's `MOD_MODES` at
+  `common.ts:87`.
+- For the type-level checks, the usual shape is a pair of `satisfies`/
   assignment assertions in both directions (`CoreType` extends `ContentType`
   and vice versa). Keep them in the test file, with a comment explaining that
   their failure mode is a typecheck error, not a red test.
-- The trap in the naive approach: a set-equality runtime test would pass while
-  the *order* silently diverged — but core documents that `ComputedStats`
-  serializes in `STAT_KEYS` order, and serialization order feeds state
-  hashes. Assert exact order.
+- The trap in the naive approach: a set-equality runtime test on `STAT_KEYS`
+  would pass while the *order* silently diverged — but core documents that
+  `ComputedStats` serializes in `STAT_KEYS` order, and serialization order
+  feeds state hashes. Assert exact order there. (The order concern applies
+  only to `STAT_KEYS`; for the two union types, membership is the whole
+  contract.)
 
 ---
 
