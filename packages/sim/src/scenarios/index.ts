@@ -2,6 +2,7 @@ import type { Scenario } from '../scenario'
 
 import { contentSeam } from './content-seam'
 import { contentSmoke } from './content-smoke'
+import { duel } from './duel'
 import { harnessSelftest } from './harness-selftest'
 
 /**
@@ -15,6 +16,7 @@ import { harnessSelftest } from './harness-selftest'
 export const SCENARIOS: Readonly<Record<string, Scenario>> = {
   [contentSeam.name]: contentSeam,
   [contentSmoke.name]: contentSmoke,
+  [duel.name]: duel,
   [harnessSelftest.name]: harnessSelftest,
 }
 
