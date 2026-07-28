@@ -1,0 +1,17 @@
+{
+  "id": "zombie",
+  "name": "Zombie",
+  "family": "undead",
+  "level": 2,
+  "stats": {
+    "life": 44,
+    "armor": 3,
+    "damage": 6,
+    "damageType": "physical",
+    "attackIntervalSeconds": 1.9,
+    "moveSpeed": 1.4
+  },
+  "behaviors": ["melee-chase"],
+  "lootTable": "skeleton-common",
+  "tags": ["trash"]
+}

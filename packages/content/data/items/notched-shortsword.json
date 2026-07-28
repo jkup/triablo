@@ -1,0 +1,11 @@
+{
+  "id": "notched-shortsword",
+  "name": "Notched Shortsword",
+  "slot": "main-hand",
+  "itemClass": "sword",
+  "levelRequirement": 3,
+  "implicits": [
+    { "stat": "damage", "mode": "flat", "min": 4, "max": 8 }
+  ],
+  "tags": []
+}

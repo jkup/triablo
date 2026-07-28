@@ -1,0 +1,11 @@
+{
+  "id": "cracked-skullcap",
+  "name": "Cracked Skullcap",
+  "slot": "head",
+  "itemClass": "light-armor",
+  "levelRequirement": 2,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 3, "max": 7 }
+  ],
+  "tags": []
+}

@@ -1,0 +1,17 @@
+{
+  "id": "grave-hulk",
+  "name": "Grave Hulk",
+  "family": "undead",
+  "level": 5,
+  "stats": {
+    "life": 140,
+    "armor": 8,
+    "damage": 16,
+    "damageType": "physical",
+    "attackIntervalSeconds": 2.4,
+    "moveSpeed": 2.0
+  },
+  "behaviors": ["charge"],
+  "lootTable": "undead-elite",
+  "tags": ["elite"]
+}
