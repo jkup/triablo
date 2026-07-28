@@ -94,8 +94,11 @@ Convert `attackIntervalSeconds` with `secondsToTicks()` **once, at spawn**
    breakdown — the trace is how this task's behavior is verified.
    First-attack timing (swing immediately on entering range vs. wait one full
    interval) is your call; it is cadence future combat inherits, so log it.
-   Note: `computeDamage` consumes one rng roll per hit even at 0% crit, so
-   hit order is hash-visible — another reason entity-order iteration matters.
+   Note: at `critChance: 0` `computeDamage` consumes no rng at all
+   (`Rng.chance` short-circuits at `p <= 0` — see `packages/core/src/rng.ts`),
+   so do NOT add rng consumption expecting the stream to advance per hit. If
+   crits are ever enabled, consumption order would become hash-visible, and
+   the entity-id ordering rule above already covers that future.
 3. **death** — destroy every entity with `life <= 0`, with a trace line. The
    ECS keeps a destroyed entity's components readable for the rest of the
    tick (see `ecs.ts`), which future loot-drop systems rely on.
