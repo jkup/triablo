@@ -1,0 +1,26 @@
+{
+  "id": "of-embers",
+  "name": "of Embers",
+  "kind": "suffix",
+  "slots": ["chest", "ring", "amulet"],
+  "tiers": [
+    {
+      "tier": 3,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "resist-fire", "mode": "flat", "min": 3, "max": 6 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 15,
+      "weight": 48,
+      "mods": [{ "stat": "resist-fire", "mode": "flat", "min": 7, "max": 12 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 35,
+      "weight": 17,
+      "mods": [{ "stat": "resist-fire", "mode": "flat", "min": 13, "max": 18 }]
+    }
+  ]
+}
