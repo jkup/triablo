@@ -23,6 +23,9 @@ export type {
   DamageType,
 } from './combat/damage'
 
+export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
+export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
+
 export { defineComponent, defineEvent, World } from './ecs'
 export type {
   ComponentType,
