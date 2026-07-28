@@ -1,4 +1,7 @@
-node_modules/
+# No trailing slash: agent worktrees receive node_modules as a SYMLINK
+# (worktree.symlinkDirectories), and the `node_modules/` form only matches
+# real directories — `git add -A` in a worktree was staging the symlink.
+node_modules
 dist/
 coverage/
 *.log
