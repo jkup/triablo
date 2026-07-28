@@ -1,0 +1,11 @@
+{
+  "id": "rend",
+  "name": "Rend",
+  "class": "barbarian",
+  "description": "Tear into a single enemy with a brutal two-handed strike.",
+  "resourceCost": 15,
+  "cooldownSeconds": 0,
+  "castTimeSeconds": 0.45,
+  "damage": { "type": "physical", "weaponMultiplier": 1.4 },
+  "tags": ["core", "melee"]
+}
