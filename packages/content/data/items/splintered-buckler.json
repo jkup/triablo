@@ -1,0 +1,11 @@
+{
+  "id": "splintered-buckler",
+  "name": "Splintered Buckler",
+  "slot": "off-hand",
+  "itemClass": "shield",
+  "levelRequirement": 4,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 6, "max": 11 }
+  ],
+  "tags": []
+}

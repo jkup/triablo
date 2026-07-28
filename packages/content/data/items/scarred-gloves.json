@@ -1,0 +1,11 @@
+{
+  "id": "scarred-gloves",
+  "name": "Scarred Gloves",
+  "slot": "hands",
+  "itemClass": "light-armor",
+  "levelRequirement": 2,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 2, "max": 5 }
+  ],
+  "tags": []
+}

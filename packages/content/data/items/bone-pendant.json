@@ -1,0 +1,11 @@
+{
+  "id": "bone-pendant",
+  "name": "Bone Pendant",
+  "slot": "amulet",
+  "itemClass": "jewelry",
+  "levelRequirement": 6,
+  "implicits": [
+    { "stat": "max-life", "mode": "flat", "min": 8, "max": 16 }
+  ],
+  "tags": []
+}

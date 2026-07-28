@@ -1,0 +1,11 @@
+{
+  "id": "battered-plate",
+  "name": "Battered Plate",
+  "slot": "chest",
+  "itemClass": "heavy-armor",
+  "levelRequirement": 8,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 15, "max": 24 }
+  ],
+  "tags": []
+}

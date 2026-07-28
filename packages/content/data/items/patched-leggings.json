@@ -1,0 +1,11 @@
+{
+  "id": "patched-leggings",
+  "name": "Patched Leggings",
+  "slot": "legs",
+  "itemClass": "light-armor",
+  "levelRequirement": 5,
+  "implicits": [
+    { "stat": "armor", "mode": "flat", "min": 8, "max": 14 }
+  ],
+  "tags": []
+}
