@@ -1,0 +1,11 @@
+{
+  "id": "chain-lightning",
+  "name": "Chain Lightning",
+  "class": "sorcerer",
+  "description": "Arc a bolt of lightning that leaps between nearby enemies.",
+  "resourceCost": 0,
+  "cooldownSeconds": 12,
+  "castTimeSeconds": 0.6,
+  "damage": { "type": "lightning", "weaponMultiplier": 2.7 },
+  "tags": ["cooldown", "ranged", "area"]
+}

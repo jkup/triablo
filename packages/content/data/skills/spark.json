@@ -1,0 +1,11 @@
+{
+  "id": "spark",
+  "name": "Spark",
+  "class": "sorcerer",
+  "description": "Loose a quick bolt of crackling energy at your foe.",
+  "resourceCost": 0,
+  "cooldownSeconds": 0,
+  "castTimeSeconds": 0.3,
+  "damage": { "type": "lightning", "weaponMultiplier": 0.75 },
+  "tags": ["basic", "ranged"]
+}

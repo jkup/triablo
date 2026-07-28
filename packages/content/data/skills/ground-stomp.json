@@ -1,0 +1,11 @@
+{
+  "id": "ground-stomp",
+  "name": "Ground Stomp",
+  "class": "barbarian",
+  "description": "Slam the ground to send a shockwave through nearby enemies.",
+  "resourceCost": 20,
+  "cooldownSeconds": 0,
+  "castTimeSeconds": 0.55,
+  "damage": { "type": "physical", "weaponMultiplier": 1.5 },
+  "tags": ["core", "melee", "area"]
+}

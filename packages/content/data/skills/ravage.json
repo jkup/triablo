@@ -1,0 +1,11 @@
+{
+  "id": "ravage",
+  "name": "Ravage",
+  "class": "barbarian",
+  "description": "Unleash a relentless flurry of blows against one target.",
+  "resourceCost": 0,
+  "cooldownSeconds": 14,
+  "castTimeSeconds": 0.6,
+  "damage": { "type": "physical", "weaponMultiplier": 2.8 },
+  "tags": ["cooldown", "melee"]
+}
