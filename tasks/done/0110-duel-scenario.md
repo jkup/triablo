@@ -68,9 +68,30 @@ valuable part of this task: be specific.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `duel` scenario (`packages/sim/src/scenarios/duel.ts`,
+  registered `wip: true`): skeleton-warrior vs zombie, spawned from monster
+  content at (0,0) and (6,0), 900-tick deadline. Five invariants:
+  `combat-systems-registered` (fires today at tick 25 with a message naming
+  the three missing systems), `two-combatants-then-one` (encodes decision
+  0006 — zero survivors is a violation, not a draw), `life-within-bounds`
+  (0 < life ≤ maxLife for every queried combatant; an entity at zero must be
+  destroyed the same tick), `duel-terminates` (both alive at tick 900 is a
+  failure naming the reach/zero-damage causes), and
+  `winner-dealt-lethal-damage` (survivor's cumulative `damageDealt` ≥
+  opponent's life pool, recorded at spawn in the scenario-owned `DuelRecord`
+  component — the vacuous-pass guard). `sim -- run duel --seed 1 --verbose`
+  fails as intended; `npm run verify` is green (smoke prints the skip line).
+  Handoff written as `tasks/open/0120-make-duel-pass.md`: exact component
+  fields, three systems in registration order, the monster-stats →
+  `computeDamage()`/`computeStats()` mapping (decisions 0004/0005), worked
+  fight numbers (~tick 400–560 resolution), and runnable acceptance criteria
+  including wip removal and recording `duel.seed1.json`. 0120 absorbs the
+  "wire into ECS" follow-ups from 0100 and 0130 as directed.
+- **Replays re-blessed:** none — a replay of a failing wip scenario is
+  meaningless; 0120 records the first duel replay.
+- **Scope deviations:** none. Files in scope plus `docs/decisions/0006`
+  (the simultaneous-death ruling the task required) and this file's move.
+  `packages/core` untouched.
+- **Follow-ups worth a new task:** none beyond 0120 itself. Noted inside
+  0120: non-melee monster behaviors (ranged-kite/charge/summoner/stationary)
+  need their own task once the duel loop exists.
