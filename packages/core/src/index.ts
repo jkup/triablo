@@ -13,6 +13,16 @@ export type { Ticks } from './time'
 
 export { hashString, hashValue, stableStringify } from './hash'
 
+export { ARMOR_K, computeDamage, RESIST_CAP } from './combat/damage'
+export type {
+  DamageAttacker,
+  DamageDefender,
+  DamageHit,
+  DamageMods,
+  DamageResult,
+  DamageType,
+} from './combat/damage'
+
 export { defineComponent, defineEvent, World } from './ecs'
 export type {
   ComponentType,

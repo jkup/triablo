@@ -72,9 +72,21 @@ runs that do a million of them.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `computeDamage()` in `packages/core/src/combat/damage.ts`
+  with 19 tests (100% coverage of the file). Pipeline: (weapon + flat) →
+  summed-increased ×1 multiplier → each more separately → skill multiplier →
+  crit roll (pre-mitigation) → asymptotic armor → capped typed resistance →
+  round with min-1 on nonzero hits. Non-finite inputs throw with the field
+  named. All acceptance criteria verified: 5000-combination property sweep
+  incl. zeroes/1e12 values, crit rate 0.3±0.01 over 100k rolls, armor 1e15
+  still lets ≥1 through, purity test, no imports outside core.
+- **Replays re-blessed:** none — the function has no callers, so no scenario
+  hash could change.
+- **Scope deviations:** none. Three files in scope touched, plus
+  `docs/decisions/0004` (required by CLAUDE.md for judgment calls) and this
+  task file's move.
+- **Follow-ups worth a new task:** wire computeDamage into an ECS combat
+  system (natural home: task 0120's duel implementation); negative/curse
+  resistance once curses exist (0004 notes the relaxation point); damage-type
+  union is duplicated core↔content by design — a schema test asserting they
+  stay in sync would be cheap insurance.
