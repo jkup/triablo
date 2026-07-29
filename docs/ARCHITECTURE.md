@@ -124,11 +124,32 @@ cannot satisfy by writing a test that agrees with its own bug. Examples: no
 entity ever has NaN health; every generated dungeon has a path from entrance to
 boss; no item exceeds the power budget for its level.
 
+## Skill effects
+
+Decided in [decision 0008](decisions/0008-skill-effects-bricks-plus-escape-hatch.md),
+by the owner. The model:
+
+- The engine knows a small **effect vocabulary** — composable primitives on
+  the order of: projectile, area-burst, deal-damage, apply-status. A skill is
+  a content-JSON recipe over these, validated by schema like all content.
+- A skill that genuinely cannot be expressed in the vocabulary may reference
+  one entry in a small registry of **named coded behaviors** (engine code,
+  individually reviewed and decision-logged). This is a pressure valve, not a
+  parallel path: if the registry is growing, grow the vocabulary instead.
+- Damage-dealing effects route through `computeDamage`; stat-touching effects
+  through `computeStats`. The vocabulary composes those primitives; it does
+  not reimplement them.
+
+Adding a primitive to the vocabulary is a core change with a decision entry.
+Authoring a skill from existing primitives is content work, and parallelizes
+like all content.
+
 ## Open architectural questions
 
 Things deliberately *not* decided yet. Do not decide them inside an unrelated
 task — raise them.
 
 - Spatial partitioning for collision/targeting (grid vs. quadtree).
-- How skill effects compose (data-driven effect graph vs. scripted behaviors).
+- The initial effect-vocabulary primitive set (which bricks exist at v1 —
+  a systems design task, bounded by what the vertical slice needs).
 - Save-file migration strategy once the schema starts changing.
