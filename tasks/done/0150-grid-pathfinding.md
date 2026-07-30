@@ -49,9 +49,21 @@ dungeon has a path from entrance to boss".
 
 ## Outcome
 
-*Filled in by the agent that completes the task.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `Grid` class in `packages/core/src/world/grid.ts`:
+  4-connected walkability with `findPath` (BFS shortest path, both endpoints
+  inclusive), `reachable`, and `floodFill`; `toJSON`/`fromJSON` for plain-JSON
+  save round trips; `fromAscii` helper for readable test/debug maps. Neighbor
+  order is fixed N/E/S/W and documented, so tie-breaks and floodFill ordering
+  are identical everywhere — asserted with exact tile sequences in
+  `grid.test.ts` (22 tests: corridor maze known-shortest 17-tile path,
+  walled-off target null/false/excluded, repeated-run determinism, lenient
+  out-of-bounds/blocked endpoints, strict constructors). Re-exported from
+  `packages/core/src/index.ts`. Decision 0013 records the connectivity,
+  ordering, and lenient-query rulings.
+- **Replays re-blessed:** None. Pure addition to core; no system or scenario
+  touches the grid yet, and `replay:check` passed untouched.
+- **Scope deviations:** None. Files touched: the three in scope plus
+  `docs/decisions/0013-*.md` as the process requires.
+- **Follow-ups worth a new task:** Dungeon generation on top of this grid
+  (phase 3 entrance-to-boss invariant); diagonal movement and weighted costs
+  (A*) if design wants them — both deliberately excluded here.
