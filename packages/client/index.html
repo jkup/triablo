@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Triablo</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0c0b0e;
+        color: #b8b4ac;
+        font: 12px/1.5 ui-monospace, monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        padding: 16px;
+      }
+      canvas {
+        border: 1px solid #2c2a30;
+        image-rendering: pixelated;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status">loading content bundle…</div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <script type="module" src="/main.ts"></script>
+  </body>
+</html>

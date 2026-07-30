@@ -64,9 +64,33 @@ synchronous touchpoint with the owner rather than assuming autonomy.
 
 ## Outcome
 
-*Filled in by the agent that completes the task.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/client` exists: a pure snapshot→scene→pixels
+  pipeline (`scene.ts`, `raster.ts`, `png.ts`), accumulator-loop bookkeeping
+  (`accumulator.ts`), a demo world (`demo.ts`), and a Vite dev page
+  (`index.html` + `main.ts`) that runs the accumulator loop over every monster
+  in the baked bundle. `scripts/shot.ts` + `npm run shot` render any sim
+  scenario headlessly to a PNG with a one-line summary. `npm run shot --
+  content-smoke --seed 1 --tick 100` produced (twice, byte-identical, verified
+  with `cmp`):
+  `shot content-smoke seed=1 tick=100 entities=5 sprites=5 hash=141bb4b7b3fafdea 800x600 -> shots/content-smoke-seed1-tick100.png`
+  — all 5 monsters visible as labeled circles with life bars, and the hash
+  matches `sim -- run content-smoke --seed 1 --ticks 100` exactly.
+  No Playwright/node-canvas: the rasterizer and PNG encoder are pure TS
+  (decision 0011); the renderer duck-types snapshots (decision 0012). One new
+  dependency: `vite` (dev). `package.json` gained `dev` and `shot` scripts;
+  `.gitignore` gained `shots/`.
+- **Replays re-blessed:** none.
+- **Scope deviations:** the task says the browser page "runs a scenario from
+  `@triablo/sim`" — ESLint forbids client→sim imports (the task also says
+  those layer rules are binding), so the page runs a client-owned demo world
+  (`demo.ts`: same monsters content-smoke spawns, from core + content only,
+  plus deterministic patrol movement so interpolation is visible). The shot
+  harness lives in `scripts/`, which may import sim, and runs real scenarios.
+  `.gitignore` (not listed in scope, not guard-protected) was touched for the
+  `shots/` output dir. The guard-failing `package.json` touch is the planned
+  gate-change; note `scripts/` and `package-lock.json` are also guard-protected,
+  so `scripts/shot.ts` rides the same label.
+- **Follow-ups worth a new task:** a browser-truth screenshot path (Playwright)
+  if the client ever renders things the rasterizer cannot; wiring `npm run
+  shot` smoke coverage into the gate; replacing the duck-typed position
+  contract with a core-defined one when task 0150 lands positions.
