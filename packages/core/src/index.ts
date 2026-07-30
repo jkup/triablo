@@ -31,6 +31,9 @@ export { approachSystem, attackSystem, deathSystem, MELEE_RANGE_TILES } from './
 export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
 
+export { Grid } from './world/grid'
+export type { GridJSON, Tile } from './world/grid'
+
 export { defineComponent, defineEvent, World } from './ecs'
 export type {
   ComponentType,
