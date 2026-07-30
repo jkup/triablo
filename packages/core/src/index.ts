@@ -31,6 +31,18 @@ export { approachSystem, attackSystem, deathSystem, MELEE_RANGE_TILES } from './
 export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
 
+export { RARITY_AFFIX_RULES, rollItem } from './loot/roll'
+export type {
+  AffixKind,
+  LootAffix,
+  LootAffixTier,
+  LootItemBase,
+  LootRarity,
+  RolledAffix,
+  RolledItem,
+  StatModRange,
+} from './loot/roll'
+
 export { Grid } from './world/grid'
 export type { GridJSON, Tile } from './world/grid'
 
