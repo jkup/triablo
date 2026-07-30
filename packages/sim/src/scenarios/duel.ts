@@ -1,5 +1,13 @@
 import type { Monster } from '@triablo/content'
-import { defineComponent } from '@triablo/core'
+import {
+  approachSystem,
+  attackSystem,
+  Combatant,
+  deathSystem,
+  defineComponent,
+  makeCombatant,
+  Position,
+} from '@triablo/core'
 import type { World } from '@triablo/core'
 
 import type { Invariant } from '../invariants'
@@ -8,19 +16,12 @@ import type { Scenario } from '../scenario'
 /**
  * The duel: two monsters fight until exactly one of them is dead.
  *
- * This scenario is an executable SPECIFICATION, registered `wip: true` because
- * the systems it describes do not exist yet. Task 0120 implements them in
- * `packages/core`, wires them into `setup` below, and removes the wip flag.
- * The invariants are the contract: they may not be edited to make the run
- * pass. If one of them looks wrong, report it in the task file and stop.
- *
- * What task 0120 may change in this file:
- *   - the placeholder `Combatant` and `Position` definitions below (replace
- *     them with the core-exported equivalents),
- *   - the body of `setup` (spawn with the real components, register the real
- *     systems).
- * Everything else — the invariants, `DuelRecord`, and the report — reads only
- * the documented `Combatant` fields, which must keep their names and meanings.
+ * This scenario began as an executable SPECIFICATION (task 0110, registered
+ * wip); task 0120 implemented the combat systems in `packages/core` and wired
+ * them in below. The invariants are still the contract: they may not be
+ * edited to make the run pass. They read only the documented `Combatant`
+ * fields (monsterId, life, maxLife, damageDealt), which must keep their names
+ * and meanings.
  */
 
 /**
@@ -45,32 +46,9 @@ const SPAWNS = [
   { x: 6, y: 0 },
 ] as const
 
-/**
- * PLACEHOLDER — task 0120 replaces this with the core-exported combat
- * component. The four fields below are the observables the invariants and the
- * report read; the core component must carry them under these names, with
- * these meanings, whatever else it adds (attack cadence, armor, level, ...).
- */
-interface Combatant {
-  monsterId: string
-  /**
-   * Current life. Never negative, never above `maxLife`, and an entity whose
-   * life reaches zero must be destroyed in that same tick — so any entity a
-   * query returns has life strictly greater than zero.
-   */
-  life: number
-  maxLife: number
-  /** Cumulative damage this entity has dealt, as applied (post-mitigation). */
-  damageDealt: number
-}
-const Combatant = defineComponent<Combatant>('Combatant')
-
-/** PLACEHOLDER — task 0120 replaces this with the core Position component. */
-interface Position {
-  x: number
-  y: number
-}
-const Position = defineComponent<Position>('Position')
+// `Combatant` and `Position` are the real core components now — imported
+// above. The invariants below read only Combatant's four documented
+// observables: monsterId, life, maxLife, damageDealt.
 
 /**
  * Duel bookkeeping owned by this scenario forever — core systems never touch
@@ -90,12 +68,10 @@ function spawnCombatant(
   opponent: Monster,
 ): void {
   const entity = world.spawn()
-  world.add(entity, Combatant, {
-    monsterId: monster.id,
-    life: monster.stats.life,
-    maxLife: monster.stats.life,
-    damageDealt: 0,
-  })
+  // makeCombatant routes the authored stats through computeStats with an
+  // empty mod list (the item/buff seam, decision 0005) and converts the
+  // attack interval to integer ticks once, here at spawn.
+  world.add(entity, Combatant, makeCombatant(monster.id, monster.level, monster.stats))
   world.add(entity, Position, { x: at.x, y: at.y })
   world.add(entity, DuelRecord, { opponentMaxLife: opponent.stats.life })
   world.trace(
@@ -217,7 +193,6 @@ function duelReport(world: World): Record<string, string | number> {
 export const duel: Scenario = {
   name: 'duel',
   description: `Two monsters (${ROSTER.join(' vs ')}) fight until exactly one is dead.`,
-  wip: true,
   defaultTicks: DUEL_DEADLINE_TICKS,
 
   setup(world, registry) {
@@ -226,15 +201,13 @@ export const duel: Scenario = {
     spawnCombatant(world, left, SPAWNS[0], right)
     spawnCombatant(world, right, SPAWNS[1], left)
 
-    // Task 0120 registers the combat systems here. Expected registration
-    // order (registration order is execution order — see ecs.ts):
-    //   1. approach: each combatant moves toward its opponent at its
-    //      moveSpeed (tiles/second) until within melee range
-    //   2. attack:   in range, attack on the monster's authored interval,
-    //      damage via computeDamage; ascending entity order, and an entity
-    //      whose life reached zero this tick makes no attack (decision 0006)
-    //   3. death:    entities at zero life are destroyed, this same tick
-    // Nothing is registered today; the invariants above say so, precisely.
+    // Registration order is execution order (see ecs.ts): movement settles
+    // positions, attacks resolve against them in ascending entity order
+    // (decision 0006 — the dead deal no damage), and the death system reaps
+    // anything at zero life in the same tick.
+    world.addSystem(approachSystem)
+    world.addSystem(attackSystem)
+    world.addSystem(deathSystem)
   },
 
   invariants: DUEL_INVARIANTS,

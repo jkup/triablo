@@ -23,6 +23,11 @@ export type {
   DamageType,
 } from './combat/damage'
 
+export { Combatant, makeCombatant, Position } from './combat/components'
+export type { CombatantBaseStats } from './combat/components'
+
+export { approachSystem, attackSystem, deathSystem, MELEE_RANGE_TILES } from './combat/systems'
+
 export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
 
