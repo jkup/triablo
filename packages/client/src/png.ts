@@ -7,7 +7,7 @@
  * platform variance — which is what lets `npm run shot` promise
  * "same seed, same bytes". Files are larger than compressed PNGs; screenshots
  * are throwaway diagnostics, so nobody pays that cost for long.
- * See docs/decisions/0010.
+ * See docs/decisions/0011.
  */
 
 const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]

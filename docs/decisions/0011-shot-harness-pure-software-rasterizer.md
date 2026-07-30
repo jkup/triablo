@@ -1,4 +1,4 @@
-# 0010. `npm run shot` renders with a pure software rasterizer, not a browser
+# 0011. `npm run shot` renders with a pure software rasterizer, not a browser
 
 - **Date:** 2026-07-30
 - **Decided by:** agent (task 0160)

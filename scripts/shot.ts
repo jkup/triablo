@@ -15,7 +15,7 @@ import { getScenario, loadRegistryOrThrow, SCENARIO_NAMES } from '@triablo/sim'
  * the same scenario, seed, and tick count, so a screenshot can be
  * cross-checked against the headless truth it claims to depict.
  *
- * Same seed + tick produces byte-identical PNGs (docs/decisions/0010): the
+ * Same seed + tick produces byte-identical PNGs (docs/decisions/0011): the
  * simulation is deterministic, the rasterizer is pure integer math, and the
  * encoder uses stored deflate blocks.
  */

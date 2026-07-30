@@ -13,7 +13,7 @@ import type { WorldSnapshot } from '@triablo/core'
  * any with numeric `life`/`maxLife` is a health readout, and a string
  * `monsterId` seeds the sprite's color. This keeps the client decoupled from
  * simulation component definitions (which live above it in `sim`, a package
- * the client must not import). See docs/decisions/0011.
+ * the client must not import). See docs/decisions/0012.
  */
 
 /** Logical viewport, in pixels. The default frame every backend renders. */

@@ -1,4 +1,4 @@
-# 0011. The renderer reads world snapshots structurally, not by component type
+# 0012. The renderer reads world snapshots structurally, not by component type
 
 - **Date:** 2026-07-30
 - **Decided by:** agent (task 0160)

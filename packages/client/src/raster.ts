@@ -6,7 +6,7 @@ import type { Scene, SceneSprite } from './scene'
  * This is what makes `npm run shot` deterministic and dependency-free — no
  * headless browser, no native canvas binding, no font stack. Every pixel is
  * computed here with integer-friendly math, so the same scene produces the
- * same bytes on every machine. See docs/decisions/0010.
+ * same bytes on every machine. See docs/decisions/0011.
  *
  * The browser does NOT use this (it draws the same scene via canvas 2D); the
  * rasterizer exists for the agent-facing screenshot pipeline.

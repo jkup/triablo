@@ -76,7 +76,7 @@ synchronous touchpoint with the owner rather than assuming autonomy.
   — all 5 monsters visible as labeled circles with life bars, and the hash
   matches `sim -- run content-smoke --seed 1 --ticks 100` exactly.
   No Playwright/node-canvas: the rasterizer and PNG encoder are pure TS
-  (decision 0010); the renderer duck-types snapshots (decision 0011). One new
+  (decision 0011); the renderer duck-types snapshots (decision 0012). One new
   dependency: `vite` (dev). `package.json` gained `dev` and `shot` scripts;
   `.gitignore` gained `shots/`.
 - **Replays re-blessed:** none.
