@@ -6,11 +6,10 @@ an agent's instinct disagree, this document wins. Where this document is
 silent, the agent records its judgment call in `docs/decisions/` so the owner
 can review and veto it.
 
-> **Owner's note (edit me!):** The pillars below are a starter set written to
-> be concrete enough to steer agents on day one. Rewrite them until they
-> describe the game *you* want. This file is guard-protected: changing it goes
-> through a `gate-change`-labeled PR, which is the point — direction changes
-> should be deliberate and visible.
+> **Owner's note:** Ratified as written on 2026-07-30 — these pillars, tone,
+> classes, and non-goals are the game, not a placeholder. This file is
+> guard-protected: changing it goes through a `gate-change`-labeled PR, which
+> is the point — direction changes should be deliberate and visible.
 
 ## What this game is
 
