@@ -132,6 +132,8 @@ by the owner. The model:
 - The engine knows a small **effect vocabulary** — composable primitives on
   the order of: projectile, area-burst, deal-damage, apply-status. A skill is
   a content-JSON recipe over these, validated by schema like all content.
+  The v1 primitive set is fixed in
+  [decision 0009](decisions/0009-effect-vocabulary-v1-primitive-set.md).
 - A skill that genuinely cannot be expressed in the vocabulary may reference
   one entry in a small registry of **named coded behaviors** (engine code,
   individually reviewed and decision-logged). This is a pressure valve, not a
@@ -150,6 +152,4 @@ Things deliberately *not* decided yet. Do not decide them inside an unrelated
 task — raise them.
 
 - Spatial partitioning for collision/targeting (grid vs. quadtree).
-- The initial effect-vocabulary primitive set (which bricks exist at v1 —
-  a systems design task, bounded by what the vertical slice needs).
 - Save-file migration strategy once the schema starts changing.
