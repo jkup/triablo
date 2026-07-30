@@ -11,6 +11,10 @@ coverage/
 # agents work in parallel.
 packages/content/generated/
 
+# Screenshot output from `npm run shot`. PNGs are throwaway diagnostics an
+# agent Reads and discards; only their one-line text summaries get committed.
+shots/
+
 # Local, per-machine Claude Code overrides.
 .claude/settings.local.json
 
