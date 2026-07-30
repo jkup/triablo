@@ -101,8 +101,11 @@ export const RESIST_CAP = 75
  * Compute the damage of one hit.
  *
  * Pure and deterministic: the only source of variation is `rng`, which is
- * consumed for exactly one decision (the crit roll). Two calls with identical
- * inputs and equivalently-seeded generators return identical results.
+ * consulted only for the crit roll. Note that `Rng.chance` short-circuits at
+ * `p <= 0` and `p >= 1` (see rng.ts), so with `critChance: 0` (or >= 1) the
+ * call consumes **no** rng draws — callers must not rely on the stream
+ * advancing per hit. Two calls with identical inputs and equivalently-seeded
+ * generators return identical results.
  *
  * Never returns a negative, NaN, or infinite amount. Non-finite *inputs* throw
  * immediately with the field named — a NaN entering a damage formula is

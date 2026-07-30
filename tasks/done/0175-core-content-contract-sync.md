@@ -86,9 +86,37 @@ claim into a handoff doc.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `packages/content/src/core-sync.test.ts` making the
+  core↔content vocabulary mirror mechanical: (1) a runtime test asserting
+  exact, order-included array equality between core's and content's
+  `STAT_KEYS` (via `toEqual` on the spread arrays — order-sensitive by
+  construction, because `ComputedStats` serializes in `STAT_KEYS` order and
+  that order feeds state hashes); (2) compile-time mutual-assignability
+  assertions for `DamageType` vs `(typeof DAMAGE_TYPES)[number]` and
+  `StatModMode` vs `(typeof MOD_MODES)[number]`, shaped as a
+  `Covers<A, B> = [A] extends [B] ? true : false` helper with a
+  `const witness: Covers<...> = true` assignment in each direction, so a
+  divergence fails `npm run typecheck`, not the test run. Content's
+  `DAMAGE_TYPES`/`MOD_MODES` are imported with `import type` (they are only
+  used in `typeof` position; lint's `consistent-type-imports` requires it).
+  Also fixed the `computeDamage` doc comment in
+  `packages/core/src/combat/damage.ts`: it no longer claims the rng is
+  "consumed for exactly one decision" — it now states that `Rng.chance`
+  short-circuits at `p <= 0` / `p >= 1`, so `critChance: 0` consumes no rng
+  draws and callers must not rely on the stream advancing per hit. Doc
+  comment only; zero code changes in core.
+- **Forced-divergence checks (per acceptance criteria, none committed):**
+  - Removed `'resist-shadow'` from core's `STAT_KEYS` → the runtime test
+    failed (`expected [ …(14) ] to deeply equal [ …(15) ]`). Also swapped
+    the first two keys on the core side with membership unchanged → the test
+    still failed, proving order (not just set) equality is asserted.
+  - Added `'arcane'` to core's `DamageType` union → `npm run typecheck`
+    failed with TS2322 on the core→content direction (test file line 49).
+  - Removed `'more'` from core's `StatModMode` → typecheck failed with
+    TS2322 on the content→core direction (test file line 57).
+- **Replays re-blessed:** None. No behavior change; `replay:check` passed
+  against the existing golden replays untouched.
+- **Scope deviations:** None. Files touched: the new test file and the
+  `damage.ts` doc comment, plus this task file's move. No `docs/decisions/`
+  entry — nothing was settled beyond what the task specified.
+- **Follow-ups worth a new task:** None.
