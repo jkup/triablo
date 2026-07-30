@@ -170,10 +170,38 @@ application, death timing) or a rostered monster's stats changed.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** (expected: new `duel.seed1.json` — recorded here so
-  the guard sees the replay change explained)
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/core` gained its first combat:
+  `combat/components.ts` (`Position`; `Combatant` with the four documented
+  observables plus damage/damageType/armor/level/moveSpeed and the attack
+  timer; `makeCombatant()` builds the component through `computeStats()` with
+  an empty mod list — the item/buff seam from decision 0005 — and converts
+  `attackIntervalSeconds` to ticks once at spawn) and `combat/systems.ts`
+  (`approachSystem`, `attackSystem`, `deathSystem`, all iterating in ascending
+  entity-id order). Judgment calls logged as decision 0010: melee range 1 tile
+  Euclidean, approach steps clamped to land exactly on the range boundary
+  (no oscillation), attack timer advances only while in range with the first
+  swing on the first in-range tick, nearest-living-opponent targeting with
+  ties to the lower entity id. `duel.ts` now spawns via `makeCombatant`,
+  registers the three systems in order, and lost its `wip` flag; invariants,
+  `DuelRecord`, and the report are unchanged. Seed 1: melee at tick 38,
+  warrior hits for 4 every 42 ticks, zombie for 5 every 57; zombie wins at
+  tick 380 with exactly 32 damage dealt (final hit clamped 5 → 2), 8/44 life
+  left. 16 new unit tests cover the acceptance list (exact computeDamage
+  application, zero clamp + no-overkill credit, decision 0006 dead-deal-no-
+  damage, same-tick death, movement rate/clamp, cadence, tie-break).
+- **Replays re-blessed:** new `packages/sim/replays/duel.seed1.json`
+  (hash `9c4f4a45f759e3c9`, 900 ticks) — the first golden replay of the combat
+  loop; a mismatch means combat semantics (movement step, attack cadence,
+  damage application, death timing) or a rostered monster's stats changed.
+  No existing replay changed.
+- **Scope deviations:** none in behavior. One comment-only edit beyond the
+  three named regions of `duel.ts`: the file-header doc comment still
+  described the placeholder arrangement ("systems do not exist yet") and was
+  updated to match reality. The fight resolves at tick 380, slightly before
+  the task's rough 400–560 window — consistent with the task's own worked
+  numbers (7 zombie hits ≈ 342 ticks of swinging from ~tick 38) under the
+  logged immediate-first-swing cadence.
+- **Follow-ups worth a new task:** non-melee behaviors (ranged-kite, charge,
+  summoner, stationary) as already noted by 0110; when kiting arrives,
+  revisit whether the frozen-out-of-range attack timer (decision 0010) is
+  abusable by players.

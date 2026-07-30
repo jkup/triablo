@@ -1,0 +1,7 @@
+{
+  "scenario": "duel",
+  "seed": 1,
+  "ticks": 900,
+  "hash": "9c4f4a45f759e3c9",
+  "note": "Guards the first real combat loop: skeleton-warrior vs zombie to the death. A mismatch means combat semantics changed — the approach movement step or melee-range clamp, attack cadence (immediate first swing, then the authored interval), damage application via computeDamage, or death timing (decision 0006) — or a rostered monster's authored stats changed. See docs/decisions/0010."
+}
