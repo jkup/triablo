@@ -280,9 +280,41 @@ delay and travel):
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/core/src/skills/` is new: `recipe.ts` (core
+  mirror of the decision-0009/0018 effect vocabulary plus `makeSkillRecipe`,
+  the one-time seconds→ticks load seam), `components.ts` (`Faction`,
+  `CastPlan` — the cast surface, `CastState`, `Projectile`), and `systems.ts`
+  (`skillCastSystem` → `skillResolveSystem` → `projectileSystem`), all
+  re-exported from `index.ts`. All **six** delivery bricks are implemented,
+  including standalone `area-burst` (resolved at the aim point in the
+  executor's dispatch, sharing onImpact's resolution — implemented, not
+  deferred, and unit-tested). Every hit routes through `computeDamage` with
+  the exact stat mapping above; at critChance 0 the executor consumes zero
+  rng draws. `skill-strike.ts` lost its placeholder `PlannedCastList` and
+  `wip` flag and now issues `CAST_PLAN` through the real cast surface,
+  registering the three executor systems plus `deathSystem` (approach/attack
+  deliberately absent). Seed-1 report matches the task table exactly:
+  melee-primary 36 (tick-160 ravage recast blocked by cooldown at ready-tick
+  520 and dropped), sweep-flank 18, sweep-rear 12, projectile-front 6,
+  projectile-shadow 0, fireball-struck 13, fireball-splash 5,
+  fireball-shadow 0, chainDummiesDamaged 4 (21 each; chain-d untouched).
+  **Resource costs: deferred entirely** — no resource pool is modeled; the
+  cooldown is the only gate (decisions 0007/0020). Judgment calls logged as
+  decisions **0020** (cast time is a wind-up; cooldown commits at cast
+  start; blocked casts are dropped, not queued), **0021** (Faction-based
+  hostility: effects strike other factions only), and **0022** (aimed
+  melee-hit fizzles out of reach; chain leaps nearest-unstruck with
+  lower-id ties; projectile corridor 0.5 tiles).
+- **Replays re-blessed:** new `packages/sim/replays/skill-strike.seed1.json`
+  — first golden replay of the skill-effect executor, recorded by this task
+  as required by 0250/0260; no existing replay changed.
+- **Scope deviations:** none. Files touched: `packages/core/src/skills/*`,
+  `packages/core/src/index.ts` (re-exports), the permitted `skill-strike.ts`
+  edits, the new replay, three decision entries, and this task file. Merged
+  `main` (PR #31, client-only) mid-task; no interaction.
+- **Follow-ups worth a new task:** resource pools as a real gate for
+  `core`-role skills (rend/ground-stomp/fireball currently cast free);
+  routing the duel's approach/attack targeting through `Faction` so melee
+  combat and skills share one hostility model; monster casting;
+  `apply-status` and the escape hatch (per 0008/0009); cast interruption /
+  overlap blocking if design wants it (0020 explicitly leaves it out).

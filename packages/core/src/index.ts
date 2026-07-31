@@ -31,6 +31,30 @@ export { approachSystem, attackSystem, deathSystem, MELEE_RANGE_TILES } from './
 export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
 
+export { makeSkillRecipe } from './skills/recipe'
+export type {
+  AreaBurstSpec,
+  ChainSpec,
+  DealDamageSpec,
+  MeleeHitSpec,
+  MeleeSweepSpec,
+  ProjectileSpec,
+  SelfBurstSpec,
+  SkillEffectSpec,
+  SkillRecipe,
+  SkillRecipeSource,
+} from './skills/recipe'
+
+export { CastPlan, CastState, Faction, Projectile } from './skills/components'
+export type { QueuedCast, WindingCast } from './skills/components'
+
+export {
+  PROJECTILE_HIT_RADIUS_TILES,
+  projectileSystem,
+  skillCastSystem,
+  skillResolveSystem,
+} from './skills/systems'
+
 export { RARITY_AFFIX_RULES, rollItem } from './loot/roll'
 export type {
   AffixKind,
