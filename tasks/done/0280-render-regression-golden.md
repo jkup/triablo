@@ -81,9 +81,39 @@ touched, no new scripts, no PNGs on disk.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Added `packages/client/src/render-regression.test.ts`
+  (the only source file touched). It hand-rolls a 4-entity fixture world
+  using core's real `Position` and `Combatant` components — values are
+  literals, not `makeCombatant`, so core stat-formula changes cannot reach
+  the golden — and pins three layers at the default 800x600 viewport:
+  1. the exact `Scene` via `toEqual` (camera math per decision 0019: bbox of
+     (10,6)/(14,8)/(12,10) centers at world (12,8) → sprites at (352,252),
+     (448,300), (400,348); the position-less entity 4 on the fallback grid
+     at (36,36); pinned colors, radii 10/20, labels, lifeFrac 1/0.5/null/0.25);
+  2. `hashString` of the rasterized RGBA buffer: `8939254aa3be8f94` (plus a
+     >1000-foreground-pixel guard against pinning a degenerate frame);
+  3. `hashString` of the encoded PNG bytes: `b1086bfe122db4c0`.
+  Bytes are hashed via `String.fromCharCode` chunks feeding core's
+  `hashString`; everything stays in memory (no `fs`). The blessing procedure
+  is a comment block at the pinned constants, mirroring the replay-re-bless
+  contract.
+  Perturbation check (reverted before commit, per the 0175 pattern):
+  `PIXELS_PER_UNIT` 24→25 failed all three pins (scene diff on every sprite
+  coordinate; raster hash `e0c9549aa1877ca4`; PNG hash `135a9e79673ba4fd`);
+  `LIFE_BAR_FILL` [96,196,88]→[96,196,89] left the scene pin green and
+  failed only the raster (`toBe` mismatch) and PNG pins — the failure
+  localizes to the layer that regressed, as designed. `git diff --stat`
+  confirmed both perturbations reverted.
+  Pixels were inspected (fixture rendered to a scratchpad PNG and read):
+  green full-life circle, red half-life circle, bar-less magenta circle
+  around the viewport center, larger purple quarter-life circle top-left on
+  the debug grid, all id-labeled — a real, non-degenerate frame.
+  `npm run test -- render-regression`: 1 file, 3 tests, green.
+  `npm run verify`: green (23 test files, 313 tests; smoke and all 3
+  replays ok).
+- **Replays re-blessed:** none.
+- **Scope deviations:** none. No decision entry: the test pins existing
+  behavior already recorded in decisions 0011/0012/0019; the blessing
+  contract lives as the mandated comment at the constants.
+- **Follow-ups worth a new task:** none beyond the already-planned 0300
+  (this golden is the harness that proves 0300 behavior-preserving).
