@@ -110,9 +110,56 @@ implementer's job checkable — include them.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `skill-strike` scenario
+  (`packages/sim/src/scenarios/skill-strike.ts`, registered `wip: true` —
+  the only wip scenario, one of two cap slots): four stationary casters
+  (weaponDamage 10, level 1, spawned through `makeCombatant`) at 40-tile
+  spacing run all six delivery bricks against 13 dummies from monster
+  content (grave-hulk + 12 zombies). Formations discriminate each brick:
+  a rear dummy cleave must miss but ground-stomp must hit, a shadowed dummy
+  on each projectile line, a splash dummy inside (and a shadow dummy
+  outside) fireball's burst radius, and a fully-connected 5-dummy chain
+  cluster that bounds chain-lightning to exactly maxJumps + 1 = 4 strikes
+  under any deterministic leap rule. Six invariants:
+  `skill-executor-registered` (fires today at tick 25 naming the missing
+  executor and task 0260), `formation-present` (13 + 4 alive — vacuous-run
+  and nothing-may-die guard), `life-within-bounds`,
+  `damage-within-expectation` (monotone per-dummy ceiling with the
+  hand-computed derivation in every message; catches cooldown-ignoring
+  recasts, piercing projectiles, rear-hitting sweeps, double chain hits),
+  `expected-damage-landed` (exact totals from tick 240 — the vacuous-pass
+  guard; totals 36/18/12/6/0/13/5/0 plus exactly 4×21 in the chain cluster),
+  and `casters-unharmed` (effects hit hostiles only; the melee caster
+  stands inside its own stomp radius and the chain caster inside jump range
+  of its cluster). Cooldown discipline (decision 0007) is encoded as a
+  tick-160 ravage recast 60 ticks after the tick-100 cast: `melee-primary`'s
+  expected 36 counts ravage once, and the 300-tick run ends before a queued
+  recast could resolve at ≥ 520, so drop-vs-queue stays 0260's choice. Every
+  damage number was verified by executing the real `computeDamage`
+  (decision 0018 multipliers, decision 0004 mitigation: ×10/13 vs zombie,
+  ×10/18 vs grave-hulk) and every distance/angle claim by computation,
+  including the confirmed rng note (a `critChance: 0` hit consumes no rng
+  draws). `sim -- run skill-strike --seed 1 --verbose` fails as intended;
+  `npm run verify` is green (smoke prints
+  `skip  skill-strike  (wip — ...)`). Handoff written as
+  `tasks/open/0260-make-skill-strike-pass.md`: cast surface, hostility and
+  resource-cost rulings, per-brick semantics citing decision 0018 by number
+  (inclusive hits, burst-includes-struck-target at ×0.6, maxJumps + 1),
+  the exact `computeDamage` mapping, system order, the byte-for-byte-frozen
+  regions of the scenario file, worked per-hit/per-dummy tables, the
+  standalone `area-burst` implement-or-defer-explicitly carry-forward from
+  PR #28, and the pre-written replay Outcome bullet for
+  `skill-strike.seed1.json`.
+- **Replays re-blessed:** none — a replay of a failing wip scenario is
+  meaningless; 0260 records the first `skill-strike.seed1.json` (its task
+  file already carries the guard-satisfying Outcome bullet for it).
+- **Scope deviations:** none. Files touched are exactly the three in scope
+  plus this file's move. `packages/core` and `packages/content` untouched;
+  no decision entries minted (all geometry semantics cite decision 0018; the
+  judgment calls the scenario deliberately leaves open — cast-time handling,
+  drop-vs-queue, leap order, hostility model — are assigned to 0260 with
+  instructions to log them from 0020 upward, 0019 being taken by task 0270).
+- **Follow-ups worth a new task:** none beyond 0260 itself. Noted inside
+  0260: resource gating is not observable by this scenario (casters have no
+  resource pool) and may be implemented or explicitly deferred; monster
+  skill-casting and standalone area-burst content are later work.
