@@ -6,6 +6,18 @@
   "resourceCost": 25,
   "cooldownSeconds": 0,
   "castTimeSeconds": 0.5,
-  "damage": { "type": "fire", "weaponMultiplier": 1.6 },
+  "effects": [
+    {
+      "type": "projectile",
+      "speedTilesPerSecond": 8,
+      "maxRangeTiles": 10,
+      "damage": { "type": "fire", "weaponMultiplier": 1 },
+      "onImpact": {
+        "type": "area-burst",
+        "radiusTiles": 1.5,
+        "damage": { "type": "fire", "weaponMultiplier": 0.6 }
+      }
+    }
+  ],
   "tags": ["core", "ranged", "area"]
 }

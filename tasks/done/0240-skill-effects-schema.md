@@ -108,9 +108,23 @@ migrated per 0009's explicit mapping, and a malformed recipe fails
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `packages/content/src/schemas/effects.ts`: one strict
+  Zod schema per 0009 brick, discriminated union on `type`, every delivery
+  carrying a `damage: { type, weaponMultiplier }` payload reusing content's
+  `DamageTypeSchema`. Composition is bounded by construction: `onImpact` on
+  projectile is specifically an area-burst object, no recursion. `SkillSchema`
+  gained required `effects` (non-empty array) and the top-level `damage` block
+  was deleted — the payload absorbed it (nothing in core/sim read it, and
+  strict parsing now rejects files still carrying it). All eight skills
+  migrated per 0009's mapping with geometry values recorded in decision 0018
+  (fireball keeps its pre-migration ×1.6 primary-target total as ×1 direct +
+  ×0.6 burst). `data.test.ts` pins the per-skill brick mapping and adds
+  rejection tests (missing/empty `effects`, unknown `type`, non-positive
+  reach/radius, resurrected top-level `damage`), each asserting the issue
+  names the field.
+- **Replays re-blessed:** None — skills are not yet read by the simulation, so
+  all three replays passed unchanged.
+- **Scope deviations:** None. Files touched are exactly the listed set plus
+  `docs/decisions/0018-skill-effect-geometry-and-damage-field.md` and this file.
+- **Follow-ups worth a new task:** Nothing beyond what is already queued
+  (0250 scenario, 0260 executor). No skill needed an eighth brick.
