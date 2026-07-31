@@ -1,6 +1,18 @@
 import type { ContentRegistry } from '@triablo/content'
-import { Combatant, defineComponent, makeCombatant, Position } from '@triablo/core'
-import type { CombatantBaseStats, World } from '@triablo/core'
+import {
+  CastPlan,
+  Combatant,
+  deathSystem,
+  defineComponent,
+  Faction,
+  makeCombatant,
+  makeSkillRecipe,
+  Position,
+  projectileSystem,
+  skillCastSystem,
+  skillResolveSystem,
+} from '@triablo/core'
+import type { CombatantBaseStats, EntityId, SkillRecipe, World } from '@triablo/core'
 
 import type { Invariant } from '../invariants'
 import type { Scenario } from '../scenario'
@@ -300,18 +312,6 @@ interface CasterRecord {
 }
 const CasterRecord = defineComponent<CasterRecord>('CasterRecord')
 
-/**
- * PLACEHOLDER cast plan carrier, exactly like task 0110's placeholder
- * components: it exists so today's world records what should have happened.
- * Task 0260 replaces this attachment with the real core cast surface
- * (issuing the same casts, same ticks, same aims/targets, from `CAST_PLAN`)
- * and deletes this component. Invariants deliberately never read it.
- */
-interface PlannedCastList {
-  casts: PlannedCast[]
-}
-const PlannedCastList = defineComponent<PlannedCastList>('PlannedCastList')
-
 function damageTaken(combatant: { life: number; maxLife: number }): number {
   return combatant.maxLife - combatant.life
 }
@@ -487,18 +487,21 @@ export const skillStrike: Scenario = {
   name: 'skill-strike',
   description:
     'Casters run the eight migrated skill recipes against dummy formations that discriminate every effect brick.',
-  // wip: the effect executor this scenario specifies does not exist yet.
-  // Task 0260 builds it and removes this flag; smoke skips (visibly) until then.
-  wip: true,
   defaultTicks: DEFAULT_TICKS,
 
   setup(world, registry: ContentRegistry) {
     // Fail at setup if the plan names a skill or dummy that content does not
     // have — a wrong id must be loud, not a cast that silently never lands.
+    // Recipes are built here, once per distinct skill: `registry.skill`
+    // throws on an unknown id, and `makeSkillRecipe` converts the authored
+    // seconds to integer ticks at this load seam (never downstream).
     const dummyLabels = new Set(DUMMIES.map((dummy) => dummy.label))
     const casterLabels = new Set(CASTERS.map((caster) => caster.label))
+    const recipes = new Map<string, SkillRecipe>()
     for (const cast of CAST_PLAN) {
-      registry.skill(cast.skillId) // throws on unknown id
+      if (!recipes.has(cast.skillId)) {
+        recipes.set(cast.skillId, makeSkillRecipe(registry.skill(cast.skillId)))
+      }
       if (!casterLabels.has(cast.caster)) {
         throw new Error(`cast plan names unknown caster "${cast.caster}"`)
       }
@@ -508,17 +511,21 @@ export const skillStrike: Scenario = {
     }
 
     // Casters first (entity ids 1..4), then dummies (5..17), in table order.
+    // Factions carry the hostility contract (decision 0021): effects strike
+    // only entities of another faction, so casters can never harm each other
+    // and the inert dummies can never be "allies" of a caster.
+    const casterByLabel = new Map<string, EntityId>()
     for (const spec of CASTERS) {
       const entity = world.spawn()
       world.add(entity, Combatant, makeCombatant('skill-caster', CASTER_LEVEL, CASTER_STATS))
       world.add(entity, Position, { x: spec.x, y: spec.y })
       world.add(entity, CasterRecord, { label: spec.label })
-      world.add(entity, PlannedCastList, {
-        casts: CAST_PLAN.filter((cast) => cast.caster === spec.label).map((cast) => ({ ...cast })),
-      })
+      world.add(entity, Faction, { id: 'casters' })
+      casterByLabel.set(spec.label, entity)
       world.trace(() => `spawned caster ${spec.label} at (${spec.x}, ${spec.y})`)
     }
 
+    const dummyByLabel = new Map<string, EntityId>()
     for (const spec of DUMMIES) {
       const monster = registry.monster(spec.monster)
       const entity = world.spawn()
@@ -530,6 +537,8 @@ export const skillStrike: Scenario = {
         chainMember: spec.chainMember,
         explain: spec.explain,
       })
+      world.add(entity, Faction, { id: 'dummies' })
+      dummyByLabel.set(spec.label, entity)
       world.trace(
         () =>
           `spawned dummy ${spec.label} (${monster.id}) at (${spec.x}, ${spec.y}), ` +
@@ -537,9 +546,44 @@ export const skillStrike: Scenario = {
       )
     }
 
-    // No systems are registered here yet — that is the specification gap.
-    // Task 0260 registers the executor systems (and only those; the duel's
-    // approach/attack systems stay out, or the dummies would start fighting).
+    // Issue the plan through the real core cast surface: exactly the casts in
+    // CAST_PLAN — same ticks, same aims, same targets — with labels resolved
+    // to entity ids now that every dummy exists.
+    const recipeFor = (skillId: string): SkillRecipe => {
+      const recipe = recipes.get(skillId)
+      if (recipe === undefined) throw new Error(`no recipe built for skill "${skillId}"`)
+      return recipe
+    }
+    const targetFor = (label: string): EntityId => {
+      const entity = dummyByLabel.get(label)
+      if (entity === undefined) throw new Error(`no dummy spawned for label "${label}"`)
+      return entity
+    }
+    for (const spec of CASTERS) {
+      const caster = casterByLabel.get(spec.label)
+      if (caster === undefined) throw new Error(`no caster spawned for label "${spec.label}"`)
+      world.add(caster, CastPlan, {
+        casts: CAST_PLAN.filter((cast) => cast.caster === spec.label).map((cast) => ({
+          atTick: cast.atTick,
+          skill: recipeFor(cast.skillId),
+          aimX: cast.aimX,
+          aimY: cast.aimY,
+          target: cast.targetLabel === null ? null : targetFor(cast.targetLabel),
+        })),
+      })
+    }
+
+    // Registration order is execution order: the cast system accepts casts
+    // (enforcing cooldowns) and starts wind-ups, the resolve system fires
+    // completed casts (spawning projectiles), flight advances projectiles in
+    // the same tick, and the death system reaps anything at zero life —
+    // nothing here should die, so a kill fails as a formation-count
+    // violation rather than a negative-life corpse. The duel's
+    // approach/attack systems stay out, or the dummies would start fighting.
+    world.addSystem(skillCastSystem)
+    world.addSystem(skillResolveSystem)
+    world.addSystem(projectileSystem)
+    world.addSystem(deathSystem)
   },
 
   invariants: STRIKE_INVARIANTS,
