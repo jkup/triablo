@@ -5,6 +5,7 @@ import { contentSmoke } from './content-smoke'
 import { duel } from './duel'
 import { harnessSelftest } from './harness-selftest'
 import { lootSmoke } from './loot-smoke'
+import { skillStrike } from './skill-strike'
 
 /**
  * Every scenario, by name.
@@ -20,6 +21,7 @@ export const SCENARIOS: Readonly<Record<string, Scenario>> = {
   [duel.name]: duel,
   [harnessSelftest.name]: harnessSelftest,
   [lootSmoke.name]: lootSmoke,
+  [skillStrike.name]: skillStrike,
 }
 
 export const SCENARIO_NAMES: readonly string[] = Object.keys(SCENARIOS).sort()
