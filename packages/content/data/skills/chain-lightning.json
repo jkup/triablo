@@ -6,6 +6,13 @@
   "resourceCost": 0,
   "cooldownSeconds": 12,
   "castTimeSeconds": 0.6,
-  "damage": { "type": "lightning", "weaponMultiplier": 2.7 },
+  "effects": [
+    {
+      "type": "chain",
+      "jumpRangeTiles": 3,
+      "maxJumps": 3,
+      "damage": { "type": "lightning", "weaponMultiplier": 2.7 }
+    }
+  ],
   "tags": ["cooldown", "ranged", "area"]
 }

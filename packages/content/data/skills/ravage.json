@@ -6,6 +6,12 @@
   "resourceCost": 0,
   "cooldownSeconds": 14,
   "castTimeSeconds": 0.6,
-  "damage": { "type": "physical", "weaponMultiplier": 2.8 },
+  "effects": [
+    {
+      "type": "melee-hit",
+      "reachTiles": 1,
+      "damage": { "type": "physical", "weaponMultiplier": 2.8 }
+    }
+  ],
   "tags": ["cooldown", "melee"]
 }

@@ -6,6 +6,12 @@
   "resourceCost": 15,
   "cooldownSeconds": 0,
   "castTimeSeconds": 0.45,
-  "damage": { "type": "physical", "weaponMultiplier": 1.4 },
+  "effects": [
+    {
+      "type": "melee-hit",
+      "reachTiles": 1,
+      "damage": { "type": "physical", "weaponMultiplier": 1.4 }
+    }
+  ],
   "tags": ["core", "melee"]
 }

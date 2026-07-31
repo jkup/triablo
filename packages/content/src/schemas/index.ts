@@ -11,6 +11,7 @@ import {
   StatModRangeSchema,
   WeightSchema,
 } from './common'
+import { SkillEffectSchema } from './effects'
 
 /**
  * The content schemas.
@@ -145,14 +146,12 @@ export const SkillSchema = z
     resourceCost: z.number().nonnegative().finite(),
     cooldownSeconds: SecondsSchema,
     castTimeSeconds: SecondsSchema,
-    damage: z
-      .object({
-        type: DamageTypeSchema,
-        /** Multiplier applied to the character's weapon damage. */
-        weaponMultiplier: z.number().nonnegative().finite(),
-      })
-      .strict()
-      .optional(),
+    /**
+     * The skill's recipe over the decision-0009 effect vocabulary. Damage
+     * numbers live inside each delivery's payload — there is deliberately no
+     * top-level damage block to drift out of sync (decision 0018).
+     */
+    effects: z.array(SkillEffectSchema).min(1),
     tags: z.array(IdSchema).default([]),
   })
   .strict()
@@ -179,3 +178,4 @@ export type ContentTypeKey = keyof typeof CONTENT_TYPES
 export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES) as ContentTypeKey[]
 
 export * from './common'
+export * from './effects'

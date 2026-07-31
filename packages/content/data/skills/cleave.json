@@ -6,6 +6,13 @@
   "resourceCost": 0,
   "cooldownSeconds": 0,
   "castTimeSeconds": 0.4,
-  "damage": { "type": "physical", "weaponMultiplier": 0.8 },
+  "effects": [
+    {
+      "type": "melee-sweep",
+      "reachTiles": 1.5,
+      "arcDegrees": 180,
+      "damage": { "type": "physical", "weaponMultiplier": 0.8 }
+    }
+  ],
   "tags": ["basic", "melee", "area"]
 }
