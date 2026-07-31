@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import type { EntityId, System } from '@triablo/core'
+import type { EntityId, System, WorldSnapshot } from '@triablo/core'
 import { defineComponent, defineEvent, World } from '@triablo/core'
 
 interface Position {
@@ -215,6 +215,19 @@ describe('query', () => {
 
   it('returns empty for a component nothing has', () => {
     expect(world.query(Tagged)).toEqual([])
+  })
+
+  it('returns ascending entity ids even when components were added out of order', () => {
+    // Canonical query order (decision 0016) is what makes World.restore
+    // behavior-preserving: restored storage is always ascending, so live
+    // worlds must iterate ascending too or the two futures diverge.
+    const a = world.spawn()
+    world.spawn()
+    const c = world.spawn()
+    world.add(c, Position, { x: 3, y: 0 })
+    world.add(a, Position, { x: 1, y: 0 })
+
+    expect(world.query(Position).map(([entity]) => entity)).toEqual([a, c])
   })
 })
 
@@ -438,5 +451,189 @@ describe('determinism', () => {
 
   it('produces a different state hash for a different seed', () => {
     expect(build('alpha').hash()).not.toBe(build('beta').hash())
+  })
+})
+
+describe('World.restore', () => {
+  // A little ecosystem that exercises everything a snapshot must carry:
+  // rng consumption, spawning, destruction, and a producer/consumer event pair.
+  const Creature = defineComponent<{ x: number; hp: number }>('Creature')
+  const Died = defineEvent<{ at: number }>('Died')
+
+  const registerSystems = (world: World) => {
+    world.addSystem(
+      system('wander-and-die', (w) => {
+        for (const [entity, creature] of w.query(Creature)) {
+          creature.x += w.rng.int(-1, 2)
+          creature.hp -= w.rng.int(0, 2)
+          if (creature.hp <= 0) {
+            w.destroy(entity)
+            w.emit(Died, { at: creature.x })
+          }
+        }
+      }),
+    )
+    world.addSystem(
+      system('respawn', (w) => {
+        for (const death of w.events(Died)) {
+          const child = w.spawn()
+          w.add(child, Creature, { x: death.at, hp: w.rng.intInclusive(2, 6) })
+        }
+      }),
+    )
+  }
+
+  /** A world mid-simulation: 100 ticks of churn, snapshot taken at a tick boundary. */
+  const buildOriginal = () => {
+    const world = new World({ seed: 'roundtrip' })
+    for (let i = 0; i < 10; i++) {
+      const entity = world.spawn()
+      world.add(entity, Creature, { x: 0, hp: world.rng.intInclusive(3, 8) })
+    }
+    registerSystems(world)
+    world.run(100)
+    return world
+  }
+
+  it('produces a world with the same future as the original', () => {
+    const original = buildOriginal()
+    const snapshot = original.snapshot()
+
+    // Through JSON, the way a real save file would travel.
+    const restored = World.restore(JSON.parse(JSON.stringify(snapshot)) as typeof snapshot)
+    expect(restored.hash()).toBe(original.hash())
+
+    // A restored world has no systems; the caller re-registers them.
+    expect(restored.systemNames).toEqual([])
+    registerSystems(restored)
+
+    original.run(100)
+    restored.run(100)
+
+    expect(restored.tick).toBe(original.tick)
+    expect(restored.hash()).toBe(original.hash())
+  })
+
+  it('does not alias the snapshot: stepping the restored world leaves the original untouched', () => {
+    const original = buildOriginal()
+    const snapshot = original.snapshot()
+    const hashBefore = original.hash()
+
+    const restored = World.restore(snapshot)
+    registerSystems(restored)
+    restored.run(50)
+
+    expect(original.hash()).toBe(hashBefore)
+    expect(World.restore(snapshot).hash()).toBe(hashBefore)
+  })
+
+  it('round-trips exactly: restore(s).snapshot() deep-equals s', () => {
+    const snapshot = buildOriginal().snapshot()
+    expect(World.restore(snapshot).snapshot()).toEqual(snapshot)
+  })
+
+  it('matches the original future even when components were added in non-ascending entity order', () => {
+    // The trap this task exists to confront: snapshot() sorts storage by
+    // entity id, so restored insertion order is ascending no matter what the
+    // original world did. The `pull` system consumes rng once per queried row,
+    // so any divergence in iteration order diverges the hash immediately.
+    const build = () => {
+      const world = new World({ seed: 'order' })
+      const first = world.spawn()
+      world.spawn()
+      const third = world.spawn()
+      world.add(third, Creature, { x: 30, hp: 100 })
+      world.add(first, Creature, { x: 10, hp: 100 })
+      return world
+    }
+    const registerPull = (world: World) => {
+      world.addSystem(
+        system('pull', (w) => {
+          for (const [, creature] of w.query(Creature)) {
+            creature.x += w.rng.int(0, 1000)
+          }
+        }),
+      )
+    }
+
+    const original = build()
+    const restored = World.restore(original.snapshot())
+    registerPull(original)
+    registerPull(restored)
+
+    original.run(10)
+    restored.run(10)
+
+    expect(restored.hash()).toBe(original.hash())
+  })
+
+  it('hands out fresh entity ids that never collide with restored ones', () => {
+    const original = buildOriginal()
+    const restored = World.restore(original.snapshot())
+    expect(restored.spawn()).toBe(original.spawn())
+  })
+
+  describe('malformed input', () => {
+    const valid = () => buildOriginal().snapshot()
+    // Malformed snapshots are, by definition, not WorldSnapshots anymore; the
+    // cast mirrors untrusted data arriving from a parsed save file.
+    const restore = (snapshot: unknown) => World.restore(snapshot as WorldSnapshot)
+
+    it('rejects a missing rng, naming the field', () => {
+      const { rng: _dropped, ...withoutRng } = valid()
+      expect(() => restore(withoutRng)).toThrow(/snapshot\.rng/)
+    })
+
+    it('rejects non-integer rng state words, naming the word', () => {
+      const snapshot = valid()
+      snapshot.rng.b = Number.NaN
+      expect(() => restore(snapshot)).toThrow(/snapshot\.rng\.b/)
+    })
+
+    it('rejects a non-integer tick', () => {
+      expect(() => restore({ ...valid(), tick: 1.5 })).toThrow(/snapshot\.tick/)
+      expect(() => restore({ ...valid(), tick: -1 })).toThrow(/snapshot\.tick/)
+    })
+
+    it('rejects a non-finite nextEntityId', () => {
+      expect(() => restore({ ...valid(), nextEntityId: Number.POSITIVE_INFINITY })).toThrow(
+        /snapshot\.nextEntityId/,
+      )
+    })
+
+    it('rejects an entity id at or above nextEntityId', () => {
+      const snapshot = valid()
+      snapshot.entities.push(snapshot.nextEntityId)
+      expect(() => restore(snapshot)).toThrow(/snapshot\.entities\[/)
+    })
+
+    it('rejects unsorted or duplicated entity ids', () => {
+      const snapshot = valid()
+      snapshot.entities.reverse()
+      expect(() => restore(snapshot)).toThrow(/strictly ascending/)
+    })
+
+    it('rejects a component entry for an entity that is not alive, naming the component', () => {
+      const snapshot = valid()
+      // Remove the last alive entity from the roster; its Creature row now dangles.
+      const ghost = snapshot.entities.pop() as number
+      expect(() => restore(snapshot)).toThrow(
+        new RegExp(
+          `components\\["Creature"\\] refers to entity ${ghost}, which is not in snapshot\\.entities`,
+        ),
+      )
+    })
+
+    it('never half-constructs: a rejected snapshot leaves no observable world', () => {
+      // Validation happens before any World is built, so a throw is the only
+      // effect. This is asserted indirectly: the same snapshot object restores
+      // fine once repaired.
+      const snapshot = valid()
+      const goodTick = snapshot.tick
+      snapshot.tick = 0.5
+      expect(() => restore(snapshot)).toThrow(/snapshot\.tick/)
+      snapshot.tick = goodTick
+      expect(World.restore(snapshot).hash()).toBe(buildOriginal().hash())
+    })
   })
 })

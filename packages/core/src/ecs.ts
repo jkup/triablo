@@ -71,6 +71,33 @@ export interface WorldSnapshot {
   components: Record<string, Array<[number, unknown]>>
 }
 
+/**
+ * Deep-copy a plain-JSON component value.
+ *
+ * `restore` must not share component objects with the snapshot it was given:
+ * `snapshot()` returns live references, so without a copy, stepping a restored
+ * world would mutate the original world's components through the snapshot.
+ * Hand-rolled rather than `structuredClone` because components are contractually
+ * plain JSON data (see {@link defineComponent}) and nothing fancier deserves to
+ * survive a save.
+ */
+function cloneJsonValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(cloneJsonValue)
+  if (typeof value === 'object' && value !== null) {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(value)) {
+      out[key] = cloneJsonValue((value as Record<string, unknown>)[key])
+    }
+    return out
+  }
+  return value
+}
+
+/** Throw a `World.restore` validation error naming the offending field. */
+function rejectSnapshot(field: string, problem: string): never {
+  throw new Error(`World.restore: snapshot.${field} ${problem}`)
+}
+
 type ComponentValue<C> = C extends ComponentType<infer V> ? V : never
 type ComponentValues<T extends readonly ComponentType<unknown>[]> = {
   [K in keyof T]: ComponentValue<T[K]>
@@ -81,8 +108,18 @@ export interface WorldOptions {
 }
 
 export class World {
-  /** The simulation's random source. Never use `Math.random` instead of this. */
-  readonly rng: Rng
+  /**
+   * The simulation's random source. Never use `Math.random` instead of this.
+   *
+   * A getter over a private field rather than a `readonly` property so that
+   * {@link World.restore} can install a generator rebuilt from saved state;
+   * from outside the class it is exactly as immutable as before.
+   */
+  get rng(): Rng {
+    return this.rngInstance
+  }
+
+  private rngInstance: Rng
 
   /** Ticks elapsed. Simulation time; see `time.ts`. There is no wall clock here. */
   private currentTick = 0
@@ -97,7 +134,7 @@ export class World {
   private stepping = false
 
   constructor(options: WorldOptions) {
-    this.rng = Rng.create(options.seed)
+    this.rngInstance = Rng.create(options.seed)
   }
 
   get tick(): number {
@@ -178,7 +215,16 @@ export class World {
    * systems, and doing that over a live `Map` iterator is a subtle
    * order-dependent bug. The allocation is worth not having that class of bug.
    *
-   * Iteration walks the **first** component's storage, so put the most
+   * Results are always sorted by **ascending entity id** (decision 0016). This
+   * is not a style choice: {@link World.restore} rebuilds component storage in
+   * canonical ascending order, which can differ from the live world's insertion
+   * order — if query order followed insertion order, a restored world could
+   * silently diverge from the original the moment any system consumed rng
+   * inside a query loop. Canonical order makes save/restore behavior-preserving
+   * by construction, and matches the order combat systems already require
+   * (decision 0006).
+   *
+   * The scan still walks the **first** component's storage, so put the most
    * selective component first: `query(Boss, Position)` not `query(Position, Boss)`.
    */
   query<const T extends readonly ComponentType<unknown>[]>(
@@ -203,6 +249,10 @@ export class World {
       results.push(row)
     }
 
+    // Canonical order: see the doc comment above. Backing maps are usually
+    // already ascending (spawn ids are monotonic and components are typically
+    // added at spawn time), so this is cheap in practice.
+    results.sort((left, right) => left[0] - right[0])
     return results
   }
 
@@ -354,13 +404,138 @@ export class World {
       components[componentId] = entries
     }
 
+    // Canonicalize rng words to their signed-int32 representation. Rng's
+    // internal arithmetic (`| 0`, `^`) leaves every word signed after any
+    // `next()` call — and `create()` warms up with twelve — so for a live world
+    // this is a bit-for-bit no-op. But `Rng.fromState` coerces with `>>> 0`,
+    // so a *restored* rng reports the unsigned representation of the same
+    // bits; without this normalization, restore(s).snapshot() would differ
+    // from s in sign only, and a freshly restored world would hash differently
+    // from the world it was restored from despite identical behavior.
+    const rngState = this.rng.getState()
+
     return {
       tick: this.currentTick,
       nextEntityId: this.nextEntityId,
-      rng: this.rng.getState(),
+      rng: { a: rngState.a | 0, b: rngState.b | 0, c: rngState.c | 0, d: rngState.d | 0 },
       entities: [...this.alive].sort((left, right) => left - right),
       components,
     }
+  }
+
+  /**
+   * Rebuild a world from a {@link WorldSnapshot} — the load half of save/load.
+   *
+   * The restored world is behaviorally identical to the one snapshotted: same
+   * tick, same entity ids, same component values, same rng position — and,
+   * because query order is canonical (ascending entity id, decision 0016), the
+   * same *future* once the caller re-registers the same systems in the same
+   * order. Systems and trace sinks are code, not data; they are never
+   * serialized, and a freshly restored world has none.
+   *
+   * Only **tick-boundary** snapshots are coherent: `step()` flushes pending
+   * destroys and clears event queues before it returns, and `snapshot()`
+   * captures neither. Snapshots are only ever taken between steps, so a
+   * restored world starts with both empty — exactly like the original did at
+   * that boundary.
+   *
+   * Input is validated strictly and rejected with the offending field named;
+   * this method never constructs a corrupt world from malformed data. Component
+   * values are deep-copied, so the snapshot (and any live world it came from)
+   * is not aliased by the restored world.
+   */
+  static restore(snapshot: WorldSnapshot): World {
+    if (typeof snapshot !== 'object' || snapshot === null) {
+      throw new Error('World.restore: snapshot must be an object')
+    }
+    const { tick, nextEntityId, rng, entities, components } = snapshot
+
+    if (!Number.isInteger(tick) || tick < 0) {
+      rejectSnapshot('tick', `must be a non-negative integer, got ${String(tick)}`)
+    }
+    if (!Number.isInteger(nextEntityId) || nextEntityId < 1) {
+      rejectSnapshot('nextEntityId', `must be a positive integer, got ${String(nextEntityId)}`)
+    }
+
+    if (typeof rng !== 'object' || rng === null) {
+      rejectSnapshot('rng', 'is missing or not an object')
+    }
+    for (const key of ['a', 'b', 'c', 'd'] as const) {
+      const word = (rng as unknown as Record<string, unknown>)[key]
+      // Snapshots always carry rng words in signed-int32 form (see snapshot()).
+      // Anything outside that range would silently wrap through Rng's `>>> 0`
+      // coercion, so it is malformed, not merely unusual.
+      if (typeof word !== 'number' || !Number.isInteger(word) || (word | 0) !== word) {
+        rejectSnapshot(`rng.${key}`, `must be a signed 32-bit integer, got ${String(word)}`)
+      }
+    }
+
+    if (!Array.isArray(entities)) {
+      rejectSnapshot('entities', 'must be an array')
+    }
+    let previousEntity = 0
+    for (let i = 0; i < entities.length; i++) {
+      const id = entities[i]
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 1) {
+        rejectSnapshot(`entities[${i}]`, `must be a positive integer, got ${String(id)}`)
+      }
+      if (id <= previousEntity) {
+        rejectSnapshot(`entities[${i}]`, `(${id}) must be strictly ascending`)
+      }
+      if (id >= nextEntityId) {
+        rejectSnapshot(`entities[${i}]`, `(${id}) must be below nextEntityId (${nextEntityId})`)
+      }
+      previousEntity = id
+    }
+    const aliveIds = new Set<number>(entities)
+
+    if (typeof components !== 'object' || components === null || Array.isArray(components)) {
+      rejectSnapshot('components', 'must be an object mapping component id to entries')
+    }
+    for (const componentId of Object.keys(components)) {
+      const entries = components[componentId] as unknown
+      const where = `components["${componentId}"]`
+      if (!Array.isArray(entries) || entries.length === 0) {
+        rejectSnapshot(where, 'must be a non-empty array of [entityId, value] pairs')
+      }
+      let previousInStore = 0
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i] as unknown
+        if (!Array.isArray(entry) || entry.length !== 2) {
+          rejectSnapshot(`${where}[${i}]`, 'must be an [entityId, value] pair')
+        }
+        const entityId = entry[0] as unknown
+        if (typeof entityId !== 'number' || !Number.isInteger(entityId)) {
+          rejectSnapshot(`${where}[${i}]`, `entity id must be an integer, got ${String(entityId)}`)
+        }
+        if (entityId <= previousInStore) {
+          rejectSnapshot(`${where}[${i}]`, `entity id ${entityId} must be strictly ascending`)
+        }
+        if (!aliveIds.has(entityId)) {
+          rejectSnapshot(where, `refers to entity ${entityId}, which is not in snapshot.entities`)
+        }
+        previousInStore = entityId
+      }
+    }
+
+    const world = new World({ seed: 0 })
+    world.rngInstance = Rng.fromState(rng)
+    world.currentTick = tick
+    world.nextEntityId = nextEntityId
+    for (const id of entities) world.alive.add(id)
+
+    // Sorted keys so the stores map is built identically no matter what key
+    // order a parsed save file happens to carry. snapshot() writes them sorted,
+    // so for well-formed input this is a no-op.
+    for (const componentId of Object.keys(components).sort()) {
+      const store = new Map<number, unknown>()
+      for (const [entityId, value] of components[componentId] as Array<[number, unknown]>) {
+        store.set(entityId, cloneJsonValue(value))
+      }
+      world.stores.set(componentId, store)
+    }
+
+    return world
   }
 
   /**
