@@ -89,9 +89,33 @@ later and elsewhere.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Added `static World.restore(snapshot)` to
+  `packages/core/src/ecs.ts`: strict validation (every malformed field rejected
+  by name — tick, nextEntityId, rng words, entity roster, dangling component
+  entries), rng rebuilt via `Rng.fromState`, component values deep-copied so a
+  restored world never aliases the snapshot or the world it came from. Two
+  canonicalizations make restore behavior-preserving, both proven no-ops for
+  live worlds by the untouched replays: (1) `query()` now always returns rows
+  in ascending entity id order (decision 0016) — the trap's resolution; a
+  restored world's storage is canonical-ascending, so live iteration order must
+  be too, or futures diverge under rng-consuming query loops; (2) `snapshot()`
+  normalizes rng state words to signed-int32 form (decision 0017) — live rng
+  words are already signed after warm-up, but `Rng.fromState` coerces `>>> 0`,
+  which would have broken hash equality at restore time and round-trip
+  idempotence. `rng` became a getter over a private field so `restore` can
+  install the rebuilt generator; the public surface is unchanged. Tests cover
+  100-tick-churn round-trip future equality (rng + spawn/destroy + events),
+  snapshot idempotence through JSON, non-aliasing, the non-ascending
+  insertion-order case, fresh entity ids, and seven malformed-input rejections.
+  No new export was needed (`restore` is a static on the already-exported
+  `World`); `index.ts` is untouched.
+- **Replays re-blessed:** None. All three (`content-seam`, `duel`,
+  `harness-selftest`) pass byte-identical.
+- **Scope deviations:** None. Files touched: `ecs.ts`, `ecs.test.ts`, two
+  decision files, this task file.
+- **Follow-ups worth a new task:** (a) The register-only path the task
+  predicted: `Scenario.setup()` couples spawning with system registration, so
+  "resume a scenario mid-run" needs scenarios to expose system registration
+  separately from world population before sim/client can restore into a
+  running scenario. (b) Disk I/O for save files (sim/client concern) and
+  save-file versioning/migration remain open per `docs/ARCHITECTURE.md`.
