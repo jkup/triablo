@@ -82,9 +82,27 @@ rasterizer) get it for free because they draw the same display list.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `buildScene` now applies a camera: the world-space
+  bounding-box center of all positioned entities maps to the viewport center
+  at `PIXELS_PER_UNIT` scale (`cameraCenter` helper, pure function of the
+  snapshot). Position-less entities keep the fixed screen-space fallback
+  grid, untransformed; a snapshot with no positioned entities renders exactly
+  as before. Emitted sprite coordinates are post-camera pixels, so
+  `interpolateScene` and both backends needed no changes. Rule recorded as
+  decision 0019 (including the accepted camera-jump-on-death caveat). Tests:
+  hand-computed midpoint test ((3,5)+(7,9) → sprites (352,252)/(448,348),
+  midpoint exactly (400,300)), lone-entity centering, and mixed
+  positioned/position-less grid preservation — all three fail with the scene
+  change reverted (verified via stash). The pre-camera absolute-placement
+  test ("position * PIXELS_PER_UNIT") was rewritten as the lone-entity
+  centering test, since the camera supersedes absolute placement by design.
+  Shot verified: `shot duel seed=1 tick=200 entities=2 sprites=2
+  hash=073e18c33528486a 800x600 -> shots/duel-seed1-tick200.png` — read the
+  PNG; both combatants straddle the frame center, not the top-left corner.
+  Running the shot twice produced byte-identical PNGs (`cmp` clean).
+- **Replays re-blessed:** none.
+- **Scope deviations:** none — only `scene.ts`, `scene.test.ts`, decision
+  0019, and this task file changed.
+- **Follow-ups worth a new task:** a follow camera once a player entity
+  exists (noted in decision 0019); no clamping/zoom means a very spread-out
+  roster can push sprites off-frame — acceptable until maps get large.
