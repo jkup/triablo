@@ -102,12 +102,37 @@ function hslToHex(hue: number, saturation: number, lightness: number): string {
 }
 
 /**
+ * The camera: the world-space point rendered at the viewport center. It is the
+ * center of the bounding box of every positioned entity — a pure function of
+ * the snapshot, with no history or smoothing, so identical snapshots render
+ * identical pixels. Returns null when nothing has a position. See
+ * docs/decisions/0019.
+ */
+function cameraCenter(views: Iterable<EntityView>): { x: number; y: number } | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const view of views) {
+    if (view.position === null) continue
+    minX = Math.min(minX, view.position.x)
+    minY = Math.min(minY, view.position.y)
+    maxX = Math.max(maxX, view.position.x)
+    maxY = Math.max(maxY, view.position.y)
+  }
+  if (minX === Infinity) return null
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+}
+
+/**
  * Build the display list for one snapshot.
  *
- * Entities with a position component are placed at `position * PIXELS_PER_UNIT`.
- * Entities without one are laid out on a fixed grid in entity-id order, so
- * that position-less simulations (all of them, before task 0150 lands) still
- * render every entity visibly.
+ * Entities with a position component are placed at `PIXELS_PER_UNIT` scale,
+ * with the camera (the bounding-box center of all positioned entities) mapped
+ * to the viewport center. Entities without one are laid out on a fixed
+ * screen-space grid in entity-id order — a debug layout the camera does not
+ * transform — so that position-less simulations still render every entity
+ * visibly.
  */
 export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT): Scene {
   const views = new Map<number, EntityView>()
@@ -130,6 +155,7 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     }
   }
 
+  const camera = cameraCenter(views.values())
   const sprites: SceneSprite[] = []
   const fallbackColumns = Math.max(1, Math.floor(viewport.width / FALLBACK_CELL))
   let fallbackIndex = 0
@@ -141,9 +167,9 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     let x: number
     let y: number
     let radius: number
-    if (view.position !== null) {
-      x = view.position.x * PIXELS_PER_UNIT
-      y = view.position.y * PIXELS_PER_UNIT
+    if (view.position !== null && camera !== null) {
+      x = (view.position.x - camera.x) * PIXELS_PER_UNIT + viewport.width / 2
+      y = (view.position.y - camera.y) * PIXELS_PER_UNIT + viewport.height / 2
       radius = Math.round(PIXELS_PER_UNIT * 0.4)
     } else {
       const column = fallbackIndex % fallbackColumns
