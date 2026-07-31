@@ -45,16 +45,62 @@ describe('buildScene', () => {
     }
   })
 
-  it('places entities with an {x, y} component at position * PIXELS_PER_UNIT', () => {
+  it('centers a lone positioned entity at the viewport center', () => {
     const world = new World({ seed: 1 })
     const entity = world.spawn()
     world.add(entity, Position, { x: 3, y: 5 })
 
     const scene = buildScene(world.snapshot())
 
+    // A single positioned entity is its own bounding box, so the camera puts
+    // it exactly at the viewport center regardless of its world coordinates.
     expect(scene.sprites).toHaveLength(1)
-    expect(scene.sprites[0]?.x).toBe(3 * PIXELS_PER_UNIT)
-    expect(scene.sprites[0]?.y).toBe(5 * PIXELS_PER_UNIT)
+    expect(scene.sprites[0]?.x).toBe(VIEWPORT.width / 2)
+    expect(scene.sprites[0]?.y).toBe(VIEWPORT.height / 2)
+  })
+
+  it('centers the bounding box of positioned entities on the viewport center', () => {
+    const world = new World({ seed: 1 })
+    const a = world.spawn()
+    const b = world.spawn()
+    world.add(a, Position, { x: 3, y: 5 })
+    world.add(b, Position, { x: 7, y: 9 })
+
+    const scene = buildScene(world.snapshot())
+
+    // Bounding box of (3,5) and (7,9) has center (5,7) — that world point maps
+    // to the viewport center (400, 300). With PIXELS_PER_UNIT = 24:
+    //   a: (3-5)*24 + 400 = 352,  (5-7)*24 + 300 = 252
+    //   b: (7-5)*24 + 400 = 448,  (9-7)*24 + 300 = 348
+    // Midpoint: ((352+448)/2, (252+348)/2) = (400, 300) — exactly the center.
+    expect(scene.sprites[0]).toMatchObject({ x: 352, y: 252 })
+    expect(scene.sprites[1]).toMatchObject({ x: 448, y: 348 })
+    const first = scene.sprites[0]
+    const second = scene.sprites[1]
+    expect(((first?.x ?? 0) + (second?.x ?? 0)) / 2).toBe(400)
+    expect(((first?.y ?? 0) + (second?.y ?? 0)) / 2).toBe(300)
+    // World-space separation is preserved at PIXELS_PER_UNIT scale.
+    expect((second?.x ?? 0) - (first?.x ?? 0)).toBe(4 * PIXELS_PER_UNIT)
+    expect((second?.y ?? 0) - (first?.y ?? 0)).toBe(4 * PIXELS_PER_UNIT)
+  })
+
+  it('leaves position-less entities on the fixed screen-space grid, untouched by the camera', () => {
+    const world = new World({ seed: 1 })
+    const positioned = world.spawn()
+    const gridA = world.spawn()
+    const gridB = world.spawn()
+    world.add(positioned, Position, { x: 40, y: 40 })
+    world.add(gridA, Tag, { note: 'no position' })
+    world.add(gridB, Tag, { note: 'no position' })
+
+    const scene = buildScene(world.snapshot())
+
+    // The positioned entity is centered by the camera; the position-less ones
+    // stay at the same fallback grid cells they occupy today (72 px cells,
+    // cell centers at 36, 108, ...), unmoved by the far-away camera.
+    expect(scene.sprites[0]).toMatchObject({ x: 400, y: 300 })
+    expect(scene.sprites[1]).toMatchObject({ x: 36, y: 36 })
+    expect(scene.sprites[2]).toMatchObject({ x: 108, y: 36 })
   })
 
   it('ignores non-finite positions and falls back to the grid', () => {
