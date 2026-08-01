@@ -123,9 +123,44 @@ entities exclusively through `MoveOrder` + `CastPlan` after this.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `packages/core/src/player/` module: `PlayerControlled`
+  (empty-object marker) and `MoveOrder { x, y }` components, plus
+  `moveOrderSystem`. The system re-paths every tick (no cached-path state —
+  `MoveOrder` stays two integers, trivially snapshot-safe), rebuilds the grid
+  via `Grid.fromJSON` once per tick, and marches movers node-to-node along the
+  BFS path in ascending entity id, snapping exactly onto each node (decision
+  0010's clamp style) so arrival is exact equality with the destination point.
+  Position→tile rounding is `Math.round` per axis, used in exactly one place
+  (`tileOf`). No `DungeonMap`, or an unreachable/blocked/non-integer
+  destination, drops the order with a trace naming the entity.
+  `approachSystem` gained two gates: entities with `PlayerControlled` are
+  never AI-moved, and chasing requires the nearest hostile at distance ≤
+  `AGGRO_RADIUS_TILES = 10` (inclusive boundary). `attackSystem` untouched —
+  players auto-swing in melee range (v1 attack input). All four rulings in
+  decision 0029. System order convention (`moveOrderSystem` before
+  `approachSystem`) documented in both systems' doc comments. Tests: L-map
+  wall-respecting walk with per-tick walkable-rounding asserts and
+  travel > straight-line, multi-node-per-tick fast mover with exact landing,
+  fractional-position exact arrival, no-map and unreachable drops with
+  traces, dead movers ignored, mid-journey snapshot/restore with identical
+  future hash (0170 pattern), aggro gating with inclusive boundary, and
+  player exemption + auto-attack. Feature also proven headless via a
+  scratchpad harness trace (player walks the L, hits a zombie in passing,
+  arrives exactly; order clears).
+- **Replays re-blessed:** None. All four (`content-seam`, `duel`,
+  `harness-selftest`, `skill-strike`) pass byte-identical — the duel's 6-tile
+  gap sits under the radius of 10, so its behavior is unchanged.
+- **Scope deviations:** None. Files touched: `player/components.ts`,
+  `player/systems.ts`, `player/systems.test.ts` (new), `combat/systems.ts`,
+  `combat/systems.test.ts`, `index.ts` (re-exports), decision 0029, this
+  task file. No `components.test.ts` needed — the components are plain data
+  fully exercised by the system tests.
+- **Follow-ups worth a new task:** (a) The task-mandated note: monsters
+  inside aggro range still step straight lines through walls
+  (`approachSystem` is not grid-aware) — accepted phase-2 ugliness, owned by
+  phase 3's "Monster AI behaviors". (b) Aggro has no leash/de-aggro: once a
+  hostile leaves the radius the monster simply stops where it stands, which
+  phase-3 AI should revisit (return-to-post, chase memory). (c) A mover
+  whose own rounded tile is off-grid/blocked drops its order (lenient,
+  per decision 0013) — fine today since only players take orders and they
+  spawn on tiles; revisit if knockback ever pushes movers into walls.

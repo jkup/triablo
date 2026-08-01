@@ -2,13 +2,20 @@ import { describe, expect, it } from 'vitest'
 
 import type { EntityId } from '../ecs'
 import { World } from '../ecs'
+import { PlayerControlled } from '../player/components'
 import { Rng } from '../rng'
 import { TICK_HZ } from '../time'
 import { Faction } from '../skills/components'
 import type { Combatant as CombatantValue } from './components'
 import { Combatant, Position } from './components'
 import { computeDamage } from './damage'
-import { approachSystem, attackSystem, deathSystem, MELEE_RANGE_TILES } from './systems'
+import {
+  AGGRO_RADIUS_TILES,
+  approachSystem,
+  attackSystem,
+  deathSystem,
+  MELEE_RANGE_TILES,
+} from './systems'
 
 interface SpawnOverrides {
   x?: number
@@ -20,6 +27,8 @@ interface SpawnOverrides {
    * combatant. Defaults to 'red'; opponents must be given a different id.
    */
   faction?: string | null
+  /** Attach the `PlayerControlled` marker (decision 0029). */
+  player?: boolean
 }
 
 function spawnFighter(world: World, overrides: SpawnOverrides = {}): EntityId {
@@ -41,6 +50,7 @@ function spawnFighter(world: World, overrides: SpawnOverrides = {}): EntityId {
   world.add(entity, Position, { x: overrides.x ?? 0, y: overrides.y ?? 0 })
   const faction = overrides.faction === undefined ? 'red' : overrides.faction
   if (faction !== null) world.add(entity, Faction, { id: faction })
+  if (overrides.player === true) world.add(entity, PlayerControlled, {})
   return entity
 }
 
@@ -112,6 +122,56 @@ describe('approachSystem', () => {
     world.step()
     expect(world.getOrThrow(alone, Position)).toEqual({ x: 2, y: 0 })
     expect(world.getOrThrow(corpse, Position)).toEqual({ x: 9, y: 0 })
+  })
+
+  it('holds still while the nearest hostile is beyond AGGRO_RADIUS_TILES, then chases once inside (decision 0029)', () => {
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    const monster = spawnFighter(world, { x: 0 })
+    const hostile = spawnFighter(world, { x: AGGRO_RADIUS_TILES + 2, faction: 'blue' })
+
+    world.run(5)
+    // 12 tiles apart: outside the radius, so neither side converges.
+    expect(world.getOrThrow(monster, Position)).toEqual({ x: 0, y: 0 })
+    expect(world.getOrThrow(hostile, Position)).toEqual({ x: AGGRO_RADIUS_TILES + 2, y: 0 })
+
+    // Exactly on the boundary counts as inside (within = ≤): the chase
+    // resumes at the normal clamped step, both ways.
+    world.getOrThrow(hostile, Position).x = AGGRO_RADIUS_TILES
+    world.step()
+    expect(world.getOrThrow(monster, Position).x).toBeCloseTo(3 / TICK_HZ, 10)
+    expect(world.getOrThrow(hostile, Position).x).toBeCloseTo(AGGRO_RADIUS_TILES - 3 / TICK_HZ, 10)
+  })
+
+  it('never moves a PlayerControlled combatant, which still auto-attacks in melee range (decision 0029)', () => {
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    world.addSystem(attackSystem)
+    const player = spawnFighter(world, { x: 0, player: true })
+    // In aggro range, outside melee range; pinned (moveSpeed 0), harmless
+    // (damage 0) — an AI-driven combatant here would close the gap.
+    const distant = spawnFighter(world, {
+      x: 5,
+      combatant: { moveSpeed: 0, damage: 0 },
+      faction: 'blue',
+    })
+
+    world.run(10)
+    expect(world.getOrThrow(player, Position)).toEqual({ x: 0, y: 0 })
+    expect(world.getOrThrow(player, Combatant).damageDealt).toBe(0)
+
+    // A hostile inside melee range gets auto-attacked on the normal cadence —
+    // attackSystem has no PlayerControlled exemption (decision 0029).
+    const adjacent = spawnFighter(world, {
+      x: 1,
+      combatant: { life: 1000, maxLife: 1000, moveSpeed: 0, damage: 0 },
+      faction: 'blue',
+    })
+    world.step()
+    expect(world.getOrThrow(player, Combatant).damageDealt).toBe(5)
+    expect(world.getOrThrow(adjacent, Combatant).life).toBe(995)
+    expect(world.getOrThrow(player, Position)).toEqual({ x: 0, y: 0 })
+    expect(world.getOrThrow(distant, Position)).toEqual({ x: 5, y: 0 })
   })
 })
 
