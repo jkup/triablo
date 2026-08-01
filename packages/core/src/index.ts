@@ -37,8 +37,15 @@ export {
 export { MoveOrder, PlayerControlled } from './player/components'
 export { moveOrderSystem } from './player/systems'
 
-export { computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
-export type { ComputedStats, StatBlock, StatKey, StatMod, StatModMode } from './combat/stats'
+export { ATTRIBUTE_DERIVATIONS, ATTRIBUTE_KEYS, computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
+export type {
+  AttributeKey,
+  ComputedStats,
+  StatBlock,
+  StatKey,
+  StatMod,
+  StatModMode,
+} from './combat/stats'
 
 export { makeSkillRecipe } from './skills/recipe'
 export type {
