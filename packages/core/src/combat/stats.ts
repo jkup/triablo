@@ -37,6 +37,34 @@ export const STAT_KEYS = [
 export type StatKey = (typeof STAT_KEYS)[number]
 
 /**
+ * The four attributes, in canonical order. They are the first four entries of
+ * {@link STAT_KEYS} — `computeStats` relies on that to emit its output keys in
+ * `STAT_KEYS` order while still folding attributes first.
+ */
+export const ATTRIBUTE_KEYS = ['strength', 'dexterity', 'intelligence', 'vitality'] as const
+
+export type AttributeKey = (typeof ATTRIBUTE_KEYS)[number]
+
+/**
+ * What each attribute derives, as a linear flat contribution:
+ * `target += rate × foldedAttribute`. Mapping, rates, and the two-stage fold
+ * order are decision 0031 — balance is steered through that file.
+ *
+ * Rates are in the target stat's content units (crit-chance and crit-damage
+ * are percent points, matching the flat affixes that already roll them).
+ * No target is itself an attribute, so derivation is single-pass by
+ * construction — a derived stat can never feed another derivation.
+ */
+export const ATTRIBUTE_DERIVATIONS: Readonly<
+  Record<AttributeKey, { readonly target: StatKey; readonly rate: number }>
+> = {
+  strength: { target: 'damage', rate: 1 },
+  dexterity: { target: 'crit-chance', rate: 0.5 },
+  intelligence: { target: 'crit-damage', rate: 1 },
+  vitality: { target: 'max-life', rate: 4 },
+}
+
+/**
  * How a modifier combines with others — same three modes as `DamageMods`:
  *
  * - `flat` values sum, and add to the base value.
@@ -83,6 +111,16 @@ const MOD_MODES: readonly StatModMode[] = ['flat', 'increased', 'more']
  * `base + Σflat` floors at 0, and each multiplier floors at ×0, so a curse
  * can zero a stat but never drive it (or anything downstream) negative.
  *
+ * The fold is two-stage (decision 0031): the four attributes fold first —
+ * their own flat/increased/more mods apply normally — then each finished
+ * attribute injects `rate × value` ({@link ATTRIBUTE_DERIVATIONS}) into its
+ * target stat's **flat pool**, and the remaining stats fold. Deriving from
+ * folded attributes means attribute mods feed derivation; injecting before
+ * the target folds means `increased`/`more` mods on the target scale derived
+ * contributions exactly like any other flat source. A zero attribute injects
+ * nothing, so an all-zero-attribute input folds bit-identically to a world
+ * with no derivation at all.
+ *
  * Order-independent by construction: the values in each mode are sorted into
  * a canonical order before folding, so float non-associativity cannot leak a
  * hash-visible difference between two permutations of the same mod list. The
@@ -122,24 +160,60 @@ export function computeStats(base: StatBlock, mods: readonly StatMod[]): Compute
   }
 
   const out = {} as Record<StatKey, number>
-  for (const key of STAT_KEYS) {
-    const bucket = buckets.get(key)
-    const flat = bucket ? sumCanonical(bucket.flat) : 0
-    const increased = bucket ? sumCanonical(bucket.increased) : 0
 
-    // Base plus flats, floored at 0 — mirrors the damage pipeline's clamp.
-    let value = Math.max(0, (base[key] ?? 0) + flat)
-    value *= Math.max(0, 1 + increased)
-    if (bucket && bucket.more.length > 0) {
-      // Sorted fold: canonical order regardless of input permutation.
-      const more = bucket.more.slice().sort(ascending)
-      for (const m of more) {
-        value *= Math.max(0, 1 + m)
+  // Stage 1: fold the four attributes. ATTRIBUTE_KEYS is the head of
+  // STAT_KEYS, so assigning them first keeps output key order canonical.
+  for (const key of ATTRIBUTE_KEYS) {
+    out[key] = foldStat(base[key] ?? 0, buckets.get(key))
+  }
+
+  // Stage 2: inject each derived contribution into its target's flat pool
+  // (decision 0031). Deriving from the quantized attribute value is decision
+  // 0005's "one rounding rule": no second quantization happens here — the
+  // target's own end-of-fold rounding handles the result. Skipping zero
+  // contributions makes the zero-attribute identity structural: the buckets
+  // are untouched, so the fold below is the pre-derivation fold verbatim.
+  for (const key of ATTRIBUTE_KEYS) {
+    const { target, rate } = ATTRIBUTE_DERIVATIONS[key]
+    const contribution = out[key] * rate
+    if (contribution > 0) {
+      let bucket = buckets.get(target)
+      if (!bucket) {
+        bucket = { flat: [], increased: [], more: [] }
+        buckets.set(target, bucket)
       }
+      bucket.flat.push(contribution)
     }
-    out[key] = roundStat(value)
+  }
+
+  // Stage 3: fold everything else. No derivation target is an attribute, so
+  // this single pass is complete — nothing here feeds another derivation.
+  for (const key of STAT_KEYS) {
+    if (key in ATTRIBUTE_DERIVATIONS) continue
+    out[key] = foldStat(base[key] ?? 0, buckets.get(key))
   }
   return out
+}
+
+/** One stat's canonical fold: `(base + Σflat) × (1 + Σincreased) × Π(1 + more_i)`. */
+function foldStat(
+  baseValue: number,
+  bucket: { flat: number[]; increased: number[]; more: number[] } | undefined,
+): number {
+  const flat = bucket ? sumCanonical(bucket.flat) : 0
+  const increased = bucket ? sumCanonical(bucket.increased) : 0
+
+  // Base plus flats, floored at 0 — mirrors the damage pipeline's clamp.
+  let value = Math.max(0, baseValue + flat)
+  value *= Math.max(0, 1 + increased)
+  if (bucket && bucket.more.length > 0) {
+    // Sorted fold: canonical order regardless of input permutation.
+    const more = bucket.more.slice().sort(ascending)
+    for (const m of more) {
+      value *= Math.max(0, 1 + m)
+    }
+  }
+  return roundStat(value)
 }
 
 function ascending(a: number, b: number): number {
