@@ -93,9 +93,32 @@ character progression has a foundation.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `computeStats` is now a two-stage fold: the four
+  attributes fold first (their own mods apply normally), then each quantized
+  attribute value injects a linear flat contribution into its target's flat
+  pool before the remaining stats fold — so `increased`/`more` on the target
+  scales derived contributions (tested). Mapping and rates (decision 0031, in
+  the target's content units): `strength → damage` @1 (Barbarian: physical
+  violence, D2 lineage), `dexterity → crit-chance` @0.5 percent points
+  (Rogue: precision), `intelligence → crit-damage` @1 percent point
+  (Sorcerer: glass-cannon burst; the only remaining offense stat once damage
+  went to strength — resist-all would fit "elements" but violates the
+  one-target rule), `vitality → max-life` @4. Rate calibration against live
+  affixes: `vital` 2–4/5–9 vit → 8–16/20–36 life vs `of-the-bear` 10–24/25–48
+  direct; `lithe` 2–9 dex → 1–4.5 crit vs `keen`/`fell` 1–7; `runed` 2–9 int
+  → 2–9 crit-damage vs `of-ruin` 4–24 (overlapping off-hand slot). Same
+  order of magnitude in every pair, direct affix modestly ahead — neither
+  strictly dominates. Zero contributions are skipped entirely, making the
+  zero-attribute identity structural; a property test proves bit-identity
+  against an independent reference implementation of the pre-derivation fold,
+  plus a pin test on the mapping table, a four-attribute worked example,
+  scaling tests (increased and more), and a curse-clamp case. New exports:
+  `ATTRIBUTE_DERIVATIONS`, `ATTRIBUTE_KEYS`, `AttributeKey`.
+- **Replays re-blessed:** none — all 4 replays (content-seam, duel,
+  harness-selftest, skill-strike) pass on their existing hashes; monsters
+  and avatars carry no attributes, so the identity holds in-sim.
+- **Scope deviations:** none. Diff is the three in-scope files plus decision
+  0031 and this task-file move.
+- **Follow-ups worth a new task:** a strength affix (the only attribute with
+  no live affix); wiring attributes into `makeCombatant`/gear when avatars
+  gain attribute sources (progression, phase 3).

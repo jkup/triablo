@@ -1,9 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
 import type { StatBlock, StatKey, StatMod, StatModMode } from '@triablo/core'
-import { computeStats, createRng, STAT_KEYS, STAT_SCALE } from '@triablo/core'
+import {
+  ATTRIBUTE_DERIVATIONS,
+  ATTRIBUTE_KEYS,
+  computeStats,
+  createRng,
+  STAT_KEYS,
+  STAT_SCALE,
+} from '@triablo/core'
 
 const mod = (stat: StatKey, mode: StatModMode, value: number): StatMod => ({ stat, mode, value })
+
+const NON_ATTRIBUTE_KEYS = STAT_KEYS.filter(
+  (key) => !(ATTRIBUTE_KEYS as readonly string[]).includes(key),
+)
 
 describe('modifier composition', () => {
   it('matches a fully hand-computed worked example', () => {
@@ -61,6 +72,153 @@ describe('modifier composition', () => {
     const result = computeStats({}, [])
     expect(Object.keys(result)).toEqual([...STAT_KEYS])
     for (const key of STAT_KEYS) expect(result[key]).toBe(0)
+  })
+})
+
+describe('attribute derivation (decision 0031)', () => {
+  it('pins the mapping and rates so a silent rebalance cannot slip through', () => {
+    expect(ATTRIBUTE_DERIVATIONS).toEqual({
+      strength: { target: 'damage', rate: 1 },
+      dexterity: { target: 'crit-chance', rate: 0.5 },
+      intelligence: { target: 'crit-damage', rate: 1 },
+      vitality: { target: 'max-life', rate: 4 },
+    })
+  })
+
+  it('never targets an attribute, so derivation is single-pass by construction', () => {
+    for (const key of ATTRIBUTE_KEYS) {
+      expect(ATTRIBUTE_KEYS as readonly string[]).not.toContain(
+        ATTRIBUTE_DERIVATIONS[key].target,
+      )
+    }
+  })
+
+  it('matches a fully hand-computed worked example across all four attributes', () => {
+    // Attributes fold first, their own mods applying normally:
+    //   vitality:      10 +8 flat = 18, ×1.5 increased        = 27
+    //   strength:      12 +3 flat                             = 15
+    //   dexterity:      0 +9 flat (granted from nothing)      =  9
+    //   intelligence:   6, ×1.5 more                          =  9
+    // Each folded attribute then injects into its target's flat pool:
+    //   max-life:     (50 base + 108 derived[27×4]) ×1.2 incr = 189.6
+    //   damage:       (10 base + 5 flat + 15 derived[15×1]) ×1.1 incr = 33
+    //   crit-chance:  1 base + 2 flat + 4.5 derived[9×0.5]    = 7.5
+    //   crit-damage:  0 base + 16 flat + 9 derived[9×1]       = 25
+    const result = computeStats(
+      {
+        vitality: 10,
+        strength: 12,
+        intelligence: 6,
+        'max-life': 50,
+        damage: 10,
+        'crit-chance': 1,
+      },
+      [
+        mod('vitality', 'flat', 8),
+        mod('vitality', 'increased', 0.5),
+        mod('strength', 'flat', 3),
+        mod('dexterity', 'flat', 9),
+        mod('intelligence', 'more', 0.5),
+        mod('max-life', 'increased', 0.2),
+        mod('damage', 'flat', 5),
+        mod('damage', 'increased', 0.1),
+        mod('crit-chance', 'flat', 2),
+        mod('crit-damage', 'flat', 16),
+      ],
+    )
+    expect(result.vitality).toBe(27)
+    expect(result.strength).toBe(15)
+    expect(result.dexterity).toBe(9)
+    expect(result.intelligence).toBe(9)
+    expect(result['max-life']).toBe(189.6)
+    expect(result.damage).toBe(33)
+    expect(result['crit-chance']).toBe(7.5)
+    expect(result['crit-damage']).toBe(25)
+  })
+
+  it('derives from the folded attribute, so attribute mods feed derivation', () => {
+    // A bare +5 vitality flat mod (no base) grants 5 × 4 = 20 max-life…
+    expect(computeStats({}, [mod('vitality', 'flat', 5)])['max-life']).toBe(20)
+    // …and strength 10 ×1.5 increased folds to 15 before deriving 15 damage.
+    expect(computeStats({ strength: 10 }, [mod('strength', 'increased', 0.5)]).damage).toBe(15)
+  })
+
+  it('scales derived contributions with increased/more mods on the target stat', () => {
+    // Injection happens in the target's flat pool, before its multipliers —
+    // this is the fold order decision 0031 records. vitality 10 → 40 flat
+    // max-life; a +50% increased max-life mod must multiply that to 60.
+    expect(computeStats({ vitality: 10 }, [])['max-life']).toBe(40)
+    expect(computeStats({ vitality: 10 }, [mod('max-life', 'increased', 0.5)])['max-life']).toBe(
+      60,
+    )
+    // Same for a more multiplier: dexterity 10 → 5 crit-chance, ×2 more = 10.
+    expect(computeStats({ dexterity: 10 }, [])['crit-chance']).toBe(5)
+    expect(computeStats({ dexterity: 10 }, [mod('crit-chance', 'more', 1)])['crit-chance']).toBe(
+      10,
+    )
+  })
+
+  it('derives nothing from an attribute clamped to zero by a curse', () => {
+    const result = computeStats({ vitality: 5 }, [mod('vitality', 'flat', -50)])
+    expect(result.vitality).toBe(0)
+    expect(result['max-life']).toBe(0)
+  })
+
+  it('is bit-identical to a derivation-free fold when all attributes are zero (property)', () => {
+    // Reference implementation of the pre-derivation fold: the documented
+    // per-stat formula with canonical (sorted) folds and end quantization,
+    // and no attribute stage at all. Proving the identity means comparing
+    // against this, not against another call into the same code path.
+    const referenceFold = (base: StatBlock, mods: readonly StatMod[]): Record<StatKey, number> => {
+      const sorted = (values: number[]) => values.slice().sort((a, b) => a - b)
+      const sum = (values: number[]) => {
+        let total = 0
+        for (const value of sorted(values)) total += value
+        return total
+      }
+      const out = {} as Record<StatKey, number>
+      for (const key of STAT_KEYS) {
+        const flats = mods.filter((m) => m.stat === key && m.mode === 'flat').map((m) => m.value)
+        const incs = mods
+          .filter((m) => m.stat === key && m.mode === 'increased')
+          .map((m) => m.value)
+        const mores = mods.filter((m) => m.stat === key && m.mode === 'more').map((m) => m.value)
+        let value = Math.max(0, (base[key] ?? 0) + sum(flats))
+        value *= Math.max(0, 1 + sum(incs))
+        for (const m of sorted(mores)) value *= Math.max(0, 1 + m)
+        const scaled = value * STAT_SCALE
+        out[key] = scaled >= Number.MAX_SAFE_INTEGER ? value : Math.round(scaled) / STAT_SCALE
+      }
+      return out
+    }
+
+    const rng = createRng('zero-attribute-identity')
+    for (let trial = 0; trial < 200; trial++) {
+      const base: Partial<Record<StatKey, number>> = {}
+      for (const key of NON_ATTRIBUTE_KEYS) {
+        if (rng.chance(0.6)) base[key] = rng.float(0, 1000)
+      }
+      const mods: StatMod[] = Array.from({ length: rng.int(0, 10) }, () =>
+        mod(
+          rng.pick(NON_ATTRIBUTE_KEYS),
+          rng.pick(['flat', 'increased', 'more']),
+          rng.float(-2, 4),
+        ),
+      )
+      // Attribute noise that still folds to zero: explicit zero bases,
+      // multipliers on nothing, and negative flats that clamp at the floor.
+      for (const key of ATTRIBUTE_KEYS) {
+        if (rng.chance(0.5)) base[key] = 0
+        if (rng.chance(0.4)) mods.push(mod(key, rng.pick(['increased', 'more']), rng.float(-1, 3)))
+        if (rng.chance(0.4)) mods.push(mod(key, 'flat', rng.chance(0.5) ? 0 : rng.float(-50, 0)))
+      }
+
+      const result = computeStats(base, rng.shuffle(mods))
+      const reference = referenceFold(base, mods)
+      // toBe, not toBeCloseTo: the identity must hold to the exact bit, or
+      // adding derivation would move every existing replay hash.
+      for (const key of STAT_KEYS) expect(result[key]).toBe(reference[key])
+    }
   })
 })
 
