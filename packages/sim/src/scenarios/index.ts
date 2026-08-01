@@ -3,6 +3,7 @@ import type { Scenario } from '../scenario'
 import { contentSeam } from './content-seam'
 import { contentSmoke } from './content-smoke'
 import { duel } from './duel'
+import { dungeonCrawl } from './dungeon-crawl'
 import { harnessSelftest } from './harness-selftest'
 import { lootSmoke } from './loot-smoke'
 import { skillStrike } from './skill-strike'
@@ -19,6 +20,7 @@ export const SCENARIOS: Readonly<Record<string, Scenario>> = {
   [contentSeam.name]: contentSeam,
   [contentSmoke.name]: contentSmoke,
   [duel.name]: duel,
+  [dungeonCrawl.name]: dungeonCrawl,
   [harnessSelftest.name]: harnessSelftest,
   [lootSmoke.name]: lootSmoke,
   [skillStrike.name]: skillStrike,
