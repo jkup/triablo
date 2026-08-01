@@ -26,6 +26,7 @@ describe('authored content', () => {
     expect(registry.totalEntries).toBeGreaterThan(0)
     expect(registry.items.size).toBeGreaterThan(0)
     expect(registry.monsters.size).toBeGreaterThan(0)
+    expect(registry.dungeons.size).toBeGreaterThan(0)
   })
 
   it('gives every entry an id matching its map key', () => {

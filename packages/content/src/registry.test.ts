@@ -43,6 +43,16 @@ const validMonster = (id: string, lootTable: string) => ({
   tags: [],
 })
 
+/** Two rooms joined by a 1-tile doorway across the seam at x=4/x=5. */
+const validDungeon = (id: string, spawns: { monster: string; x: number; y: number }[] = []) => ({
+  id,
+  name: 'Test Vault',
+  rooms: [
+    { id: 'entry', offset: { x: 0, y: 0 }, tiles: ['#####', '#E...', '#####'], spawns },
+    { id: 'end', offset: { x: 5, y: 0 }, tiles: ['#####', '...X#', '#####'] },
+  ],
+})
+
 const bundleWith = (overrides: Partial<RawBundle>): RawBundle => ({
   ...emptyRawBundle(),
   ...overrides,
@@ -214,6 +224,123 @@ describe('cross-reference checking', () => {
     )
 
     expect(issues[0]?.message).toMatch(/can never roll/)
+  })
+})
+
+describe('dungeon validation', () => {
+  it('accepts a well-formed, traversable dungeon with a resolvable spawn', () => {
+    const { registry, issues } = loadContent(
+      bundleWith({
+        items: [entry('sword', validItem('sword'))],
+        lootTables: [entry('table', validLootTable('table', 'sword'))],
+        monsters: [entry('ghoul', validMonster('ghoul', 'table'))],
+        dungeons: [entry('vault', validDungeon('vault', [{ monster: 'ghoul', x: 2, y: 1 }]))],
+      }),
+    )
+
+    expect(issues).toEqual([])
+    expect(registry.dungeon('vault').rooms).toHaveLength(2)
+  })
+
+  it('rejects two entrances at the schema level', () => {
+    const dungeon = validDungeon('vault')
+    dungeon.rooms[1]!.tiles = ['#####', '.E.X#', '#####']
+    const { issues } = parseBundle(bundleWith({ dungeons: [entry('vault', dungeon)] }))
+
+    expect(issues.some((issue) => /exactly one entrance 'E'.*found 2/.test(issue.message))).toBe(
+      true,
+    )
+  })
+
+  it('rejects a missing exit at the schema level', () => {
+    const dungeon = validDungeon('vault')
+    dungeon.rooms[1]!.tiles = ['#####', '....#', '#####']
+    const { issues } = parseBundle(bundleWith({ dungeons: [entry('vault', dungeon)] }))
+
+    expect(issues.some((issue) => /exactly one exit 'X'.*found 0/.test(issue.message))).toBe(true)
+  })
+
+  it('rejects ragged tile rows and unknown tile characters at the schema level', () => {
+    const ragged = validDungeon('vault')
+    ragged.rooms[0]!.tiles = ['#####', '#E..#', '###']
+    expect(
+      parseBundle(bundleWith({ dungeons: [entry('vault', ragged)] })).issues.some((issue) =>
+        /ragged tile rows/.test(issue.message),
+      ),
+    ).toBe(true)
+
+    const unknown = validDungeon('vault')
+    unknown.rooms[0]!.tiles = ['#####', '#E.?#', '#####']
+    expect(
+      parseBundle(bundleWith({ dungeons: [entry('vault', unknown)] })).issues.some((issue) =>
+        /may only contain/.test(issue.message),
+      ),
+    ).toBe(true)
+  })
+
+  it('reports a sealed-off exit room as a reachability problem', () => {
+    // The doorway is walled up: the exit room's floor never touches the
+    // entry room's floor, so the dungeon cannot be traversed. This is what
+    // proves `content:validate` catches a broken hand-authored dungeon.
+    const dungeon = validDungeon('vault')
+    dungeon.rooms[1]!.tiles = ['#####', '#..X#', '#####']
+    const { issues } = loadContent(bundleWith({ dungeons: [entry('vault', dungeon)] }))
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.file).toBe('dungeons/vault.json')
+    expect(issues[0]?.message).toMatch(/room\(s\) "end" are not reachable from room "entry"/)
+  })
+
+  it('reports an exit walled off inside its own room as unreachable', () => {
+    // Room-to-room connectivity cannot see an internal wall; the findPath
+    // pass in checkReferences does.
+    const dungeon = {
+      id: 'vault',
+      name: 'Test Vault',
+      rooms: [{ id: 'only', offset: { x: 0, y: 0 }, tiles: ['#####', '#E#X#', '#####'] }],
+    }
+    const { issues } = loadContent(bundleWith({ dungeons: [entry('vault', dungeon)] }))
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.message).toMatch(
+      /exit 'X' at \(3, 1\) is not reachable from entrance 'E' at \(1, 1\)/,
+    )
+  })
+
+  it('reports overlapping rooms as a build problem naming both rooms', () => {
+    const dungeon = validDungeon('vault')
+    dungeon.rooms[1]!.offset = { x: 3, y: 0 }
+    const { issues } = loadContent(bundleWith({ dungeons: [entry('vault', dungeon)] }))
+
+    expect(issues[0]?.message).toMatch(
+      /does not build: .*rooms "entry" and "end" have overlapping bounding boxes/,
+    )
+  })
+
+  it('reports a spawn on a wall as a build problem', () => {
+    const { issues } = loadContent(
+      bundleWith({
+        dungeons: [entry('vault', validDungeon('vault', [{ monster: 'ghoul', x: 0, y: 0 }]))],
+      }),
+    )
+
+    expect(
+      issues.some((issue) => /does not build: .*spawn "ghoul" .* is on a wall/.test(issue.message)),
+    ).toBe(true)
+  })
+
+  it('catches a spawn referencing a monster that does not exist', () => {
+    const { issues } = loadContent(
+      bundleWith({
+        dungeons: [entry('vault', validDungeon('vault', [{ monster: 'missing', x: 2, y: 1 }]))],
+      }),
+    )
+
+    expect(
+      issues.some((issue) =>
+        /rooms\.0\.spawns\.0\.monster: no monster with id "missing"/.test(issue.message),
+      ),
+    ).toBe(true)
   })
 })
 

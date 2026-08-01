@@ -11,6 +11,7 @@ import {
   StatModRangeSchema,
   WeightSchema,
 } from './common'
+import { DungeonSchema } from './dungeon'
 import { SkillEffectSchema } from './effects'
 
 /**
@@ -171,6 +172,7 @@ export const CONTENT_TYPES = {
   lootTables: { dir: 'loot-tables', schema: LootTableSchema, label: 'loot table' },
   monsters: { dir: 'monsters', schema: MonsterSchema, label: 'monster' },
   skills: { dir: 'skills', schema: SkillSchema, label: 'skill' },
+  dungeons: { dir: 'dungeons', schema: DungeonSchema, label: 'dungeon' },
 } as const
 
 export type ContentTypeKey = keyof typeof CONTENT_TYPES
@@ -178,4 +180,5 @@ export type ContentTypeKey = keyof typeof CONTENT_TYPES
 export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES) as ContentTypeKey[]
 
 export * from './common'
+export * from './dungeon'
 export * from './effects'

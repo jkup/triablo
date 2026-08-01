@@ -102,9 +102,41 @@ Template shape (keep it this simple; record refinements in `docs/decisions/`):
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `dungeons` content type: `DungeonSchema`
+  (`packages/content/src/schemas/dungeon.ts`), registered in `CONTENT_TYPES`
+  and plumbed through `emptyRawBundle`/`ContentBundle`/`ContentRegistry`
+  (field, `dungeon()` accessor, counts). Pure `buildDungeon()` in
+  `packages/core/src/world/dungeon.ts` turns a template into a `Grid` plus
+  dungeon-space entrance/exit/spawns/room-rects; it rejects overlapping
+  rooms (naming both), spawns off-room or on walls, wrong `E`/`X` counts,
+  malformed tiles, duplicate room ids, and rooms sealed off from the
+  entrance room. `checkReferences` now validates spawn→monster references
+  and runs the real builder + `findPath(entrance, exit)`, so a broken
+  hand-authored dungeon fails `content:validate` (covered by tests for a
+  sealed-off exit room and an exit walled off inside its own room).
+  Authored `charnel-vaults` ("The Charnel Vaults"): 5 rooms (gatehouse,
+  gallery, ossuary, reliquary, sepulchre), 26x19 grid, 8 undead spawns, E→X
+  path of 27 tiles; corridors/doorways are 1-3 tiles with 3-wide main rooms
+  for melee approach. `content:validate` reports `dungeons 1`, all other
+  counts unchanged. Decisions 0024 (tile legend/template shape), 0025
+  (no-overlap + floor-adjacency connectivity), 0026 (coordinate
+  conventions).
+  - E/X-count rejection lives in **both** layers on purpose: the Zod schema
+    (`superRefine`, file-shaped message at validate time) and `buildDungeon`
+    (core cannot assume schema-validated input). Recorded in decision 0024.
+  - Core's `DungeonTemplate` mirrors the schema with one deliberate nuance:
+    `spawns` is optional in core, while the schema defaults it to `[]`, so
+    every parsed `Dungeon` is assignable to `DungeonTemplate`. No other
+    divergence.
+- **Replays re-blessed:** No. Pure data + validation additions; no system or
+  scenario behavior changed, all 4 golden replays pass untouched.
+- **Scope deviations:** None. Files touched are exactly the in-scope list
+  plus three `docs/decisions/` entries and this task-file move.
+- **Follow-ups worth a new task:** A sim scenario that walks the dungeon
+  entrance-to-exit (deliberately out of scope here) once a player entity
+  exists — tasks 0320/0330/0340 cover populate → avatar → bot-crawl and can
+  consume `BuiltDungeon` (`grid`, `entrance`, `exit`, `spawns`, room rects)
+  directly. `scripts/bake-content.ts` writes its bundle longhand and does
+  not yet include dungeons; the browser client does not consume dungeons
+  yet, but whichever task wires the client to dungeon data must add the
+  field there (script was out of scope for this task).
