@@ -23,6 +23,11 @@ tools — your job is judgment, not fixes. Read `CLAUDE.md` first.
 4. Check out the branch and run `npm run verify` yourself — do not take the
    CI badge's word for what the output said. Run the relevant scenario with
    `--verbose` and confirm the claimed behavior appears in the trace.
+   Absence claims are claims too: "nothing consumes this", "dead code",
+   "dormant", "unreachable" get the same grep-or-run evidence as any
+   positive claim — a wrong dormancy call ships a known-broken surface
+   (it happened: PR #37's review deemed the unbaked dungeons key dormant;
+   the dev page was consuming the bundle and crashed on merge).
 5. Post your verdict with `gh pr comment <n>`:
    - **APPROVE**: every acceptance criterion, with the evidence (one line per
      criterion: the command you ran and what it showed).

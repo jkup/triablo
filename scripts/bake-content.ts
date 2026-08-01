@@ -1,8 +1,8 @@
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { loadContent, type ContentBundle } from '@triablo/content'
+import { ContentRegistry, loadContent, type ContentBundle } from '@triablo/content'
 import { readRawBundleFromDisk } from '@triablo/content/node'
 
 /**
@@ -41,6 +41,17 @@ function main(): void {
 
   mkdirSync(dirname(OUTPUT), { recursive: true })
   writeFileSync(OUTPUT, `${JSON.stringify(bundle, null, 2)}\n`, 'utf8')
+
+  // Round-trip check: construct a registry from the file we just wrote —
+  // the browser's exact load path. A bundle the client cannot consume must
+  // fail the bake (and verify), not the first `npm run dev` after merge.
+  const reread = new ContentRegistry(JSON.parse(readFileSync(OUTPUT, 'utf8')) as ContentBundle)
+  if (reread.totalEntries !== registry.totalEntries) {
+    console.error(
+      `Baked bundle round-trip mismatch: wrote ${registry.totalEntries} entries, reread ${reread.totalEntries}.`,
+    )
+    process.exit(1)
+  }
 
   console.log(`baked ${registry.totalEntries} entries -> packages/content/generated/bundle.json`)
 }
