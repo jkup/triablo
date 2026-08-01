@@ -70,6 +70,16 @@ export type {
 export { Grid } from './world/grid'
 export type { GridJSON, Tile } from './world/grid'
 
+export { buildDungeon } from './world/dungeon'
+export type {
+  BuiltDungeon,
+  DungeonRoomRect,
+  DungeonRoomTemplate,
+  DungeonSpawn,
+  DungeonSpawnTemplate,
+  DungeonTemplate,
+} from './world/dungeon'
+
 export { defineComponent, defineEvent, World } from './ecs'
 export type {
   ComponentType,

@@ -1,6 +1,8 @@
 import type { z } from 'zod'
 
-import type { Affix, ContentTypeKey, ItemBase, LootTable, Monster, Skill } from './schemas'
+import { buildDungeon } from '@triablo/core'
+
+import type { Affix, ContentTypeKey, Dungeon, ItemBase, LootTable, Monster, Skill } from './schemas'
 import { CONTENT_TYPES, CONTENT_TYPE_KEYS } from './schemas'
 
 /**
@@ -39,11 +41,11 @@ export interface ContentIssue {
  * array appearing at runtime.
  */
 export function emptyRawBundle(): RawBundle {
-  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [] }
+  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [], dungeons: [] }
 }
 
 function emptyContentBundle(): ContentBundle {
-  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [] }
+  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [], dungeons: [] }
 }
 
 /**
@@ -95,6 +97,7 @@ export class ContentRegistry {
   readonly lootTables: ReadonlyMap<string, LootTable>
   readonly monsters: ReadonlyMap<string, Monster>
   readonly skills: ReadonlyMap<string, Skill>
+  readonly dungeons: ReadonlyMap<string, Dungeon>
 
   constructor(bundle: ContentBundle) {
     this.items = index(bundle.items)
@@ -102,6 +105,7 @@ export class ContentRegistry {
     this.lootTables = index(bundle.lootTables)
     this.monsters = index(bundle.monsters)
     this.skills = index(bundle.skills)
+    this.dungeons = index(bundle.dungeons)
   }
 
   get counts(): Record<ContentTypeKey, number> {
@@ -111,6 +115,7 @@ export class ContentRegistry {
       lootTables: this.lootTables.size,
       monsters: this.monsters.size,
       skills: this.skills.size,
+      dungeons: this.dungeons.size,
     }
   }
 
@@ -133,6 +138,9 @@ export class ContentRegistry {
   }
   skill(id: string): Skill {
     return required(this.skills, id, 'skill')
+  }
+  dungeon(id: string): Dungeon {
+    return required(this.dungeons, id, 'dungeon')
   }
 }
 
@@ -177,6 +185,45 @@ export function checkReferences(registry: ContentRegistry): ContentIssue[] {
         })
       }
     })
+  }
+
+  for (const dungeon of registry.dungeons.values()) {
+    const file = `dungeons/${dungeon.id}.json`
+
+    dungeon.rooms.forEach((room, roomIndex) => {
+      room.spawns.forEach((spawn, spawnIndex) => {
+        if (!registry.monsters.has(spawn.monster)) {
+          issues.push({
+            file,
+            message: `rooms.${roomIndex}.spawns.${spawnIndex}.monster: no monster with id "${spawn.monster}"`,
+          })
+        }
+      })
+    })
+
+    // The schema can only see one room at a time; the geometric rules —
+    // overlap, room connectivity, spawns on floor — live in the real
+    // builder. Running it here (content may depend on core) means a broken
+    // hand-authored dungeon fails `content:validate`, not tick 4000 of a run.
+    let built
+    try {
+      built = buildDungeon(dungeon)
+    } catch (error) {
+      issues.push({
+        file,
+        message: `does not build: ${error instanceof Error ? error.message : String(error)}`,
+      })
+      continue
+    }
+
+    // The builder proves room-to-room connectivity; a room can still be
+    // internally walled off, so prove the walk the player must make.
+    if (built.grid.findPath(built.entrance, built.exit) === null) {
+      issues.push({
+        file,
+        message: `exit 'X' at (${built.exit.x}, ${built.exit.y}) is not reachable from entrance 'E' at (${built.entrance.x}, ${built.entrance.y})`,
+      })
+    }
   }
 
   for (const affix of registry.affixes.values()) {
