@@ -91,9 +91,42 @@ shipped skill then has at least one executed, asserted cast.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `skill-strike.ts` gained a fifth, additive lane:
+  `ice-lance-caster` at (160, 0) (continuing the 40-tile spacing), dummies
+  `ice-lance-front` (zombie, x 164, expected 12) and `ice-lance-shadow`
+  (zombie, x 166, expected 0 — the spark lane's occlusion pattern), and one
+  `CAST_PLAN` entry at tick 10 aiming at (170, 0), the range-10 endpoint.
+  Expected 12 was derived by **executing** the real `computeDamage` with the
+  executor's exact 0260 stat mapping (weaponDamage 10, no mods/crit,
+  level 1, ×1.5 cold vs zombie armor 3): breakdown base 10 → afterSkill 15
+  → armorReduction 3/13 → round(11.538…) = 12. The invariants
+  (`damage-within-expectation`, `expected-damage-landed`,
+  `formation-present`) and the report are table-driven over
+  `CASTERS`/`DUMMIES`, so they now cover the new labels with zero invariant
+  code edits — confirming they read labels, never entity ids (the ids did
+  shift, 1..4/5..17 → 1..5/6..20, noted in an added comment). Verbose trace
+  at seed 1 confirms the cadence facts from decisions 0018/0020/0022: cast
+  accepted tick 10, wind-up resolves tick 25 (15 ticks = 0.5 s), projectile
+  impacts at tick 32 for 12 cold, shadow untouched — long before the
+  tick-240 settle. Before/after seed-1 report: every pre-existing damage
+  line is byte-identical —
+  `melee-primary 36, sweep-flank 18, sweep-rear 12, projectile-front 6,
+  projectile-shadow 0, fireball-struck 13, fireball-splash 5,
+  fireball-shadow 0, chain-primary/a/b/c 21, chain-d 0,
+  chainDummiesDamaged 4` (both runs); new lines after:
+  `ice-lance-front 12, ice-lance-shadow 0`; `castsPlanned 8 → 9` and
+  `systemsRegistered 4` (unchanged) — the castsPlanned change is the
+  mandated cast-plan growth itself. No `core`/`content` misbehavior found:
+  executor and recipe matched the derived expectation exactly.
+- **Replays re-blessed:** `skill-strike.seed1.json` only, hash
+  `c94ebea4739feced` → `59b59d75a6013113` — re-blessed because the scenario
+  roster and cast plan grew (5th caster, 2 dummies, 9th cast); every
+  previously-pinned expectation is unchanged and re-verified in the same
+  run. Also corrected the replay's `note` ("four casters" → five; the old
+  note claimed the eight recipes were run when ice-lance never was — now
+  true). No other replay changed.
+- **Scope deviations:** none. Files touched: the two in-scope files plus
+  this task-file move. `git diff` on the scenario shows only additions.
+- **Follow-ups worth a new task:** none required. (Declined follow-up
+  noted in-task: all five casters trace as `skill-caster (N)` — cosmetic,
+  left alone per the batch-3 planner note.)

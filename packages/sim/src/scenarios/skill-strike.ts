@@ -43,6 +43,9 @@ import type { Scenario } from '../scenario'
  *               ground-stomp 12, spark 6, fireball 8 direct + 5 burst, chain 21
  *   grave-hulk (armor 8): factor 10/18 — rend 8, ravage 16, cleave 4,
  *               ground-stomp 8
+ *   ice-lance vs zombie: 12 (armor 3, factor 10/13) — the fifth lane, added
+ *               by task 0360 so every shipped skill has an executed,
+ *               asserted cast; verified by executing computeDamage
  *
  * Deliberate freedoms (do NOT pin these): projectile flight positions per
  * tick, the projectile's line-hit corridor width (every shadowed dummy here
@@ -94,6 +97,10 @@ const CASTERS: readonly CasterSpec[] = [
   { label: 'spark-caster', x: 40, y: 0 },
   { label: 'fireball-caster', x: 80, y: 0 },
   { label: 'chain-caster', x: 120, y: 0 },
+  // Task 0360: fifth station, continuing the 40-tile spacing. Ice-lance's
+  // reach is 10 tiles + the 0.5-tile corridor (decision 0022), so this lane
+  // cannot touch the chain cluster near x=123 and nothing can touch it.
+  { label: 'ice-lance-caster', x: 160, y: 0 },
 ]
 
 interface DummySpec {
@@ -259,6 +266,36 @@ const DUMMIES: readonly DummySpec[] = [
     chainMember: true,
     explain: 'chain-lightning cluster member: struck once for exactly 21, or not at all',
   },
+  // --- ice-lance station (caster at (160,0), aiming +x) — task 0360 --------
+  // The spark lane's occlusion pattern, replayed for the cold projectile.
+  // Expected 12 was derived by EXECUTING computeDamage (weaponDamage 10,
+  // no mods/crit, level 1, x1.5 cold vs zombie armor 3): 10 x 1.5 = 15
+  // pre-mitigation, armor factor 10/13, round(11.538...) = 12. Cadence
+  // (decisions 0018/0020): cast accepted tick 10, wind-up 15 ticks resolves
+  // at tick 25; flight at 14 tiles/s covers the 4-tile lane in under 10
+  // ticks, so the impact lands around tick 33 — far before SETTLE_TICK 240.
+  {
+    label: 'ice-lance-front',
+    monster: 'zombie',
+    x: 164,
+    y: 0,
+    expectedDamage: 12,
+    chainMember: false,
+    explain:
+      "ice-lance 12 (armor 3, factor 10/13): the first target on the projectile's line, 4 tiles " +
+      'out — well inside max range 10 (decision 0018: speed 14, range 10, cold x1.5)',
+  },
+  {
+    label: 'ice-lance-shadow',
+    monster: 'zombie',
+    x: 166,
+    y: 0,
+    expectedDamage: 0,
+    chainMember: false,
+    explain:
+      "0: it stands on ice-lance's line 2 tiles behind ice-lance-front, well inside max range " +
+      '10 — only first-target occlusion protects it; a projectile that pierces deals it 12',
+  },
 ]
 
 /** maxJumps 3 + the first strike (decision 0018): at most 4 distinct chain targets. */
@@ -291,6 +328,8 @@ const CAST_PLAN: readonly PlannedCast[] = [
   { atTick: 10, caster: 'spark-caster', skillId: 'spark', aimX: 48, aimY: 0, targetLabel: null },
   { atTick: 10, caster: 'fireball-caster', skillId: 'fireball', aimX: 90, aimY: 0, targetLabel: null },
   { atTick: 10, caster: 'chain-caster', skillId: 'chain-lightning', aimX: null, aimY: null, targetLabel: 'chain-primary' },
+  // Task 0360: aims down the lane's +x axis; (170,0) is the range-10 endpoint.
+  { atTick: 10, caster: 'ice-lance-caster', skillId: 'ice-lance', aimX: 170, aimY: 0, targetLabel: null },
 ]
 
 /**
@@ -511,6 +550,9 @@ export const skillStrike: Scenario = {
     }
 
     // Casters first (entity ids 1..4), then dummies (5..17), in table order.
+    // (Task 0360 appended the ice-lance lane: ids are now 1..5 and 6..20.
+    // Invariants and the report read labels, never ids, so the shift is
+    // invisible to them — only the replay hash legitimately moves.)
     // Factions carry the hostility contract (decision 0021): effects strike
     // only entities of another faction, so casters can never harm each other
     // and the inert dummies can never be "allies" of a caster.
