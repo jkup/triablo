@@ -102,9 +102,38 @@ call it.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `packages/core/src/world/populate.ts`: `DungeonMap`
+  component (`{ grid: GridJSON, entrance: Tile, exit: Tile }` — plain JSON
+  only, `Grid.fromJSON` at the point of use) and
+  `populateDungeon(world, built, options)`. Spawn order is map entity first
+  (lowest id), then monsters in `built.spawns` order (room order then
+  authored order, per decision 0026); each monster gets `Combatant` via
+  `makeCombatant`, `Position` at its spawn tile's integer coordinates, and
+  `Faction { id: options.monsterFactionId }`. Returns
+  `{ mapEntity, monsterEntities, entrance, exit }`. Six tests cover the
+  3-room fixture with two spawns, the JSON-text snapshot/restore round trip
+  (walkability + `findPath` identical), both lookup-failure modes, and
+  populate-twice hash equality. `index.ts` re-exports `DungeonMap`,
+  `populateDungeon`, `PopulateDungeonOptions`, `PopulatedDungeon`.
+  - **Partial-spawn semantics: all-or-nothing.** Every `monsterFor` lookup
+    resolves before the first `world.spawn()`; any throw or non-object return
+    aborts with an error naming the monster id and spawn tile, leaving the
+    world bit-identical (tested via `world.hash()` equality — spawn-then-
+    rollback was rejected because even a destroyed entity burns an id, which
+    is hash-visible). Decision 0028 records this plus the tile-coordinate
+    convention. The 0340 bot scenario inherits both.
+  - **0180 name mapping:** the task file's guesses matched what landed —
+    `BuiltDungeon` with `grid: Grid`, `entrance`/`exit: Tile`,
+    `spawns: DungeonSpawn[]` (`{ monster, x, y }`, dungeon-space). No
+    adaptation needed; `rooms: DungeonRoomRect[]` exists but populate does
+    not use it.
+- **Replays re-blessed:** None. All four replays pass byte-identical;
+  nothing registered uses `populateDungeon` yet.
+- **Scope deviations:** None. Files touched: `populate.ts` (new),
+  `populate.test.ts` (new), `index.ts` (re-exports only), decision 0028,
+  this task file.
+- **Follow-ups worth a new task:** (a) 0340/0350 as planned — a caller that
+  closes `monsterFor` over the content registry and adds the player entity.
+  (b) Nothing prevents populating one world twice (two `DungeonMap`
+  entities); fine for now, but a multi-level/town task will need a "which
+  map am I on" convention.

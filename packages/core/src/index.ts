@@ -80,6 +80,9 @@ export type {
   DungeonTemplate,
 } from './world/dungeon'
 
+export { DungeonMap, populateDungeon } from './world/populate'
+export type { PopulateDungeonOptions, PopulatedDungeon } from './world/populate'
+
 export { defineComponent, defineEvent, World } from './ecs'
 export type {
   ComponentType,
