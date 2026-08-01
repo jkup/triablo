@@ -104,9 +104,55 @@ every phase-2 dungeon task in this batch builds on it.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** `combatRows` now queries `(Combatant, Position, Faction)`
+  and `nearestOpponent` skips any row whose `Faction.id` equals the actor's —
+  decision 0021's rule verbatim, no factionless fallback: a combatant without
+  a `Faction` appears in no row, so it neither chases, attacks, nor is
+  targeted (decision 0023). Ascending-entity-id iteration and the
+  strict-less-than nearest/tie rule are untouched. `duel.ts` attaches
+  `Faction` ids `'left'`/`'right'` in `spawnCombatant`; invariants, records,
+  and report are unchanged. All existing combat unit tests gained factions
+  ('red' vs 'blue') and pass with their original expectations; three new
+  tests cover same-faction non-aggression, no-`Faction`-is-inert (both
+  directions, adjacent and out of range), and a 2v2 where every landed hit
+  crosses faction lines with the tie broken toward the lower entity id — all
+  three fail against the pre-change implementation (verified by stashing
+  `systems.ts`).
+- **Replays re-blessed:** `duel.seed1.json` only, hash `9c4f4a45f759e3c9` →
+  `0153b95470905df2`. The two duelists now carry a hash-visible `Faction`
+  component; the fight itself is identical — same trace shape,
+  skeleton-warrior dies at tick 380 before and after. Report before:
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+  ```
+  duel  seed=1  ticks=900
+
+    combatantsAlive         1
+    winner                  zombie
+    damageDealtBySurvivors  32
+    lifeRemaining           zombie 8/44
+
+    ticks completed  900
+    state hash       9c4f4a45f759e3c9
+  ```
+
+  Report after:
+
+  ```
+  duel  seed=1  ticks=900
+
+    combatantsAlive         1
+    winner                  zombie
+    damageDealtBySurvivors  32
+    lifeRemaining           zombie 8/44
+
+    ticks completed  900
+    state hash       0153b95470905df2
+  ```
+
+  `content-seam.seed1.json`, `harness-selftest.seed1.json`, and
+  `skill-strike.seed1.json` all still pass unmodified.
+- **Scope deviations:** none. Files touched: `combat/systems.ts`,
+  `combat/systems.test.ts`, `sim/scenarios/duel.ts`, the duel replay,
+  decision 0023, and this task file.
+- **Follow-ups worth a new task:** none beyond what is already queued (task
+  0330 builds aggro radius on this hostility model).

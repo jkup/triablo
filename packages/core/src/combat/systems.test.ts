@@ -4,6 +4,7 @@ import type { EntityId } from '../ecs'
 import { World } from '../ecs'
 import { Rng } from '../rng'
 import { TICK_HZ } from '../time'
+import { Faction } from '../skills/components'
 import type { Combatant as CombatantValue } from './components'
 import { Combatant, Position } from './components'
 import { computeDamage } from './damage'
@@ -13,6 +14,12 @@ interface SpawnOverrides {
   x?: number
   y?: number
   combatant?: Partial<CombatantValue>
+  /**
+   * Faction id (decision 0023: melee hostility crosses faction lines only).
+   * `null` spawns a factionless — and therefore inert, untargetable —
+   * combatant. Defaults to 'red'; opponents must be given a different id.
+   */
+  faction?: string | null
 }
 
 function spawnFighter(world: World, overrides: SpawnOverrides = {}): EntityId {
@@ -32,6 +39,8 @@ function spawnFighter(world: World, overrides: SpawnOverrides = {}): EntityId {
     ...overrides.combatant,
   })
   world.add(entity, Position, { x: overrides.x ?? 0, y: overrides.y ?? 0 })
+  const faction = overrides.faction === undefined ? 'red' : overrides.faction
+  if (faction !== null) world.add(entity, Faction, { id: faction })
   return entity
 }
 
@@ -56,7 +65,7 @@ describe('approachSystem', () => {
     const world = new World({ seed: 1 })
     world.addSystem(approachSystem)
     const a = spawnFighter(world, { x: 0, combatant: { moveSpeed: 3 } })
-    const b = spawnFighter(world, { x: 6, combatant: { moveSpeed: 3 } })
+    const b = spawnFighter(world, { x: 6, combatant: { moveSpeed: 3 }, faction: 'blue' })
 
     world.step()
 
@@ -72,7 +81,7 @@ describe('approachSystem', () => {
     world.addSystem(approachSystem)
     // 2 tiles per tick each: an unclamped step would fly past the target.
     const a = spawnFighter(world, { y: 0, combatant: { moveSpeed: 2 * TICK_HZ } })
-    const b = spawnFighter(world, { y: 3, combatant: { moveSpeed: 2 * TICK_HZ } })
+    const b = spawnFighter(world, { y: 3, combatant: { moveSpeed: 2 * TICK_HZ }, faction: 'blue' })
 
     world.step()
     // a stops exactly on the range boundary; b, already in range, holds still.
@@ -96,8 +105,9 @@ describe('approachSystem', () => {
     world.step()
     expect(world.getOrThrow(alone, Position)).toEqual({ x: 2, y: 0 })
 
-    // A corpse (life 0, not yet reaped) is not a target and does not move.
-    const corpse = spawnFighter(world, { x: 9 })
+    // A corpse (life 0, not yet reaped) is not a target and does not move —
+    // hostile faction, so being dead is the only thing excluding it.
+    const corpse = spawnFighter(world, { x: 9, faction: 'blue' })
     world.getOrThrow(corpse, Combatant).life = 0
     world.step()
     expect(world.getOrThrow(alone, Position)).toEqual({ x: 2, y: 0 })
@@ -117,6 +127,7 @@ describe('attackSystem', () => {
     const b = spawnFighter(world, {
       x: 1,
       combatant: { life: 44, maxLife: 44, damage: 6, armor: 3, level: 2 },
+      faction: 'blue',
     })
     const aData = world.getOrThrow(a, Combatant)
     const bData = world.getOrThrow(b, Combatant)
@@ -137,7 +148,11 @@ describe('attackSystem', () => {
     const world = new World({ seed: 1 })
     world.addSystem(attackSystem)
     const attacker = spawnFighter(world, { x: 0, combatant: { attackIntervalTicks: 3 } })
-    spawnFighter(world, { x: 1, combatant: { life: 1000, maxLife: 1000, damage: 0 } })
+    spawnFighter(world, {
+      x: 1,
+      combatant: { life: 1000, maxLife: 1000, damage: 0 },
+      faction: 'blue',
+    })
     const data = world.getOrThrow(attacker, Combatant)
 
     const dealtPerTick: number[] = []
@@ -153,7 +168,7 @@ describe('attackSystem', () => {
     const world = new World({ seed: 1 })
     world.addSystem(attackSystem)
     const attacker = spawnFighter(world, { x: 0 })
-    const far = spawnFighter(world, { x: 5, combatant: { damage: 0 } })
+    const far = spawnFighter(world, { x: 5, combatant: { damage: 0 }, faction: 'blue' })
     world.step()
     world.step()
     expect(world.getOrThrow(attacker, Combatant).damageDealt).toBe(0)
@@ -165,7 +180,11 @@ describe('attackSystem', () => {
     const world = new World({ seed: 1 })
     world.addSystem(attackSystem)
     const killer = spawnFighter(world, { x: 0, combatant: { damage: 1000 } })
-    const victim = spawnFighter(world, { x: 1, combatant: { life: 30, maxLife: 30, damage: 0 } })
+    const victim = spawnFighter(world, {
+      x: 1,
+      combatant: { life: 30, maxLife: 30, damage: 0 },
+      faction: 'blue',
+    })
 
     world.step()
 
@@ -179,7 +198,11 @@ describe('attackSystem', () => {
     // Entity a (lower id) resolves first and kills b outright; b's queued
     // swing (ticksUntilAttack 0, in range) must not land.
     const a = spawnFighter(world, { x: 0, combatant: { damage: 1000 } })
-    const b = spawnFighter(world, { x: 1, combatant: { damage: 1000, ticksUntilAttack: 0 } })
+    const b = spawnFighter(world, {
+      x: 1,
+      combatant: { damage: 1000, ticksUntilAttack: 0 },
+      faction: 'blue',
+    })
 
     world.step()
 
@@ -192,8 +215,8 @@ describe('attackSystem', () => {
     const world = new World({ seed: 1 })
     world.addSystem(attackSystem)
     const middle = spawnFighter(world, { x: 0 })
-    const left = spawnFighter(world, { x: -1, combatant: { damage: 0 } })
-    const right = spawnFighter(world, { x: 1, combatant: { damage: 0 } })
+    const left = spawnFighter(world, { x: -1, combatant: { damage: 0 }, faction: 'blue' })
+    const right = spawnFighter(world, { x: 1, combatant: { damage: 0 }, faction: 'blue' })
 
     world.step()
 
@@ -203,13 +226,92 @@ describe('attackSystem', () => {
   })
 })
 
+describe('faction hostility (decision 0023)', () => {
+  it('never lets combatants sharing a faction id damage each other', () => {
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    world.addSystem(attackSystem)
+    // Same faction, inside melee range, both attack timers ready.
+    const a = spawnFighter(world, { x: 0, faction: 'red' })
+    const b = spawnFighter(world, { x: 1, faction: 'red' })
+
+    for (let i = 0; i < 50; i++) world.step()
+
+    expect(world.getOrThrow(a, Combatant).life).toBe(30)
+    expect(world.getOrThrow(b, Combatant).life).toBe(30)
+    expect(world.getOrThrow(a, Combatant).damageDealt).toBe(0)
+    expect(world.getOrThrow(b, Combatant).damageDealt).toBe(0)
+  })
+
+  it('makes a combatant without a Faction inert: it neither chases, attacks, nor is attacked', () => {
+    // Adjacent pair: the factionless entity must not swing at the factioned
+    // one, and must not be swung at, despite both being in range with timers
+    // ready.
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    world.addSystem(attackSystem)
+    const inert = spawnFighter(world, { x: 0, faction: null })
+    const factioned = spawnFighter(world, { x: 1, faction: 'red' })
+
+    for (let i = 0; i < 50; i++) world.step()
+
+    expect(world.getOrThrow(inert, Combatant).life).toBe(30)
+    expect(world.getOrThrow(factioned, Combatant).life).toBe(30)
+    expect(world.getOrThrow(inert, Combatant).damageDealt).toBe(0)
+    expect(world.getOrThrow(factioned, Combatant).damageDealt).toBe(0)
+    expect(world.getOrThrow(inert, Position)).toEqual({ x: 0, y: 0 })
+    expect(world.getOrThrow(factioned, Position)).toEqual({ x: 1, y: 0 })
+
+    // Out-of-range pair: neither side moves toward the other — the factionless
+    // entity has an empty candidate set, and it is not a candidate itself.
+    const apartWorld = new World({ seed: 1 })
+    apartWorld.addSystem(approachSystem)
+    apartWorld.addSystem(attackSystem)
+    const inertFar = spawnFighter(apartWorld, { x: 0, faction: null })
+    const factionedFar = spawnFighter(apartWorld, { x: 3, faction: 'red' })
+
+    for (let i = 0; i < 50; i++) apartWorld.step()
+
+    expect(apartWorld.getOrThrow(inertFar, Position)).toEqual({ x: 0, y: 0 })
+    expect(apartWorld.getOrThrow(factionedFar, Position)).toEqual({ x: 3, y: 0 })
+    expect(apartWorld.getOrThrow(inertFar, Combatant).life).toBe(30)
+    expect(apartWorld.getOrThrow(factionedFar, Combatant).life).toBe(30)
+  })
+
+  it('crosses faction lines only, nearest hostile first, ties toward the lower entity id', () => {
+    const world = new World({ seed: 1 })
+    world.addSystem(attackSystem)
+    // Two factions of two. Distinct power-of-two damages make every life
+    // delta attributable to exactly one set of attackers. All in melee range
+    // of their targets; armor 0, so a hit applies its full damage.
+    const a1 = spawnFighter(world, { x: 0, combatant: { damage: 1 }, faction: 'red' })
+    const a2 = spawnFighter(world, { x: 0.25, combatant: { damage: 2 }, faction: 'red' })
+    const b1 = spawnFighter(world, { x: 1, combatant: { damage: 4 }, faction: 'blue' })
+    const b2 = spawnFighter(world, { x: -1, combatant: { damage: 8 }, faction: 'blue' })
+
+    world.step()
+
+    // a1's hostiles b1 and b2 are both exactly 1 tile away: the tie breaks
+    // toward b1 (lower id), even though ally a2 is nearer than either.
+    // a2's nearest hostile is b1 (0.75); b1's is a2 (0.75); b2's is a1 (1).
+    expect(world.getOrThrow(a1, Combatant).life).toBe(30 - 8) // hit by b2 only
+    expect(world.getOrThrow(a2, Combatant).life).toBe(30 - 4) // hit by b1 only
+    expect(world.getOrThrow(b1, Combatant).life).toBe(30 - 1 - 2) // hit by a1 and a2
+    expect(world.getOrThrow(b2, Combatant).life).toBe(30) // untouched: a1 chose b1 on the tie
+    expect(world.getOrThrow(a1, Combatant).damageDealt).toBe(1)
+    expect(world.getOrThrow(a2, Combatant).damageDealt).toBe(2)
+    expect(world.getOrThrow(b1, Combatant).damageDealt).toBe(4)
+    expect(world.getOrThrow(b2, Combatant).damageDealt).toBe(8)
+  })
+})
+
 describe('deathSystem', () => {
   it('destroys an entity the same tick its life reaches zero', () => {
     const world = new World({ seed: 1 })
     world.addSystem(attackSystem)
     world.addSystem(deathSystem)
     const killer = spawnFighter(world, { x: 0, combatant: { damage: 1000 } })
-    const victim = spawnFighter(world, { x: 1 })
+    const victim = spawnFighter(world, { x: 1, faction: 'blue' })
 
     world.step()
 

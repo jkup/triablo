@@ -8,6 +8,11 @@
  * life in the same tick. Melee range, the movement clamp, and attack cadence
  * are recorded in docs/decisions/0010.
  *
+ * Hostility is decision 0021's faction rule, extended to melee by decision
+ * 0023: opponents are living combatants whose `Faction` id differs from the
+ * actor's. A combatant with no `Faction` is inert — it neither chases,
+ * attacks, nor is ever targeted.
+ *
  * Determinism notes: every loop walks rows sorted by ascending entity id, so
  * store insertion order can never leak into results. Distances use
  * `Math.sqrt(dx*dx + dy*dy)` — those operations are exactly specified by
@@ -15,6 +20,7 @@
  */
 
 import type { EntityId, System, World } from '../ecs'
+import { Faction } from '../skills/components'
 import { TICK_HZ } from '../time'
 import { Combatant, Position } from './components'
 import { computeDamage } from './damage'
@@ -22,11 +28,16 @@ import { computeDamage } from './damage'
 /** Melee reach: attack (and stop approaching) at Euclidean distance ≤ this. Decision 0010. */
 export const MELEE_RANGE_TILES = 1
 
-type CombatRow = [EntityId, Combatant, Position]
+type CombatRow = [EntityId, Combatant, Position, Faction]
 
-/** All alive combatants with a position, in ascending entity-id order. */
+/**
+ * All combatants able to take part in melee, in ascending entity-id order.
+ * Requiring `Faction` here is the whole hostility model (decision 0023): a
+ * combatant without one appears in no row, so it neither acts as an attacker
+ * nor exists as a candidate target.
+ */
 function combatRows(world: World): CombatRow[] {
-  return world.query(Combatant, Position).sort((left, right) => left[0] - right[0])
+  return world.query(Combatant, Position, Faction).sort((left, right) => left[0] - right[0])
 }
 
 function distanceBetween(a: Position, b: Position): number {
@@ -45,13 +56,21 @@ interface Target {
 /**
  * The nearest living opponent, ties broken toward the lower entity id (rows
  * arrive id-ascending and only a strictly smaller distance replaces the
- * incumbent). Combatants whose life already reached zero this tick are not
- * valid targets — they are corpses awaiting the death system.
+ * incumbent). Opponents are entities of any *other* faction (decisions 0021
+ * and 0023) — allies are never candidates. Combatants whose life already
+ * reached zero this tick are not valid targets — they are corpses awaiting
+ * the death system.
  */
-function nearestOpponent(rows: readonly CombatRow[], self: EntityId, at: Position): Target | null {
+function nearestOpponent(
+  rows: readonly CombatRow[],
+  self: EntityId,
+  selfFaction: Faction,
+  at: Position,
+): Target | null {
   let best: Target | null = null
-  for (const [entity, combatant, position] of rows) {
+  for (const [entity, combatant, position, faction] of rows) {
     if (entity === self) continue
+    if (faction.id === selfFaction.id) continue
     if (combatant.life <= 0) continue
     const distance = distanceBetween(at, position)
     if (best === null || distance < best.distance) {
@@ -76,9 +95,9 @@ export const approachSystem: System = {
   name: 'approach',
   update(world) {
     const rows = combatRows(world)
-    for (const [entity, combatant, position] of rows) {
+    for (const [entity, combatant, position, faction] of rows) {
       if (combatant.life <= 0) continue
-      const target = nearestOpponent(rows, entity, position)
+      const target = nearestOpponent(rows, entity, faction, position)
       if (target === null) continue
       if (target.distance <= MELEE_RANGE_TILES) continue
 
@@ -120,10 +139,10 @@ export const attackSystem: System = {
   name: 'attack',
   update(world) {
     const rows = combatRows(world)
-    for (const [entity, combatant, position] of rows) {
+    for (const [entity, combatant, position, faction] of rows) {
       if (combatant.life <= 0) continue // decision 0006: the dead deal no damage
 
-      const target = nearestOpponent(rows, entity, position)
+      const target = nearestOpponent(rows, entity, faction, position)
       if (target === null || target.distance > MELEE_RANGE_TILES) continue
 
       if (combatant.ticksUntilAttack > 0) combatant.ticksUntilAttack--
