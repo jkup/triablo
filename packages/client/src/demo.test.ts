@@ -1,8 +1,8 @@
 import type { Monster } from '@triablo/content'
-import { World } from '@triablo/core'
+import { Combatant, Position, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
-import { DEMO_BOUNDS, DemoMonster, DemoPosition, DemoVelocity, setupDemoWorld } from './demo'
+import { DEMO_BOUNDS, DemoAttackTimer, DemoVelocity, setupDemoWorld } from './demo'
 import { buildScene, PIXELS_PER_UNIT } from './scene'
 
 function makeMonster(id: string, overrides: Partial<Monster['stats']> = {}): Monster {
@@ -29,27 +29,34 @@ function makeMonster(id: string, overrides: Partial<Monster['stats']> = {}): Mon
 const ROSTER = [makeMonster('zombie'), makeMonster('bone-mage'), makeMonster('grave-hulk')]
 
 describe('setupDemoWorld', () => {
-  it('spawns one entity per monster with position, velocity, and stats', () => {
+  it('spawns one entity per monster carrying core Position and Combatant', () => {
     const world = new World({ seed: 1 })
     setupDemoWorld(world, ROSTER)
 
+    // The renderer-read state is the core render contract (decision 0027):
+    // every demo entity carries the real `Position` and `Combatant`.
     expect(world.entityCount).toBe(3)
-    expect(world.count(DemoMonster)).toBe(3)
-    expect(world.count(DemoPosition)).toBe(3)
+    expect(world.count(Position)).toBe(3)
+    expect(world.count(Combatant)).toBe(3)
     expect(world.count(DemoVelocity)).toBe(3)
+    expect(world.count(DemoAttackTimer)).toBe(3)
     expect(world.systemNames).toEqual(['demo-patrol', 'demo-attack-timers'])
 
-    const ids = world.query(DemoMonster).map(([, monster]) => monster.monsterId)
+    const ids = world.query(Combatant).map(([, fighter]) => fighter.monsterId)
     expect(ids).toEqual(['zombie', 'bone-mage', 'grave-hulk'])
+    for (const [, fighter] of world.query(Combatant)) {
+      expect(fighter.life).toBe(fighter.maxLife)
+      expect(fighter.maxLife).toBeGreaterThan(0)
+    }
   })
 
   it('moves monsters every tick and keeps them inside the arena', () => {
     const world = new World({ seed: 7 })
     setupDemoWorld(world, ROSTER)
 
-    const before = world.query(DemoPosition).map(([, p]) => ({ ...p }))
+    const before = world.query(Position).map(([, p]) => ({ ...p }))
     world.run(300)
-    const after = world.query(DemoPosition).map(([, p]) => ({ ...p }))
+    const after = world.query(Position).map(([, p]) => ({ ...p }))
 
     expect(after).not.toEqual(before)
     for (const position of after) {
@@ -67,7 +74,7 @@ describe('setupDemoWorld', () => {
 
     for (let i = 0; i < 500; i++) {
       world.step()
-      const [row] = world.query(DemoPosition)
+      const [row] = world.query(Position)
       const position = row?.[1]
       expect(position).toBeDefined()
       expect(position!.x).toBeGreaterThanOrEqual(0)
@@ -82,10 +89,10 @@ describe('setupDemoWorld', () => {
     setupDemoWorld(world, ROSTER)
     world.run(200)
 
-    for (const [, monster] of world.query(DemoMonster)) {
-      expect(monster.attacksMade).toBeGreaterThan(0)
-      expect(monster.ticksUntilAttack).toBeGreaterThan(0)
-      expect(monster.ticksUntilAttack).toBeLessThanOrEqual(monster.attackIntervalTicks)
+    for (const [, timer] of world.query(DemoAttackTimer)) {
+      expect(timer.attacksMade).toBeGreaterThan(0)
+      expect(timer.ticksUntilAttack).toBeGreaterThan(0)
+      expect(timer.ticksUntilAttack).toBeLessThanOrEqual(timer.attackIntervalTicks)
     }
   })
 
@@ -93,9 +100,9 @@ describe('setupDemoWorld', () => {
     const world = new World({ seed: 1 })
     setupDemoWorld(world, ROSTER)
     // Force the degenerate case directly; content validation forbids authoring it.
-    for (const [, monster] of world.query(DemoMonster)) monster.attackIntervalTicks = 0
+    for (const [, timer] of world.query(DemoAttackTimer)) timer.attackIntervalTicks = 0
     world.run(10)
-    for (const [, monster] of world.query(DemoMonster)) expect(monster.attacksMade).toBe(0)
+    for (const [, timer] of world.query(DemoAttackTimer)) expect(timer.attacksMade).toBe(0)
   })
 
   it('is deterministic: same seed, same world hash; and renders through buildScene', () => {

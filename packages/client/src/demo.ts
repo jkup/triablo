@@ -1,5 +1,5 @@
 import type { Monster } from '@triablo/content'
-import { defineComponent, secondsToTicks, TICK_HZ } from '@triablo/core'
+import { Combatant, defineComponent, makeCombatant, Position, TICK_HZ } from '@triablo/core'
 import type { World } from '@triablo/core'
 
 /**
@@ -11,9 +11,13 @@ import type { World } from '@triablo/core'
  * spawns, plus deterministic patrol movement so there is something to watch
  * and something for the interpolator to smooth.
  *
- * Components deliberately use the structural conventions the scene builder
- * reads: `{x, y}` for position, `{life, maxLife}` for the health bar,
- * `monsterId` for color. All movement flows from `world.rng`.
+ * Everything the renderer reads lives in core components — the render
+ * contract of docs/decisions/0027: `Position` for placement, `Combatant`
+ * (built via `makeCombatant`, so the numbers match what combat would spawn)
+ * for the health bar and `monsterId` color. Demo-only bookkeeping — patrol
+ * velocity and the attack-timer showpiece — stays in demo-owned components so
+ * the demo never becomes a second combat implementation. All movement flows
+ * from `world.rng`.
  */
 
 /** Demo arena size in world units. Fits the 800x600 viewport at 24 px/unit. */
@@ -21,45 +25,31 @@ export const DEMO_BOUNDS = { width: 33, height: 24 } as const
 
 const WALL_MARGIN = 2
 
-export interface DemoMonsterData {
-  monsterId: string
-  life: number
-  maxLife: number
-  attackIntervalTicks: number
-  ticksUntilAttack: number
-  attacksMade: number
-}
-
-export interface DemoPositionData {
-  x: number
-  y: number
-}
-
 export interface DemoVelocityData {
   dx: number
   dy: number
 }
 
-export const DemoMonster = defineComponent<DemoMonsterData>('DemoMonster')
-export const DemoPosition = defineComponent<DemoPositionData>('DemoPosition')
+/** Showpiece attack cadence — traces only, no damage. Not combat. */
+export interface DemoAttackTimerData {
+  monsterId: string
+  attackIntervalTicks: number
+  ticksUntilAttack: number
+  attacksMade: number
+}
+
 export const DemoVelocity = defineComponent<DemoVelocityData>('DemoVelocity')
+export const DemoAttackTimer = defineComponent<DemoAttackTimerData>('DemoAttackTimer')
 
 /** Spawn every given monster and register the demo systems. Deterministic. */
 export function setupDemoWorld(world: World, monsters: Iterable<Monster>): void {
   for (const monster of monsters) {
     const entity = world.spawn()
-    const attackIntervalTicks = secondsToTicks(monster.stats.attackIntervalSeconds)
+    const fighter = makeCombatant(monster.id, monster.level, monster.stats)
 
-    world.add(entity, DemoMonster, {
-      monsterId: monster.id,
-      life: monster.stats.life,
-      maxLife: monster.stats.life,
-      attackIntervalTicks,
-      ticksUntilAttack: attackIntervalTicks,
-      attacksMade: 0,
-    })
+    world.add(entity, Combatant, fighter)
 
-    world.add(entity, DemoPosition, {
+    world.add(entity, Position, {
       x: world.rng.float(WALL_MARGIN, DEMO_BOUNDS.width - WALL_MARGIN),
       y: world.rng.float(WALL_MARGIN, DEMO_BOUNDS.height - WALL_MARGIN),
     })
@@ -72,13 +62,20 @@ export function setupDemoWorld(world: World, monsters: Iterable<Monster>): void 
       dy: Math.sin(angle) * speed,
     })
 
+    world.add(entity, DemoAttackTimer, {
+      monsterId: monster.id,
+      attackIntervalTicks: fighter.attackIntervalTicks,
+      ticksUntilAttack: fighter.attackIntervalTicks,
+      attacksMade: 0,
+    })
+
     world.trace(() => `demo: spawned ${monster.id} as entity ${entity}`)
   }
 
   world.addSystem({
     name: 'demo-patrol',
     update(w) {
-      for (const [, position, velocity] of w.query(DemoPosition, DemoVelocity)) {
+      for (const [, position, velocity] of w.query(Position, DemoVelocity)) {
         position.x += velocity.dx
         position.y += velocity.dy
 
@@ -103,13 +100,13 @@ export function setupDemoWorld(world: World, monsters: Iterable<Monster>): void 
   world.addSystem({
     name: 'demo-attack-timers',
     update(w) {
-      for (const [entity, instance] of w.query(DemoMonster)) {
-        if (instance.attackIntervalTicks <= 0) continue
-        instance.ticksUntilAttack--
-        if (instance.ticksUntilAttack > 0) continue
-        instance.ticksUntilAttack = instance.attackIntervalTicks
-        instance.attacksMade++
-        w.trace(() => `demo: ${instance.monsterId} (${entity}) attacks #${instance.attacksMade}`)
+      for (const [entity, timer] of w.query(DemoAttackTimer)) {
+        if (timer.attackIntervalTicks <= 0) continue
+        timer.ticksUntilAttack--
+        if (timer.ticksUntilAttack > 0) continue
+        timer.ticksUntilAttack = timer.attackIntervalTicks
+        timer.attacksMade++
+        w.trace(() => `demo: ${timer.monsterId} (${entity}) attacks #${timer.attacksMade}`)
       }
     },
   })

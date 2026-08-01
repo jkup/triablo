@@ -1,4 +1,4 @@
-import { hashString } from '@triablo/core'
+import { Combatant, hashString, Position } from '@triablo/core'
 import type { WorldSnapshot } from '@triablo/core'
 
 /**
@@ -8,12 +8,14 @@ import type { WorldSnapshot } from '@triablo/core'
  * executors of this list, so everything interesting about how the game looks
  * is decided here, deterministically, and is unit-testable in Node.
  *
- * The scene builder reads the snapshot structurally rather than importing
- * component types: any component value with numeric `x`/`y` is a position,
- * any with numeric `life`/`maxLife` is a health readout, and a string
- * `monsterId` seeds the sprite's color. This keeps the client decoupled from
- * simulation component definitions (which live above it in `sim`, a package
- * the client must not import). See docs/decisions/0012.
+ * The render contract is core's components, read by id from the snapshot:
+ * `Position` places a sprite, `Combatant` supplies the life fraction and the
+ * `monsterId` color seed. Nothing else is ever read as a position or a health
+ * readout — a component that merely happens to carry numeric `x`/`y` fields
+ * does not move a sprite. The one structural read left is cosmetic: entities
+ * without a `Combatant` may still take a color seed from any component's
+ * string `monsterId`, so sim-owned monsters stay visually distinct. See
+ * docs/decisions/0027 (superseding 0012's duck-typing).
  */
 
 /** Logical viewport, in pixels. The default frame every backend renders. */
@@ -62,6 +64,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
 }
 
+/**
+ * Validate a `Position` component value from an untyped snapshot. Snapshots
+ * can come from saves, so a malformed or non-finite position degrades to the
+ * fallback grid instead of dragging the camera to NaN.
+ */
 function readPosition(value: unknown): { x: number; y: number } | null {
   if (!isRecord(value)) return null
   const { x, y } = value
@@ -70,6 +77,7 @@ function readPosition(value: unknown): { x: number; y: number } | null {
   return { x, y }
 }
 
+/** Validate a `Combatant` component value's life readout, clamped to [0, 1]. */
 function readLifeFrac(value: unknown): number | null {
   if (!isRecord(value)) return null
   const { life, maxLife } = value
@@ -77,6 +85,7 @@ function readLifeFrac(value: unknown): number | null {
   return Math.max(0, Math.min(1, life / maxLife))
 }
 
+/** Cosmetic-only structural read: a string `monsterId` on any component. */
 function readColorSeed(value: unknown): string | null {
   if (!isRecord(value)) return null
   const { monsterId } = value
@@ -127,12 +136,12 @@ function cameraCenter(views: Iterable<EntityView>): { x: number; y: number } | n
 /**
  * Build the display list for one snapshot.
  *
- * Entities with a position component are placed at `PIXELS_PER_UNIT` scale,
- * with the camera (the bounding-box center of all positioned entities) mapped
- * to the viewport center. Entities without one are laid out on a fixed
+ * Entities with a core `Position` component are placed at `PIXELS_PER_UNIT`
+ * scale, with the camera (the bounding-box center of all positioned entities)
+ * mapped to the viewport center. Entities without one are laid out on a fixed
  * screen-space grid in entity-id order — a debug layout the camera does not
  * transform — so that position-less simulations still render every entity
- * visibly.
+ * visibly. Life bars come from core `Combatant` only.
  */
 export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT): Scene {
   const views = new Map<number, EntityView>()
@@ -140,18 +149,29 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     views.set(entity, { entity, position: null, lifeFrac: null, colorSeed: '' })
   }
 
+  // The render contract (docs/decisions/0027): read core components by id.
+  for (const [entity, value] of snapshot.components[Position.id] ?? []) {
+    const view = views.get(entity)
+    if (view === undefined) continue
+    view.position = readPosition(value)
+  }
+  for (const [entity, value] of snapshot.components[Combatant.id] ?? []) {
+    const view = views.get(entity)
+    if (view === undefined) continue
+    view.lifeFrac = readLifeFrac(value)
+    view.colorSeed = readColorSeed(value) ?? ''
+  }
+
+  // Cosmetic color fallback for entities the contract did not color: the
+  // first component carrying the entity wins — its string `monsterId` if it
+  // has one (keeps sim-owned monsters distinct), else the component id.
   // Component ids arrive sorted (snapshot() sorts them), so "first component
-  // that looks like X wins" is deterministic.
+  // wins" is deterministic. This seeds colors only — never position or life.
   for (const [componentId, entries] of Object.entries(snapshot.components)) {
     for (const [entity, value] of entries) {
       const view = views.get(entity)
-      if (view === undefined) continue
-
-      view.position ??= readPosition(value)
-      view.lifeFrac ??= readLifeFrac(value)
-      if (view.colorSeed === '') {
-        view.colorSeed = readColorSeed(value) ?? `component:${componentId}`
-      }
+      if (view === undefined || view.colorSeed !== '') continue
+      view.colorSeed = readColorSeed(value) ?? `component:${componentId}`
     }
   }
 

@@ -107,9 +107,38 @@ decision entry retires 0012's duck-typing.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `buildScene` now reads the render contract from core by
+  component id — `snapshot.components[Position.id]` for placement,
+  `[Combatant.id]` for life fraction and `monsterId` color seed. The
+  structural position/life probes over every component are deleted. Ruling
+  (decision 0027, which supersedes 0012): a color-only structural `monsterId`
+  read survives as a cosmetic exception for entities without a `Combatant`,
+  so sim-owned monsters stay visually distinct; it can never place a sprite
+  or draw a health bar. `demo.ts` migrated to core `Position` + `Combatant`
+  (via `makeCombatant`); patrol velocity and the attack-timer showpiece stay
+  in demo-owned `DemoVelocity`/`DemoAttackTimer`. New scene tests pin the
+  contract: a non-`Position` component with numeric `x`/`y` lands on the
+  fallback grid (fails against the old duck-typing), and `life`/`maxLife` on
+  a non-`Combatant` component draws no bar.
+  Shots (before → after, identical):
+  `shot duel seed=1 tick=200 entities=2 sprites=2 hash=8913086d31422c6f 800x600` →
+  `shot duel seed=1 tick=200 entities=2 sprites=2 hash=8913086d31422c6f 800x600`
+  (PNGs byte-identical, confirmed with `cmp`).
+  `shot content-smoke seed=1 tick=100 entities=5 sprites=5 hash=141bb4b7b3fafdea 800x600` →
+  same summary line after; PNG read and confirmed: all 5 monsters render on
+  the fallback grid with the same five distinct colors as before (cyan,
+  green, teal, purple, blue — the cosmetic `monsterId` exception preserves
+  them). Only visual change: their green life bars are gone, since
+  `MonsterInstance` is not a `Combatant` and the structural life read is
+  removed. `render-regression.test.ts` passes unmodified (all three pins).
+- **Replays re-blessed:** none.
+- **Scope deviations:** `packages/client/src/index.ts` (barrel) needed a
+  two-line mechanical export update because `demo.ts`'s exports changed
+  (`DemoMonster`/`DemoPosition` → `DemoAttackTimer`; `DemoPosition` is now
+  core's `Position`) — typecheck fails without it, no behavior change. Also
+  edited `docs/decisions/0012-*.md` Status → "superseded by 0027", the pair
+  change the decisions README requires.
+- **Follow-ups worth a new task:** content-smoke monsters lost their life
+  bars (sim's `MonsterInstance` is not a `Combatant`); if sim wants bars in
+  debug shots, migrate `attack-timers.ts` spawns to core `Combatant` or
+  accept color-only rendering.

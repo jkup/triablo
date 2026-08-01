@@ -1,12 +1,33 @@
-import { defineComponent, World } from '@triablo/core'
+import { Combatant, defineComponent, Position, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
 import { buildScene, colorFor, interpolateScene, PIXELS_PER_UNIT, VIEWPORT } from './scene'
 
+// Sim-style component the renderer has no contract for: carries a monsterId
+// (cosmetic color seed) and life numbers the renderer must NOT read as a
+// health bar (decision 0027 removed the structural life read).
 const Stats = defineComponent<{ monsterId: string; life: number; maxLife: number }>('TestStats')
-const Position = defineComponent<{ x: number; y: number }>('TestPosition')
-const BrokenPosition = defineComponent<{ x: number; y: number }>('TestBrokenPosition')
+// A component that merely happens to have numeric x/y — decision 0012's
+// misread hazard. It must never place a sprite.
+const NotAPosition = defineComponent<{ x: number; y: number }>('TestNotAPosition')
 const Tag = defineComponent<{ note: string }>('TestTag')
+
+/** A full core `Combatant` value with only the renderer-read fields varying. */
+function combatant(monsterId: string, life: number, maxLife: number): Combatant {
+  return {
+    monsterId,
+    life,
+    maxLife,
+    damageDealt: 0,
+    damage: 1,
+    damageType: 'physical',
+    armor: 0,
+    level: 1,
+    moveSpeed: 1,
+    attackIntervalTicks: 30,
+    ticksUntilAttack: 0,
+  }
+}
 
 describe('buildScene', () => {
   it('renders every alive entity, in entity-id order, labeled with its id', () => {
@@ -106,7 +127,7 @@ describe('buildScene', () => {
   it('ignores non-finite positions and falls back to the grid', () => {
     const world = new World({ seed: 1 })
     const entity = world.spawn()
-    world.add(entity, BrokenPosition, { x: Number.NaN, y: 2 })
+    world.add(entity, Position, { x: Number.NaN, y: 2 })
 
     const scene = buildScene(world.snapshot())
 
@@ -114,23 +135,44 @@ describe('buildScene', () => {
     expect(scene.sprites[0]?.y).toBe(36)
   })
 
-  it('reads {life, maxLife} into a clamped life fraction', () => {
+  it('does not place an entity by a non-Position component with numeric x/y fields', () => {
+    // Decision 0012's misread hazard, now closed by 0027: only core `Position`
+    // is a position. This entity must land on the fallback grid, not at (3,5)
+    // world units (which the camera would map to the viewport center).
+    const world = new World({ seed: 1 })
+    const entity = world.spawn()
+    world.add(entity, NotAPosition, { x: 3, y: 5 })
+
+    const scene = buildScene(world.snapshot())
+
+    expect(scene.sprites).toHaveLength(1)
+    expect(scene.sprites[0]).toMatchObject({ x: 36, y: 36 }) // first fallback cell
+  })
+
+  it('reads the life fraction from core Combatant only, clamped', () => {
     const world = new World({ seed: 1 })
     const half = world.spawn()
     const over = world.spawn()
     const none = world.spawn()
-    world.add(half, Stats, { monsterId: 'a', life: 5, maxLife: 10 })
-    world.add(over, Stats, { monsterId: 'b', life: 15, maxLife: 10 })
+    const fake = world.spawn()
+    world.add(half, Combatant, combatant('a', 5, 10))
+    world.add(over, Combatant, combatant('b', 15, 10))
     world.add(none, Tag, { note: 'lifeless' })
+    // life/maxLife on a non-Combatant component must not become a health bar.
+    world.add(fake, Stats, { monsterId: 'imposter', life: 5, maxLife: 10 })
 
     const scene = buildScene(world.snapshot())
 
     expect(scene.sprites[0]?.lifeFrac).toBe(0.5)
     expect(scene.sprites[1]?.lifeFrac).toBe(1)
     expect(scene.sprites[2]?.lifeFrac).toBeNull()
+    expect(scene.sprites[3]?.lifeFrac).toBeNull()
   })
 
   it('gives entities that share a monsterId the same color, and is deterministic', () => {
+    // `Stats` is not a core component: this pins decision 0027's cosmetic
+    // exception — a structural `monsterId` still seeds color (and only color)
+    // for entities with no Combatant, so sim-owned monsters stay distinct.
     const world = new World({ seed: 1 })
     const a = world.spawn()
     const b = world.spawn()
