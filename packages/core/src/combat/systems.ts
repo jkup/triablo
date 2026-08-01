@@ -20,6 +20,7 @@
  */
 
 import type { EntityId, System, World } from '../ecs'
+import { PlayerControlled } from '../player/components'
 import { Faction } from '../skills/components'
 import { TICK_HZ } from '../time'
 import { Combatant, Position } from './components'
@@ -27,6 +28,14 @@ import { computeDamage } from './damage'
 
 /** Melee reach: attack (and stop approaching) at Euclidean distance ≤ this. Decision 0010. */
 export const MELEE_RANGE_TILES = 1
+
+/**
+ * AI approach only chases a hostile at Euclidean distance ≤ this (decision
+ * 0029): monsters sit in their rooms until a hostile comes near instead of
+ * converging on spawn from across the map. Attacking needs no radius —
+ * `MELEE_RANGE_TILES` already gates it.
+ */
+export const AGGRO_RADIUS_TILES = 10
 
 type CombatRow = [EntityId, Combatant, Position, Faction]
 
@@ -86,6 +95,15 @@ function nearestOpponent(
  * `distance - MELEE_RANGE_TILES`, so an entity lands on the range boundary
  * instead of overshooting and oscillating through its target.
  *
+ * This is the AI half of movement, gated two ways (task 0330, decision 0029):
+ * an entity carrying `PlayerControlled` is never moved here — its movement
+ * comes only from `moveOrderSystem` (player/systems.ts), which callers
+ * register **before** this system so commanded movement settles first — and
+ * a combatant whose nearest hostile is beyond `AGGRO_RADIUS_TILES` stays
+ * put. The step is a straight line, not grid-aware: a monster inside aggro
+ * range can clip walls. That is accepted phase-2 ugliness; phase 3's monster
+ * AI behaviors own the fix.
+ *
  * Movers update sequentially in ascending entity id: a later mover sees an
  * earlier mover's new position this tick. Sequential-in-id-order is the
  * deterministic choice; simultaneous resolution would need a double buffer
@@ -97,8 +115,10 @@ export const approachSystem: System = {
     const rows = combatRows(world)
     for (const [entity, combatant, position, faction] of rows) {
       if (combatant.life <= 0) continue
+      if (world.has(entity, PlayerControlled)) continue // decision 0029: AI never drives the player
       const target = nearestOpponent(rows, entity, faction, position)
       if (target === null) continue
+      if (target.distance > AGGRO_RADIUS_TILES) continue // decision 0029: out of aggro range
       if (target.distance <= MELEE_RANGE_TILES) continue
 
       const step = Math.min(combatant.moveSpeed / TICK_HZ, target.distance - MELEE_RANGE_TILES)
