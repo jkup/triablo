@@ -1,0 +1,20 @@
+{
+  "id": "of-the-plague",
+  "name": "of the Plague",
+  "kind": "suffix",
+  "slots": ["head", "legs", "feet"],
+  "tiers": [
+    {
+      "tier": 2,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "resist-poison", "mode": "flat", "min": 4, "max": 8 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 22,
+      "weight": 30,
+      "mods": [{ "stat": "resist-poison", "mode": "flat", "min": 9, "max": 15 }]
+    }
+  ]
+}

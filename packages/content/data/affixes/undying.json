@@ -1,0 +1,20 @@
+{
+  "id": "undying",
+  "name": "Undying",
+  "kind": "prefix",
+  "slots": ["chest", "legs", "feet"],
+  "tiers": [
+    {
+      "tier": 2,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "max-life", "mode": "flat", "min": 10, "max": 24 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 25,
+      "weight": 45,
+      "mods": [{ "stat": "max-life", "mode": "flat", "min": 25, "max": 48 }]
+    }
+  ]
+}
