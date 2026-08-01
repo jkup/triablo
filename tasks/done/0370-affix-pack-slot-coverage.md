@@ -107,9 +107,97 @@ roll the same stat (pillar 2: interesting choices, not bigger numbers).
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** Added 12 new affix files under
+  `packages/content/data/affixes/` (6 prefixes, 6 suffixes), bringing the
+  pool from 10 to 22. Every one of the nine equipment slots now has
+  `prefix >= 3` and `suffix >= 3` at item level 1, so a 6-affix rare is
+  reachable everywhere. Themes were spread deliberately per pillar 2 (loot
+  is the story): armor (Ironbound), attributes (Runed/Lithe, following
+  Vital's precedent), max-life (Undying), a second elemental-resist pair
+  for helm/greaves/boots (of the Plague — poison, of the Storm —
+  lightning), a lightning-resist prefix for shield/legs/ring
+  (Storm-Warded), a crit-chance prefix for head/amulet (Fell), and on
+  weapon-adjacent slots (main-hand/off-hand/hands): crit-damage (of Ruin),
+  attack-speed (of the Wolf), life-regen (of Hunger), and move-speed for
+  head/hands (of the Stag). No existing affix file was modified.
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+  Per-slot coverage (`node -e` script from the acceptance criteria, run
+  from repo root):
+
+  ```
+  {
+    'main-hand': { prefix: 3, suffix: 3 },
+    head: { prefix: 3, suffix: 3 },
+    amulet: { prefix: 3, suffix: 3 },
+    hands: { prefix: 3, suffix: 3 },
+    feet: { prefix: 3, suffix: 3 },
+    ring: { prefix: 3, suffix: 4 },
+    chest: { prefix: 3, suffix: 4 },
+    legs: { prefix: 3, suffix: 3 },
+    'off-hand': { prefix: 3, suffix: 3 }
+  }
+  ```
+
+  `npm run content:validate`: `content ok — 48 entries` with
+  `affixes 22` (10 existing + 12 new) and every other type's count
+  unchanged (`items 11`, `lootTables 2`, `monsters 5`, `skills 8`).
+
+  `npm run sim -- run loot-smoke --seed 1 --verbose` exits 0, every
+  invariant quiet, and the report line reads:
+
+  ```
+  basesRolled          11
+  affixPoolSize        22
+  totalItems           88
+  magicItems           44
+  rareItems            44
+  totalAffixesRolled   271
+  distinctAffixesSeen  22
+  ```
+
+  `distinctAffixesSeen` (22) equals the full new pool size — every new
+  file actually rolled, not merely parsed. At seed 1, the verbose trace
+  shows 6-affix rares landing on chest, head, hands, and legs — e.g.
+  `cracked-skullcap (head, ilvl 5, rare): stalwart t2, of-the-plague t2,
+  of-the-storm t2, runed t2, fell t3, of-the-stag t2` and
+  `scarred-gloves (hands, ilvl 5, rare): of-the-wolf t3, of-the-stag t2,
+  ironbound t2, swift t3, lithe t2, of-ruin t3` — each 3 prefixes / 3
+  suffixes. Off-hand and feet cap at 5 affixes at seed 1 (the roller's
+  min/max is a target within a per-item-level/rarity draw, not a
+  guarantee every roll hits the ceiling); at seed 2 both reach 6, e.g.
+  `splintered-buckler (off-hand, ilvl 1, rare): storm-warded t2, runed
+  t2, of-ruin t3, of-the-wolf t3, stalwart t2, of-hunger t3` and
+  `worn-boots (feet, ilvl 10, rare): ironbound t2, of-the-storm t2,
+  of-haste t2, undying t2, of-the-plague t2, lithe t2` — confirming the
+  ceiling is reachable on every slot, even though not every seed's draw
+  reaches it on every slot.
+
+  `npm run verify` passes in full: typecheck, lint, 343 unit tests,
+  content:validate, sim:smoke (6 scenarios x 20 seeds each, including
+  loot-smoke), and replay:check (4 golden replays, all unchanged).
+
+  **Post-review fix:** the integrator flagged that `undying.json`'s
+  tier-1 weight (45) violated the ≤1/3-of-weakest-tier convention
+  (weakest tier weight 100, so tier-1 must be ≤33) — copied from
+  `of-the-bear`, a grandfathered pre-convention outlier, instead of the
+  house 100/30 pattern used by every other file in this pack. Fixed to
+  30. `npm run verify` and a fresh `npm run sim -- run loot-smoke --seed
+  1 --verbose` were re-run after the change: exit 0, every invariant
+  quiet, `affixPoolSize 22`, `totalAffixesRolled 271`,
+  `distinctAffixesSeen 22` (all identical in magnitude to the pre-fix
+  numbers above; only the rng-derived state hash shifted, as expected
+  from a weight change on a shared stream).
+
+- **Replays re-blessed:** None. loot-smoke is deliberately not
+  hash-pinned by a golden replay (decision 0003), and no other scenario's
+  behavior depends on the affix pool, so all 4 existing golden replays
+  passed unchanged.
+- **Scope deviations:** None. Only new files were added under
+  `packages/content/data/affixes/`; no existing content, schema, or code
+  file was touched. `git status` shows exactly the 12 new affix files
+  plus this task-file move.
+- **Follow-ups worth a new task:** None identified. The per-slot minimum
+  is exactly 3/3 with a small surplus on chest and ring (4 suffixes each,
+  inherited from the pre-existing pool) — a future content pass could add
+  slack elsewhere, but that's not required by this task's acceptance
+  criteria.

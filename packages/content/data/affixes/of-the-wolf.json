@@ -1,0 +1,26 @@
+{
+  "id": "of-the-wolf",
+  "name": "of the Wolf",
+  "kind": "suffix",
+  "slots": ["main-hand", "hands", "off-hand"],
+  "tiers": [
+    {
+      "tier": 3,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.03, "max": 0.05 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 15,
+      "weight": 55,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.06, "max": 0.09 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 35,
+      "weight": 20,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.1, "max": 0.14 }]
+    }
+  ]
+}

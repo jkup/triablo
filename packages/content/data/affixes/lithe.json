@@ -1,0 +1,20 @@
+{
+  "id": "lithe",
+  "name": "Lithe",
+  "kind": "prefix",
+  "slots": ["hands", "feet", "ring"],
+  "tiers": [
+    {
+      "tier": 2,
+      "itemLevel": 1,
+      "weight": 100,
+      "mods": [{ "stat": "dexterity", "mode": "flat", "min": 2, "max": 4 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 20,
+      "weight": 28,
+      "mods": [{ "stat": "dexterity", "mode": "flat", "min": 5, "max": 9 }]
+    }
+  ]
+}
