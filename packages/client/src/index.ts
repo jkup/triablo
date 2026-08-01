@@ -26,5 +26,5 @@ export type { Raster, Rgb } from './raster'
 
 export { adler32, crc32, encodePng, zlibStored } from './png'
 
-export { DEMO_BOUNDS, DemoMonster, DemoPosition, DemoVelocity, setupDemoWorld } from './demo'
-export type { DemoMonsterData, DemoPositionData, DemoVelocityData } from './demo'
+export { DEMO_BOUNDS, DemoAttackTimer, DemoVelocity, setupDemoWorld } from './demo'
+export type { DemoAttackTimerData, DemoVelocityData } from './demo'
