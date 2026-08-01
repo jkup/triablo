@@ -156,15 +156,37 @@ roll the same stat (pillar 2: interesting choices, not bigger numbers).
   ```
 
   `distinctAffixesSeen` (22) equals the full new pool size — every new
-  file actually rolled, not merely parsed. The verbose trace also shows
-  6-affix rares now landing on head, hands, off-hand, feet, chest, and
-  legs (e.g. `worn-boots (feet, ilvl 1, rare): of-haste t2, ironbound t2,
-  of-the-plague t2, of-the-storm t2, lithe t2`), which were previously
-  capped at a single affix.
+  file actually rolled, not merely parsed. At seed 1, the verbose trace
+  shows 6-affix rares landing on chest, head, hands, and legs — e.g.
+  `cracked-skullcap (head, ilvl 5, rare): stalwart t2, of-the-plague t2,
+  of-the-storm t2, runed t2, fell t3, of-the-stag t2` and
+  `scarred-gloves (hands, ilvl 5, rare): of-the-wolf t3, of-the-stag t2,
+  ironbound t2, swift t3, lithe t2, of-ruin t3` — each 3 prefixes / 3
+  suffixes. Off-hand and feet cap at 5 affixes at seed 1 (the roller's
+  min/max is a target within a per-item-level/rarity draw, not a
+  guarantee every roll hits the ceiling); at seed 2 both reach 6, e.g.
+  `splintered-buckler (off-hand, ilvl 1, rare): storm-warded t2, runed
+  t2, of-ruin t3, of-the-wolf t3, stalwart t2, of-hunger t3` and
+  `worn-boots (feet, ilvl 10, rare): ironbound t2, of-the-storm t2,
+  of-haste t2, undying t2, of-the-plague t2, lithe t2` — confirming the
+  ceiling is reachable on every slot, even though not every seed's draw
+  reaches it on every slot.
 
   `npm run verify` passes in full: typecheck, lint, 343 unit tests,
   content:validate, sim:smoke (6 scenarios x 20 seeds each, including
   loot-smoke), and replay:check (4 golden replays, all unchanged).
+
+  **Post-review fix:** the integrator flagged that `undying.json`'s
+  tier-1 weight (45) violated the ≤1/3-of-weakest-tier convention
+  (weakest tier weight 100, so tier-1 must be ≤33) — copied from
+  `of-the-bear`, a grandfathered pre-convention outlier, instead of the
+  house 100/30 pattern used by every other file in this pack. Fixed to
+  30. `npm run verify` and a fresh `npm run sim -- run loot-smoke --seed
+  1 --verbose` were re-run after the change: exit 0, every invariant
+  quiet, `affixPoolSize 22`, `totalAffixesRolled 271`,
+  `distinctAffixesSeen 22` (all identical in magnitude to the pre-fix
+  numbers above; only the rng-derived state hash shifted, as expected
+  from a weight change on a shared stream).
 
 - **Replays re-blessed:** None. loot-smoke is deliberately not
   hash-pinned by a golden replay (decision 0003), and no other scenario's

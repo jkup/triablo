@@ -13,7 +13,7 @@
     {
       "tier": 1,
       "itemLevel": 25,
-      "weight": 45,
+      "weight": 30,
       "mods": [{ "stat": "max-life", "mode": "flat", "min": 25, "max": 48 }]
     }
   ]
