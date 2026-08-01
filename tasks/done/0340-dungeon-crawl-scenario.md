@@ -124,9 +124,56 @@ escape hatch).
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+**Wip-finding fallback taken: the scenario found a real core bug and is
+registered `wip: true` (1 of cap 2 in use). No golden replay recorded.**
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/sim/src/scenarios/dungeon-crawl.ts` (new; full
+  crawl scenario, bot system, invariants, report, registered `wip: true`),
+  `packages/sim/src/scenarios/index.ts` (one line, alphabetical), decision
+  `docs/decisions/0030-slice-avatar-stats.md` (the slice avatar: level 5,
+  life 200, armor 14, damage 18 physical @ 1.2s, moveSpeed 2.4 — task 0350
+  reuses verbatim; no attributes, deliberately, for 0190 independence).
+- **The bug — melee-range boundary livelock (core, `combat/systems.ts`):**
+  `approachSystem` clamps its final step to `distance − MELEE_RANGE_TILES`,
+  intending to land exactly on the range boundary (decision 0010), but from
+  some approach geometries the IEEE-754 result lands at distance
+  **1.0000000000000004** (2 ulps above 1). `attackSystem` requires
+  `distance ≤ 1`, so neither side ever swings; and because the next clamp
+  step (≈4.4e-16) is smaller than the ulp of the position coordinates
+  (≈3.6e-15 at x≈18.56), `position += step` changes nothing — against a
+  stationary `PlayerControlled` target the wedge is **permanent** (mutually
+  approaching pairs, like the duel's, perturb each other loose, which is why
+  no earlier scenario caught it). Evidence, any seed (no rng is consumed;
+  seeds 1 and 7 produce byte-identical failures): `sim -- run dungeon-crawl
+  --seed 1` — skeleton-archer (entity 9) wedges at exactly
+  (18.561214597020065, 7.827670330561394), distance 1.0000000000000004 from
+  the avatar standing on (18, 7), tracing a zero-progress `moves to (18.56,
+  7.83), 1.00 tiles from avatar` every tick from ~1257; `crawl-not-stalled`
+  fires at tick 1825 with bone-mage + skeleton-archer remaining, 316/362
+  damage dealt, waypoints 3/7. With a one-ulp attack-range tolerance patched
+  into core locally (diagnostic only, reverted, never committed) the crawl
+  completes: 8/8 kills, `damageDealt` exactly 362, all 7 waypoints, avatar
+  on the exit tile (20, 15) at tick 1634, 59/200 life left — everything
+  except the boundary comparison is ready.
+- **Vacuous-pass proof:** with the diagnostic core patch applied locally,
+  deleting the final waypoint (20, 15) made `crawl-not-stalled` fire at tick
+  2225 (idle at (20, 13) is a stall), and with the stall window also widened
+  `crawl-complete-by-deadline` fired at tick 3600: "avatar stands on tile
+  (20, 13), not the exit tile (20, 15)". Both probes reverted before commit.
+- **Replays re-blessed:** none; no replay added (wip case — a wip scenario
+  may not be pinned, and this one cannot pass yet).
+- **Scope deviations:** none. `packages/core` and `packages/content` are
+  untouched (the diagnostic patch existed only in the working tree while
+  gathering evidence). `npm run verify` is green; smoke prints
+  `skip dungeon-crawl (wip)` visibly.
+- **Follow-ups worth a new task:** (1) fix the melee-range boundary livelock
+  in core — the attack gate and the approach clamp must agree about "at the
+  boundary" within float error (tolerance epsilon, snap-to-boundary that
+  guarantees ≤, or attack range strictly above approach stop range), likely
+  superseding a bullet of decision 0010; then flip this scenario's `wip`
+  off, confirm `avatarLife 59/200 / damageDealt 362 / exit (20, 15)` still
+  holds, and record `dungeon-crawl.seed1.json`. (2) export core's `tileOf`
+  (already queued) and swap this scenario's local copy. (3) cosmetic:
+  `approachSystem` traces a zero-length "moves to" every tick for
+  moveSpeed-0 monsters (bone-mage) and for wedged movers — trace only on
+  actual movement.
