@@ -2,7 +2,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { loadContent } from '@triablo/content'
+import { loadContent, type ContentBundle } from '@triablo/content'
 import { readRawBundleFromDisk } from '@triablo/content/node'
 
 /**
@@ -28,12 +28,15 @@ function main(): void {
     process.exit(1)
   }
 
-  const bundle = {
+  // Typed as ContentBundle so a new content type is a compile error here,
+  // not a runtime crash in the browser (the disk path never exercises this).
+  const bundle: ContentBundle = {
     items: [...registry.items.values()],
     affixes: [...registry.affixes.values()],
     lootTables: [...registry.lootTables.values()],
     monsters: [...registry.monsters.values()],
     skills: [...registry.skills.values()],
+    dungeons: [...registry.dungeons.values()],
   }
 
   mkdirSync(dirname(OUTPUT), { recursive: true })
