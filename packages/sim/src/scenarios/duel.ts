@@ -5,6 +5,7 @@ import {
   Combatant,
   deathSystem,
   defineComponent,
+  Faction,
   makeCombatant,
   Position,
 } from '@triablo/core'
@@ -66,6 +67,7 @@ function spawnCombatant(
   monster: Monster,
   at: { readonly x: number; readonly y: number },
   opponent: Monster,
+  factionId: string,
 ): void {
   const entity = world.spawn()
   // makeCombatant routes the authored stats through computeStats with an
@@ -73,6 +75,9 @@ function spawnCombatant(
   // attack interval to integer ticks once, here at spawn.
   world.add(entity, Combatant, makeCombatant(monster.id, monster.level, monster.stats))
   world.add(entity, Position, { x: at.x, y: at.y })
+  // Melee hostility runs on factions (decision 0023): distinct ids make the
+  // duelists opponents. The labels are arbitrary — only inequality matters.
+  world.add(entity, Faction, { id: factionId })
   world.add(entity, DuelRecord, { opponentMaxLife: opponent.stats.life })
   world.trace(
     () => `spawned ${monster.id} at (${at.x}, ${at.y}) with ${monster.stats.life} life`,
@@ -198,8 +203,8 @@ export const duel: Scenario = {
   setup(world, registry) {
     const left = registry.monster(ROSTER[0])
     const right = registry.monster(ROSTER[1])
-    spawnCombatant(world, left, SPAWNS[0], right)
-    spawnCombatant(world, right, SPAWNS[1], left)
+    spawnCombatant(world, left, SPAWNS[0], right, 'left')
+    spawnCombatant(world, right, SPAWNS[1], left, 'right')
 
     // Registration order is execution order (see ecs.ts): movement settles
     // positions, attacks resolve against them in ascending entity order
