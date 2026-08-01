@@ -84,9 +84,51 @@ type`, comments explaining that the failure mode is a typecheck error):
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Extended `packages/content/src/core-sync.test.ts` (the
+  only file in scope) with three new tests covering the 0140 loot mirrors,
+  using the file's existing `Covers<A, B>` witness pattern and `import type`
+  conventions: (1) `AffixKind` vs content's `Affix['kind']`
+  (indexed-access type, since the schema's kind enum is inline) — mutual
+  assignability, both directions; (2) core's `StatModRange` interface vs
+  content's `z.infer` `StatModRange` — mutual structural assignability, with
+  a comment noting that content's `max >= min` refinement is invisible at the
+  type level and is enforced by schema validation and `rollItem`'s input
+  checks instead; (3) `LootRarity` vs `(typeof RARITIES)[number]`, pinned
+  asymmetrically per the requirement: `Covers<LootRarity, ContentRarity> =
+  true` and `Covers<ContentRarity, LootRarity> = false`, plus (see Scope
+  deviations) a mutual pin that `Exclude<ContentRarity, LootRarity>` is
+  exactly `'legendary' | 'unique'`. The 0175 assertions are unchanged; only
+  the header comment gained a mention of the `roll.ts` mirrors.
+- **Forced-divergence checks (per acceptance criteria, none committed):**
+  - (a) Added `'implicit'` to core's `AffixKind` → `npm run typecheck`
+    failed with TS2322 (`Type 'true' is not assignable to type 'false'`) on
+    the core→content witness (test file line 81), plus a core-internal
+    TS2741 in `roll.ts` itself.
+  - (b) Renamed `min` to `low` in core's `StatModRange` → typecheck failed
+    with TS2322 on **both** directions (test file lines 90 and 91: `min`
+    missing breaks core→content, extra required `low` breaks content→core).
+  - (c) Added `'legendary'` to core's `LootRarity` → typecheck failed with
+    TS2322 on the exact-difference witness (test file line 112,
+    `Covers<'legendary' | 'unique', Exclude<ContentRarity, LootRarity>>`
+    resolves to `false`). Note the failure lands on this witness, not the
+    task-named `false` witness — see Scope deviations.
+- **Replays re-blessed:** None. Test-only change; `replay:check` passed
+  against the existing golden replays untouched.
+- **Scope deviations:** One addition inside the in-scope file, forced by
+  acceptance criterion (c). The task-specified
+  `Covers<ContentRarity, LootRarity> = false` witness alone does **not**
+  fail when only `'legendary'` is added to core — `'unique'` still keeps the
+  covers-check `false`, so `false = false` passes; it only fires once core
+  covers every content rarity. To make criterion (c) actually hold (and to
+  catch content growing a sixth rarity), the LootRarity test additionally
+  pins the exact excluded set: `Exclude<ContentRarity, CoreLootRarity>`
+  mutually covers `'legendary' | 'unique'` (the set decision 0014 puts out
+  of affix-rolling's scope). Both task-specified witnesses are kept as
+  written. No new decision entry — the game rule being pinned is already
+  decision 0014; this only changes how tightly the test holds it.
+- **Coverage note:** `npm run test -- core-sync` reports
+  `Test Files 1 passed (1)` / `Tests 6 passed (6)`; the process exit code is
+  1 because the global coverage ratchet evaluates on single-file runs too
+  (per the repo's adopted wording convention, "green" refers to the test
+  file's own tests passing). Full `npm run verify` exits 0.
+- **Follow-ups worth a new task:** None.
