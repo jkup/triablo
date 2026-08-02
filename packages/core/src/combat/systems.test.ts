@@ -3,9 +3,12 @@ import { describe, expect, it } from 'vitest'
 import type { EntityId } from '../ecs'
 import { World } from '../ecs'
 import { PlayerControlled } from '../player/components'
+import { tileOf } from '../player/systems'
 import { Rng } from '../rng'
 import { TICK_HZ } from '../time'
 import { Faction } from '../skills/components'
+import { Grid } from '../world/grid'
+import { DungeonMap } from '../world/populate'
 import type { Combatant as CombatantValue } from './components'
 import { Combatant, Position } from './components'
 import { computeDamage } from './damage'
@@ -173,6 +176,138 @@ describe('approachSystem', () => {
     expect(world.getOrThrow(adjacent, Combatant).life).toBe(995)
     expect(world.getOrThrow(player, Position)).toEqual({ x: 0, y: 0 })
     expect(world.getOrThrow(distant, Position)).toEqual({ x: 5, y: 0 })
+  })
+})
+
+describe('approachSystem on a dungeon grid (task 0380, decision 0035)', () => {
+  /** Stamp a DungeonMap entity so approachSystem takes the mapped branch. */
+  function addMap(world: World, grid: Grid): void {
+    const entity = world.spawn()
+    world.add(entity, DungeonMap, {
+      grid: grid.toJSON(),
+      entrance: { x: 1, y: 1 },
+      exit: { x: 1, y: 1 },
+    })
+  }
+
+  it('paths around a wall to the target and never occupies a non-walkable tile', () => {
+    // Wall column at x=3 splits the top corridor; the only way around is
+    // down through the y=3 corridor.
+    //
+    //   0123456
+    // 0 #######
+    // 1 #..#..#
+    // 2 #..#..#
+    // 3 #.....#
+    // 4 #######
+    const grid = Grid.fromAscii([
+      '#######', //
+      '#..#..#',
+      '#..#..#',
+      '#.....#',
+      '#######',
+    ])
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    addMap(world, grid)
+    // The target is PlayerControlled, so approachSystem never moves it
+    // (decision 0029) — it stands in for the playtesting avatar.
+    spawnFighter(world, { x: 4, y: 1, player: true, faction: 'blue' })
+    const monster = spawnFighter(world, { x: 2, y: 1 })
+
+    // Straight-line distance is 2 tiles (inside AGGRO_RADIUS_TILES = 10,
+    // outside MELEE_RANGE_TILES = 1) but the straight line crosses the wall
+    // at (3, 1) — the pre-fix system clipped right through it.
+    //
+    // Tick bound: the walked path is (2,1)→(2,2)→(2,3)→(3,3)→(4,3)→(4,2),
+    // where the chase stops (distance to (4,1) is exactly 1) — 5 tiles of
+    // travel at the default moveSpeed 3 tiles/s = 3/30 = 0.1 tiles/tick,
+    // so ~50 ticks; float rounding can cost one extra tick per 1-tile leg
+    // (5 legs), so 56 ticks is a safe bound.
+    const targetPos = { x: 4, y: 1 }
+    const position = world.getOrThrow(monster, Position)
+    let arrivedAt: number | null = null
+    for (let tick = 1; tick <= 56; tick++) {
+      world.step()
+      // The walkability invariant: at every tick of a mapped chase the
+      // monster's tile is walkable — walls are never clipped, not even
+      // transiently mid-chase.
+      expect(grid.isWalkable(tileOf(position))).toBe(true)
+      const dx = targetPos.x - position.x
+      const dy = targetPos.y - position.y
+      // Same boundary tolerance as the attack gate (decision 0032): a stop
+      // that float error leaves ulps above 1.0 still counts as arrived.
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      if (arrivedAt === null && distance <= MELEE_RANGE_TILES + MELEE_RANGE_EPSILON_TILES) {
+        arrivedAt = tick
+      }
+    }
+    expect(arrivedAt).not.toBeNull()
+    expect(arrivedAt).toBeLessThanOrEqual(56)
+
+    // Arrived means stopped: the chase is over, the position is a fixed point.
+    const settled = { ...position }
+    world.run(5)
+    expect(world.getOrThrow(monster, Position)).toEqual(settled)
+    expect(grid.isWalkable(tileOf(position))).toBe(true)
+  })
+
+  it('stands still on a null path instead of falling back to the straight line', () => {
+    // Two walkable cells separated by a wall with no way around: findPath
+    // answers null, and the monster must not move at all — a straight-line
+    // fallback would clip the wall, which is exactly the bug this task fixes.
+    //
+    //   01234
+    // 0 #####
+    // 1 #.#.#
+    // 2 #####
+    const grid = Grid.fromAscii([
+      '#####', //
+      '#.#.#',
+      '#####',
+    ])
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    addMap(world, grid)
+    spawnFighter(world, { x: 3, y: 1, player: true, faction: 'blue' })
+    const monster = spawnFighter(world, { x: 1, y: 1 })
+
+    // 2 tiles apart: inside aggro radius, outside melee range — the monster
+    // wants to chase, but there is no path.
+    world.run(10)
+    expect(world.getOrThrow(monster, Position)).toEqual({ x: 1, y: 1 })
+  })
+
+  it('keeps the straight-line trajectory bit-identical in a world with no DungeonMap', () => {
+    // The backward-compatibility contract: without a map, the unchanged
+    // pre-pathing arithmetic runs. Exact positions, hand-computed — every
+    // value below is exactly representable in binary floating point, so
+    // toBe (bit equality), not toBeCloseTo.
+    //
+    // moveSpeed 120 tiles/s → step budget 120 / 30 = 4 tiles/tick (exact).
+    // Target fixed at (8, 0) (PlayerControlled, never moved by approach).
+    //   tick 1: d = 8, step = min(4, 8 − 1) = 4, scale = 4/8 = 0.5 (exact),
+    //           x += (8 − 0) · 0.5 = 4                     → x = 4
+    //   tick 2: d = 4, step = min(4, 4 − 1) = 3 (the melee clamp),
+    //           scale = 3/4 = 0.75 (exact),
+    //           x += (8 − 4) · 0.75 = 3                    → x = 7
+    //   tick 3+: d = 1, within melee range → holds exactly.
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    spawnFighter(world, { x: 8, y: 0, player: true, faction: 'blue' })
+    const monster = spawnFighter(world, { x: 0, y: 0, combatant: { moveSpeed: 120 } })
+    const position = world.getOrThrow(monster, Position)
+
+    world.step()
+    expect(position.x).toBe(4)
+    expect(position.y).toBe(0)
+    world.step()
+    expect(position.x).toBe(7)
+    expect(position.y).toBe(0)
+    world.step()
+    world.step()
+    expect(position.x).toBe(7)
+    expect(position.y).toBe(0)
   })
 })
 
