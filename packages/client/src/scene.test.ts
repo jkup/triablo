@@ -1,4 +1,4 @@
-import { Combatant, defineComponent, PlayerControlled, Position, World } from '@triablo/core'
+import { Combatant, defineComponent, DungeonMap, Grid, PlayerControlled, Position, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -8,6 +8,7 @@ import {
   interpolateScene,
   PIXELS_PER_UNIT,
   screenToWorld,
+  TILE_COLORS,
   VIEWPORT,
   worldToScreen,
 } from './scene'
@@ -248,6 +249,97 @@ describe('buildScene', () => {
   })
 })
 
+describe('dungeon tile layer (decision 0034)', () => {
+  /**
+   * A 5×3 dungeon around a positioned player:
+   *
+   *   #####
+   *   #...#      entrance (1,1), exit (3,1), plain floor (2,1)
+   *   #####
+   *
+   * The map entity is spawned first (populateDungeon's contract: lowest id),
+   * the player carries PlayerControlled at (1,1), and a third entity has no
+   * position at all — it must keep its fallback-grid circle.
+   */
+  function dungeonWorld() {
+    const world = new World({ seed: 1 })
+    const map = world.spawn()
+    world.add(map, DungeonMap, {
+      grid: Grid.fromAscii(['#####', '#...#', '#####']).toJSON(),
+      entrance: { x: 1, y: 1 },
+      exit: { x: 3, y: 1 },
+    })
+    const player = world.spawn()
+    world.add(player, Position, { x: 1, y: 1 })
+    world.add(player, PlayerControlled, {})
+    const husk = world.spawn()
+    world.add(husk, Tag, { note: 'no position — stays on the fallback grid' })
+    return { world, map, player, husk }
+  }
+
+  it('emits tile rects through the shared camera transform with the ±0.5 draw-time offset', () => {
+    const { world } = dungeonWorld()
+    const scene = buildScene(world.snapshot())
+
+    // Follow camera (decision 0033): the player's world point (1,1) maps to
+    // the viewport center (400, 300). Tile (x, y) is the unit square centered
+    // on world (x, y) — decision 0028's ±0.5 draw-time offset — so its rect
+    // runs worldToScreen(x-0.5, y-0.5) .. worldToScreen(x+0.5, y+0.5) at
+    // PIXELS_PER_UNIT = 24:
+    //   tile (0,0): x = (-0.5-1)*24 + 400 = 364, y = (-0.5-1)*24 + 300 = 264
+    //   tile (1,1): x = ( 0.5-1)*24 + 400 = 388, y = ( 0.5-1)*24 + 300 = 288
+    //   tile (2,1): x = ( 1.5-1)*24 + 400 = 412, y = 288
+    //   tile (3,1): x = ( 2.5-1)*24 + 400 = 436, y = 288
+    // and each rect is exactly one world unit: 24 × 24 px.
+    expect(scene.tiles).toHaveLength(15) // 5×3, row-major: index = y*5 + x
+    expect(scene.tiles?.[0]).toEqual({ x: 364, y: 264, width: 24, height: 24, color: TILE_COLORS.wall })
+    expect(scene.tiles?.[6]).toEqual({ x: 388, y: 288, width: 24, height: 24, color: TILE_COLORS.entrance })
+    expect(scene.tiles?.[7]).toEqual({ x: 412, y: 288, width: 24, height: 24, color: TILE_COLORS.floor })
+    expect(scene.tiles?.[8]).toEqual({ x: 436, y: 288, width: 24, height: 24, color: TILE_COLORS.exit })
+  })
+
+  it('hides exactly the map-carrying entity; other position-less entities keep the fallback grid', () => {
+    const { world, map, player, husk } = dungeonWorld()
+    const scene = buildScene(world.snapshot())
+
+    expect(scene.sprites.map((sprite) => sprite.entity)).toEqual([player, husk])
+    expect(scene.sprites.map((sprite) => sprite.entity)).not.toContain(map)
+    // The player sits at the viewport center; the husk still lands on the
+    // first fallback cell — the map entity no longer consumes a cell.
+    expect(scene.sprites[0]).toMatchObject({ x: 400, y: 300 })
+    expect(scene.sprites[1]).toMatchObject({ x: 36, y: 36 })
+  })
+
+  it('omits the tiles key entirely when the snapshot has no DungeonMap', () => {
+    const world = new World({ seed: 1 })
+    world.add(world.spawn(), Position, { x: 3, y: 5 })
+
+    const scene = buildScene(world.snapshot())
+
+    // Absent, not `tiles: []` and not present-undefined: the render-regression
+    // golden pins the dungeon-less Scene shape with toEqual.
+    expect('tiles' in scene).toBe(false)
+  })
+
+  it('degrades a corrupt DungeonMap to no tiles and leaves its entity rendered as before', () => {
+    const world = new World({ seed: 1 })
+    const map = world.spawn()
+    world.add(map, DungeonMap, {
+      grid: { width: 3, height: 2, walkable: [1] }, // wrong length: fromJSON throws
+      entrance: { x: 0, y: 0 },
+      exit: { x: 1, y: 0 },
+    })
+    world.add(world.spawn(), Position, { x: 1, y: 1 })
+
+    const scene = buildScene(world.snapshot())
+
+    expect('tiles' in scene).toBe(false)
+    // Not validly a map, so not hidden: the fallback-grid circle survives.
+    expect(scene.sprites.map((sprite) => sprite.entity)).toContain(map)
+    expect(scene.sprites[0]).toMatchObject({ entity: map, x: 36, y: 36 })
+  })
+})
+
 describe('cameraFor and the exported transform', () => {
   it('follows the lowest-id positioned player and inverts exactly', () => {
     const world = new World({ seed: 1 })
@@ -331,5 +423,24 @@ describe('interpolateScene', () => {
     const current = scene(2, [sprite(1, 8, 8)])
 
     expect(interpolateScene(previous, current, -1).sprites[0]).toMatchObject({ x: 4, y: 4 })
+  })
+
+  const tile = (x: number) => ({ x, y: 0, width: 24, height: 24, color: TILE_COLORS.floor })
+
+  it('lerps tile rects by array index so the floor glides with the camera (decision 0034)', () => {
+    const previous = { ...scene(1, [sprite(1, 0, 0)]), tiles: [tile(0)] }
+    const current = { ...scene(2, [sprite(1, 10, 20)]), tiles: [tile(24)] }
+
+    expect(interpolateScene(previous, current, 0.5).tiles?.[0]).toMatchObject({ x: 12, y: 0 })
+    expect(interpolateScene(previous, current, 0).tiles?.[0]).toMatchObject({ x: 0 })
+  })
+
+  it('snaps tiles to current when the layer changed shape, and never invents a tiles key', () => {
+    const previous = { ...scene(1, []), tiles: [tile(0), tile(48)] }
+    const current = { ...scene(2, []), tiles: [tile(24)] }
+    expect(interpolateScene(previous, current, 0.5).tiles).toEqual(current.tiles)
+
+    const bare = interpolateScene(scene(1, []), scene(2, []), 0.5)
+    expect('tiles' in bare).toBe(false)
   })
 })

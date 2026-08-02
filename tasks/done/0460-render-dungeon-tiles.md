@@ -158,10 +158,46 @@ cull to the viewport only if it costs you nothing.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
+- **What changed:** `buildScene` now reads `DungeonMap` by component id — the
+  third core-component read, extending the 0027 contract — and emits an
+  optional `Scene.tiles` layer of pixel rects: every tile pushed through the
+  same exported `worldToScreen` the sprites use, with decision 0028's ±0.5
+  draw-time offset (24×24 px rects). Palette decided in the scene builder
+  (decision 0034): floor `#2b2830`, wall `#413c4a`, entrance `#2b3a33`, exit
+  `#3c2b33` — desaturated stone so combatants stay the loudest pixels.
+  Entities validly carrying a `DungeonMap` are excluded from the sprite list;
+  a corrupt map (guarded `Grid.fromJSON` + tile validation) degrades to no
+  tiles with the entity rendered as before, and every other position-less
+  entity keeps the fallback grid. `tiles` is absent — never `[]` — without a
+  valid map and camera, which is why the untouched render-regression golden
+  still passes (`git diff main -- render-regression.test.ts` is 0 lines).
+  Both back ends draw tiles beneath sprites: `rasterizeScene` via the existing
+  `fillRect`, and main.ts's `drawScene` mirrors it as a dumb rect loop.
+  `interpolateScene` lerps tile rects by array index so the floor glides with
+  the follow camera instead of stepping per tick (ruling in decision 0034).
+  Shot summary: `shot dungeon-crawl seed=1 tick=244 entities=10 sprites=9
+  hash=8cd7b91f7d7793b7 800x600` (was `sprites=10` on main). Double-shot at
+  the same seed/tick is byte-identical (`cmp` clean).
 - **What the shot PNG shows (required — describe rooms/corridors/entrance/exit):**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+  I read the tick-244 PNG and a tick-450 frame. The Charnel Vaults reads as
+  rooms carved out of a lighter slab of stone: the wall mass is the pale
+  gray-violet block filling the right of the frame, the rooms darker
+  carve-outs inside it, and the true void stays near-black outside the grid.
+  At tick 244 the player (blue circle, 10, green life bar) stands in the
+  gatehouse — a small square room left of center — with the gallery opening
+  east of it as a wide, low corridor-room holding a surviving zombie (3); the
+  ossuary and sepulchre edges peek in at the right frame edge. The tick-450
+  frame shows the whole vault: the mossy-green entrance tile sits plainly in
+  the gatehouse floor once the player steps off it, the gallery corridor runs
+  east into the big ossuary (three skeletons: violet, blue, cyan), a narrow
+  one-tile corridor climbs north from the ossuary to the little reliquary
+  room (archer 7), another drops south to the sepulchre, where the dried-red
+  exit tile is visible mid-room next to the grave-hulk (8, green). Entity 11
+  (position-less) still renders as the fallback-grid circle top-left, proving
+  the debug-grid rule survives for non-map entities.
+- **Replays re-blessed:** none
+- **Scope deviations:** none — files touched are exactly the in-scope list.
+- **Follow-ups worth a new task:** wall shading/edge highlights so wall mass
+  vs out-of-grid void reads even faster; fog of war / explored-area tracking
+  (already noted out of scope); a minimap consuming the same `DungeonMap`
+  read.

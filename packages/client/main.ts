@@ -36,6 +36,12 @@ function drawScene(context: CanvasRenderingContext2D, scene: Scene): void {
   context.fillStyle = '#121016'
   context.fillRect(0, 0, scene.width, scene.height)
 
+  // Dungeon tiles first, in scene order — mirrors rasterizeScene exactly.
+  for (const tile of scene.tiles ?? []) {
+    context.fillStyle = tile.color
+    context.fillRect(tile.x, tile.y, tile.width, tile.height)
+  }
+
   for (const sprite of scene.sprites) {
     context.fillStyle = sprite.color
     context.beginPath()

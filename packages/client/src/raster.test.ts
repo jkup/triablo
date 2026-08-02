@@ -160,4 +160,24 @@ describe('rasterizeScene', () => {
     const second = rasterizeScene(scene)
     expect(Buffer.from(first.data).equals(Buffer.from(second.data))).toBe(true)
   })
+
+  it('draws dungeon tiles beneath the sprites', () => {
+    const tiled: Scene = {
+      ...scene,
+      tiles: [
+        // A floor tile under the sprite and a wall tile beside it.
+        { x: 8, y: 8, width: 24, height: 24, color: '#2b2830' },
+        { x: 32, y: 8, width: 24, height: 24, color: '#413c4a' },
+      ],
+    }
+    const raster = rasterizeScene(tiled)
+
+    // The sprite (center 32,32, radius 8) overlaps the floor tile's bottom
+    // edge: the sprite pixel wins there, the uncovered tile pixels keep the
+    // tile color, and the void outside every tile stays background.
+    expect(pixelAt(raster, 9, 9)).toEqual([43, 40, 48]) // floor: #2b2830
+    expect(pixelAt(raster, 33, 9)).toEqual([65, 60, 74]) // wall: #413c4a
+    expect(pixelAt(raster, 32, 26)).toEqual([255, 0, 0]) // sprite atop the tiles
+    expect(pixelAt(raster, 0, 0)).toEqual([...BACKGROUND]) // void
+  })
 })

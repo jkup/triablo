@@ -14,10 +14,11 @@ export {
   interpolateScene,
   PIXELS_PER_UNIT,
   screenToWorld,
+  TILE_COLORS,
   VIEWPORT,
   worldToScreen,
 } from './scene'
-export type { Camera, Scene, SceneSprite, Viewport } from './scene'
+export type { Camera, Scene, SceneSprite, SceneTile, Viewport } from './scene'
 
 export {
   createGame,

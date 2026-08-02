@@ -160,6 +160,10 @@ function drawSprite(raster: Raster, sprite: SceneSprite): void {
 /** Render a scene to pixels. Pure: same scene, same bytes. */
 export function rasterizeScene(scene: Scene): Raster {
   const raster = createRaster(scene.width, scene.height)
+  // Dungeon tiles first, in scene order: the floor lies under the actors.
+  for (const tile of scene.tiles ?? []) {
+    fillRect(raster, tile.x, tile.y, tile.width, tile.height, parseHexColor(tile.color))
+  }
   for (const sprite of scene.sprites) {
     drawSprite(raster, sprite)
   }
