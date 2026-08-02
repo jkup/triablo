@@ -45,6 +45,15 @@ const NEIGHBOR_OFFSETS: readonly Tile[] = [
 ]
 
 export class Grid {
+  // Caution for field renamers: these enumerable fields (`width`, `height`,
+  // `walkable` — TS `private` is compile-time only) coincidentally alias
+  // `GridJSON`, so a Grid instance accidentally stored in a component would
+  // *appear* to survive the save/hash round trip today — restored as a
+  // methodless plain object that only fails on its first method call. Do not
+  // rely on that alias; components must store `GridJSON` via `toJSON()`
+  // (see `DungeonMap` in populate.ts). `populate.test.ts`'s
+  // `not.toBeInstanceOf(Grid)` assertion is the real guard against the
+  // accident.
   readonly width: number
   readonly height: number
   /** Row-major walkability, 1 = walkable, 0 = blocked. */
