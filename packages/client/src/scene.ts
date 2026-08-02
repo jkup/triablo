@@ -1,5 +1,5 @@
-import { Combatant, hashString, PlayerControlled, Position } from '@triablo/core'
-import type { WorldSnapshot } from '@triablo/core'
+import { Combatant, DungeonMap, Grid, hashString, PlayerControlled, Position } from '@triablo/core'
+import type { GridJSON, Tile, WorldSnapshot } from '@triablo/core'
 
 /**
  * The renderer's front half: a pure function from a `WorldSnapshot` to a
@@ -10,12 +10,14 @@ import type { WorldSnapshot } from '@triablo/core'
  *
  * The render contract is core's components, read by id from the snapshot:
  * `Position` places a sprite, `Combatant` supplies the life fraction and the
- * `monsterId` color seed. Nothing else is ever read as a position or a health
- * readout — a component that merely happens to carry numeric `x`/`y` fields
- * does not move a sprite. The one structural read left is cosmetic: entities
- * without a `Combatant` may still take a color seed from any component's
- * string `monsterId`, so sim-owned monsters stay visually distinct. See
- * docs/decisions/0027 (superseding 0012's duck-typing).
+ * `monsterId` color seed, and `DungeonMap` supplies the tile layer drawn
+ * beneath the sprites (decision 0034 extends 0027 with this third read).
+ * Nothing else is ever read as a position or a health readout — a component
+ * that merely happens to carry numeric `x`/`y` fields does not move a sprite.
+ * The one structural read left is cosmetic: entities without a `Combatant`
+ * may still take a color seed from any component's string `monsterId`, so
+ * sim-owned monsters stay visually distinct. See docs/decisions/0027
+ * (superseding 0012's duck-typing).
  */
 
 /** Logical viewport, in pixels. The default frame every backend renders. */
@@ -46,10 +48,46 @@ export interface SceneSprite {
   readonly lifeFrac: number | null
 }
 
+/**
+ * One dungeon tile as an axis-aligned pixel rect, top-left anchored. The
+ * color is decided here in the scene builder (docs/decisions/0034); the back
+ * ends just fill the rect.
+ */
+export interface SceneTile {
+  readonly x: number
+  readonly y: number
+  readonly width: number
+  readonly height: number
+  /** Fill color as `#rrggbb`. */
+  readonly color: string
+}
+
+/**
+ * The dungeon tile palette (docs/decisions/0034). Desaturated stone against
+ * the `#121016` void so the saturated combatant sprites stay the loudest
+ * thing on screen (DESIGN.md pillar 1). Entrance and exit are floor tiles
+ * with a subtle temperature shift — cold green for the way back out, dried
+ * red for the way down.
+ */
+export const TILE_COLORS = {
+  floor: '#2b2830',
+  wall: '#413c4a',
+  entrance: '#2b3a33',
+  exit: '#3c2b33',
+} as const
+
 export interface Scene {
   readonly width: number
   readonly height: number
   readonly tick: number
+  /**
+   * Dungeon tile layer, drawn beneath the sprites in array order. Present
+   * only when the snapshot carries a valid `DungeonMap` and a camera exists;
+   * absent — never an empty array — otherwise, so scenes without a dungeon
+   * are structurally identical to before tiles existed (the render-regression
+   * golden pins that shape).
+   */
+  readonly tiles?: readonly SceneTile[]
   readonly sprites: readonly SceneSprite[]
 }
 
@@ -90,6 +128,43 @@ function readColorSeed(value: unknown): string | null {
   if (!isRecord(value)) return null
   const { monsterId } = value
   return typeof monsterId === 'string' ? monsterId : null
+}
+
+interface DungeonMapView {
+  grid: Grid
+  entrance: Tile
+  exit: Tile
+}
+
+/** Validate a `Tile` value: integer coordinates or nothing. */
+function readTile(value: unknown): Tile | null {
+  if (!isRecord(value)) return null
+  const { x, y } = value
+  if (typeof x !== 'number' || typeof y !== 'number') return null
+  if (!Number.isInteger(x) || !Number.isInteger(y)) return null
+  return { x, y }
+}
+
+/**
+ * Validate a `DungeonMap` component value from an untyped snapshot.
+ * `Grid.fromJSON` throws on malformed data and snapshots can come from
+ * saves, so the parse is guarded: a corrupt map degrades to `null` — no tile
+ * layer, the carrying entity renders as before — instead of crashing the
+ * renderer (same posture as `readPosition`). All-or-nothing: a grid without
+ * valid entrance/exit tiles is rejected whole.
+ */
+function readDungeonMap(value: unknown): DungeonMapView | null {
+  if (!isRecord(value)) return null
+  let grid: Grid
+  try {
+    grid = Grid.fromJSON(value.grid as GridJSON)
+  } catch {
+    return null
+  }
+  const entrance = readTile(value.entrance)
+  const exit = readTile(value.exit)
+  if (entrance === null || exit === null) return null
+  return { grid, entrance, exit }
 }
 
 /** A stable, saturated color derived from a string seed. */
@@ -228,7 +303,54 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     }
   }
 
+  // Third contract read (decision 0034, extending 0027): a valid `DungeonMap`
+  // becomes the tile layer, and the entity carrying it is excluded from the
+  // sprite list — a map is scenery, not an actor, and its fallback-grid
+  // circle was pure noise. Exactly the validly-parsed carriers are hidden; a
+  // corrupt map degrades to no tiles with its entity rendered as before, and
+  // every other position-less entity keeps the fallback grid. Component
+  // entries arrive sorted by entity id, so with several maps (unexpected) the
+  // lowest id supplies the tiles, deterministically.
+  const mapEntities = new Set<number>()
+  let map: DungeonMapView | null = null
+  for (const [entity, value] of snapshot.components[DungeonMap.id] ?? []) {
+    if (!views.has(entity)) continue
+    const parsed = readDungeonMap(value)
+    if (parsed === null) continue
+    mapEntities.add(entity)
+    if (map === null) map = parsed
+  }
+
   const camera = cameraFor(snapshot, viewport)
+
+  // Tile (x, y) is the unit square centered on world point (x, y) — decision
+  // 0028's ±0.5 draw-time offset — pushed through the SAME worldToScreen the
+  // sprites use, so tiles and actors can never disagree about where a tile
+  // is. Row-major iteration keeps the array order deterministic. No camera
+  // (nothing positioned) means no tile layer: there is nowhere to anchor one.
+  let tiles: SceneTile[] | undefined
+  if (map !== null && camera !== null) {
+    const { grid, entrance, exit } = map
+    tiles = []
+    for (let ty = 0; ty < grid.height; ty++) {
+      for (let tx = 0; tx < grid.width; tx++) {
+        const walkable = grid.isWalkable({ x: tx, y: ty })
+        let color: string = walkable ? TILE_COLORS.floor : TILE_COLORS.wall
+        if (walkable && tx === entrance.x && ty === entrance.y) color = TILE_COLORS.entrance
+        else if (walkable && tx === exit.x && ty === exit.y) color = TILE_COLORS.exit
+        const topLeft = worldToScreen(camera, { x: tx - 0.5, y: ty - 0.5 })
+        const bottomRight = worldToScreen(camera, { x: tx + 0.5, y: ty + 0.5 })
+        tiles.push({
+          x: topLeft.x,
+          y: topLeft.y,
+          width: bottomRight.x - topLeft.x,
+          height: bottomRight.y - topLeft.y,
+          color,
+        })
+      }
+    }
+  }
+
   const sprites: SceneSprite[] = []
   const fallbackColumns = Math.max(1, Math.floor(viewport.width / FALLBACK_CELL))
   let fallbackIndex = 0
@@ -236,6 +358,7 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
   for (const entity of snapshot.entities) {
     const view = views.get(entity)
     if (view === undefined) continue
+    if (mapEntities.has(entity)) continue
 
     let x: number
     let y: number
@@ -265,7 +388,10 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     })
   }
 
-  return { width: viewport.width, height: viewport.height, tick: snapshot.tick, sprites }
+  // `tiles` is added only when it exists: an ever-present `tiles: []` would
+  // change the Scene shape for dungeon-less snapshots (the golden's fixture).
+  const scene: Scene = { width: viewport.width, height: viewport.height, tick: snapshot.tick, sprites }
+  return tiles === undefined ? scene : { ...scene, tiles }
 }
 
 /**
@@ -275,6 +401,14 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
  * matched by entity id; a sprite with no counterpart in `previous` (just
  * spawned) renders at its current position. Only position is interpolated —
  * discrete facts (color, life, label) snap to `current`.
+ *
+ * Tiles interpolate too (decision 0034): they are static in world space, but
+ * their rects are post-camera pixels, so snapping them to `current` would
+ * make the whole floor step once per tick while the sprites glide over it.
+ * Both layers come from the same `worldToScreen`, so lerping tile rect
+ * origins is exactly camera smoothing. Tiles are matched by array index —
+ * valid because an unchanged map yields identical row-major order and length
+ * every tick; if the layer changed shape between ticks it snaps to `current`.
  */
 export function interpolateScene(previous: Scene, current: Scene, alpha: number): Scene {
   if (alpha >= 1) return current
@@ -291,5 +425,21 @@ export function interpolateScene(previous: Scene, current: Scene, alpha: number)
     }
   })
 
-  return { ...current, sprites }
+  let tiles = current.tiles
+  if (tiles !== undefined && previous.tiles !== undefined && previous.tiles.length === tiles.length) {
+    const past = previous.tiles
+    tiles = tiles.map((tile, index) => {
+      const prior = past[index]
+      if (prior === undefined) return tile
+      return {
+        ...tile,
+        x: prior.x + (tile.x - prior.x) * clamped,
+        y: prior.y + (tile.y - prior.y) * clamped,
+      }
+    })
+  }
+
+  // As in buildScene, the `tiles` key stays absent when `current` has none.
+  const blended: Scene = { ...current, sprites }
+  return tiles === undefined ? blended : { ...blended, tiles }
 }
