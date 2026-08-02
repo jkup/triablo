@@ -8,7 +8,7 @@ import { TICK_HZ } from '../time'
 import { Grid } from '../world/grid'
 import { DungeonMap } from '../world/populate'
 import { MoveOrder, PlayerControlled } from './components'
-import { moveOrderSystem } from './systems'
+import { moveOrderSystem, tileOf } from './systems'
 
 /**
  * Two rooms joined only through the corridor tile at (3, 2): the straight
@@ -58,11 +58,6 @@ function spawnMover(world: World, overrides: MoverOverrides = {}): EntityId {
   world.add(entity, Position, { x: overrides.x ?? 1, y: overrides.y ?? 1 })
   world.add(entity, PlayerControlled, {})
   return entity
-}
-
-/** The rounding decision 0029 fixes: nearest tile per axis. */
-function tileOf(position: Position): { x: number; y: number } {
-  return { x: Math.round(position.x), y: Math.round(position.y) }
 }
 
 describe('moveOrderSystem', () => {

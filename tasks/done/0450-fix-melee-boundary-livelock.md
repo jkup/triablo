@@ -209,9 +209,68 @@ special-case stationary targets.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
 - **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+  - **The fix** (`packages/core/src/combat/systems.ts`): minted
+    `MELEE_RANGE_EPSILON_TILES = 1e-9` and a single private predicate
+    `withinMeleeRange(distance)` = `distance ≤ MELEE_RANGE_TILES + ε`, now
+    used by **every** "in melee range" comparison in the file — the attack
+    gate (was `target.distance > MELEE_RANGE_TILES`) and approach's own stop
+    check (was `target.distance <= MELEE_RANGE_TILES`). The clamp itself is
+    unchanged (still aims for the exact boundary); the boundary *test*
+    forgives float error. Invariant established: any position approach is
+    willing to stop at is a position attack is willing to swing from — one
+    shared predicate makes it true by construction, no stationary-target
+    special case. Recorded as decision 0032 (refines 0010's "lands exactly on
+    the boundary" bullet; 0010 untouched, append-only).
+  - **Reproduction test** (`combat/systems.test.ts`): the exact recorded
+    live geometry — PlayerControlled target at (18, 7), attacker moveSpeed
+    2.2 at (18.595426455774202, 7.8781254338222695) — asserts a hit within
+    10 ticks, the attacker settled within ε of the boundary, and that the
+    stop is a true fixed point (no futile sub-ulp stepping).
+  - **Revert-check performed:** with only the two comparisons reverted to
+    the strict forms (test and constant left in place), the new test fails
+    with `damageDealt === 0`; replaying the clamp arithmetic bit-for-bit in
+    node confirms the attacker frozen at exactly
+    (18.561214597020065, 7.827670330561394), distance 1.0000000000000004,
+    with every subsequent step a bit-level no-op — the task file's pinned
+    wedge, byte-for-byte. Fix restored; all 17 combat tests pass.
+  - **`tileOf` single site:** exported from `player/systems.ts` (added
+    `export`, zero behavior change), re-exported from `index.ts` alongside
+    `MELEE_RANGE_EPSILON_TILES`; `dungeon-crawl.ts` and
+    `player/systems.test.ts` (which had its own local copy) now import it.
+    `grep -rn "Math.round(position" packages/core/src packages/sim/src` →
+    exactly one site, `player/systems.ts:37`.
+  - **Un-wip + pin the crawl:** `dungeon-crawl.ts` diff is only the wip flag
+    + wip comments (header paragraph rewritten as history pointing at
+    decision 0032) and the `tileOf` swap; `PLAYER_STATS`, `WAYPOINTS`,
+    `CrawlRecord`, the bot, all invariants, and `crawlReport` are
+    byte-for-byte. The run reproduces **every pinned number**: seed 1 and
+    seed 7 both report monstersRemaining 0, avatarDamageDealt 362,
+    avatarLife 59/200, avatarTile (20, 15) = exitTile,
+    lastMonsterDeathTick 1361, waypointsReached 7/7; trace shows
+    `crawl-bot: reached waypoint 7/7 (20, 15)` at tick [1634]. New golden
+    replay `dungeon-crawl.seed1.json` (hash f571a61831717cac at 3600 ticks) —
+    first recording, made possible by this fix.
+  - **Trace-noise follow-up taken (it was trivial):** `approachSystem` now
+    skips the trace when the position did not change bit-for-bit, silencing
+    the zero-length "moves to" spam for moveSpeed-0 monsters; wedged movers
+    no longer even step (the stop check catches them). Not hash-visible.
+- **Replays re-blessed:** **none.** `npm run replay:check` passes with all
+  five listed ok: `content-seam` and `harness-selftest` byte-untouched (as
+  required), and `duel.seed1.json` / `skill-strike.seed1.json` also
+  **byte-untouched — neither moved**. Why: the ε only changes behavior when
+  some distance falls strictly inside (1, 1 + 1e-9]; the duel's axis-aligned
+  small-coordinate geometry lands exactly on 1.0 (no value in that window
+  ever occurs), and skill-strike's melee lane sits at exactly 1.0 and never
+  calls `attackSystem` at all. No outcome-identity proof needed since no
+  hash moved.
+- **Scope deviations:** none. Files touched are exactly the in-scope list
+  (including `player/systems.test.ts` under its "only if the export needs a
+  test moved" clause — its local `tileOf` copy had to go for the
+  one-definition-site criterion).
+- **Follow-ups worth a new task:** none new. 0380 re-blesses
+  `dungeon-crawl.seed1.json` on top of this recording as planned; the
+  bot-local melee comparison in `dungeon-crawl.ts` (`distance <=
+  MELEE_RANGE_TILES` in the stand-still rule) deliberately stays strict —
+  it is qa-owned policy, not an engagement gate, and byte-for-byte was the
+  requirement.

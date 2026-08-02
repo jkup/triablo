@@ -33,7 +33,7 @@ import { DungeonMap } from '../world/populate'
 import { MoveOrder } from './components'
 
 /** The one position→tile rounding (decision 0029): nearest tile per axis. */
-function tileOf(position: Position): Tile {
+export function tileOf(position: Position): Tile {
   return { x: Math.round(position.x), y: Math.round(position.y) }
 }
 

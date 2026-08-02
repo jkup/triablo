@@ -16,6 +16,7 @@ import {
   PlayerControlled,
   populateDungeon,
   Position,
+  tileOf,
 } from '@triablo/core'
 import type { CombatantBaseStats, System, World } from '@triablo/core'
 
@@ -48,26 +49,12 @@ import type { Scenario } from '../scenario'
  * archer and the whole sepulchre join fights "out of turn". The invariants
  * judge outcomes only: who died, who survived, where the avatar ends.
  *
- * WIP — blocked on a real core bug found by this scenario (task 0340): the
- * melee-range boundary livelock. `approachSystem` clamps its final step to
- * `distance - MELEE_RANGE_TILES`, *intending* to land exactly on the range
- * boundary (decision 0010), but from some approach geometries the float math
- * lands at distance 1 + 2 ulps (e.g. 1.0000000000000004) — strictly greater
- * than `MELEE_RANGE_TILES`, so `attackSystem` fires for neither side. Against
- * a mutually-approaching opponent the pair jiggles loose; against a
- * stationary `PlayerControlled` target it is PERMANENT, because the next
- * clamp step (distance − 1 ≈ 4.4e-16) is smaller than the ulp of the
- * position coordinates (~3.6e-15 at x≈18.56) and `position += tiny` changes
- * nothing. Reproduce: `sim -- run dungeon-crawl --seed 1` (seed-irrelevant;
- * no rng is consumed) — skeleton-archer (entity 9) wedges at exactly
- * (18.561214597020065, 7.827670330561394), 1.0000000000000004 tiles from the
- * avatar standing on (18, 7), tracing a zero-progress "moves to" every tick
- * from tick ~1257 until the crawl-not-stalled invariant fires at tick 1825.
- * With a one-ulp tolerance diagnostic patch applied to core locally
- * (reverted, never committed), the whole crawl completes: 8/8 kills,
- * damageDealt exactly 362, avatar on the exit tile at tick 1634, 59/200 life
- * left. The fix belongs in core (out of scope for a qa task); when it lands,
- * flip `wip` off and record the golden replay per the task-0340 plan.
+ * History: this scenario found a real core bug on its first runs (task 0340)
+ * — the melee-range boundary livelock, where `approachSystem`'s final-step
+ * clamp could land an attacker a couple of ulps above `MELEE_RANGE_TILES`
+ * and `attackSystem`'s strict gate then excluded it forever. Task 0450 fixed
+ * it in core with the float-error boundary tolerance recorded in decision
+ * 0032, which is what lets this crawl complete and carry a golden replay.
  */
 
 /** The one dungeon this scenario crawls. See the header comment. */
@@ -171,16 +158,6 @@ function livingMonsters(world: World): Array<[number, Combatant, Position]> {
     rows.push([entity, combatant, position])
   }
   return rows
-}
-
-/**
- * Position → tile, decision 0029's one rounding rule: nearest tile per axis,
- * halves up. Core's `tileOf` (player/systems.ts) is not exported yet (a
- * queued follow-up); the convention is duplicated here rather than editing
- * core from a qa task.
- */
-function tileOf(position: Position): { x: number; y: number } {
-  return { x: Math.round(position.x), y: Math.round(position.y) }
 }
 
 /**
@@ -451,10 +428,6 @@ export const dungeonCrawl: Scenario = {
   name: 'dungeon-crawl',
   description:
     'A player-controlled bot walks the charnel-vaults dungeon room by room, kills every authored monster, and ends on the exit tile.',
-  // Blocked on the melee-range boundary livelock in core — see the header
-  // comment for the full evidence. Run it directly to watch the wedge:
-  //   npm run sim -- run dungeon-crawl --seed 1 --verbose
-  wip: true,
   defaultTicks: CRAWL_DEADLINE_TICKS,
 
   setup(world, registry: ContentRegistry) {
