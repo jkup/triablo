@@ -1,7 +1,16 @@
-import { Combatant, defineComponent, Position, World } from '@triablo/core'
+import { Combatant, defineComponent, PlayerControlled, Position, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
-import { buildScene, colorFor, interpolateScene, PIXELS_PER_UNIT, VIEWPORT } from './scene'
+import {
+  buildScene,
+  cameraFor,
+  colorFor,
+  interpolateScene,
+  PIXELS_PER_UNIT,
+  screenToWorld,
+  VIEWPORT,
+  worldToScreen,
+} from './scene'
 
 // Sim-style component the renderer has no contract for: carries a monsterId
 // (cosmetic color seed) and life numbers the renderer must NOT read as a
@@ -135,6 +144,45 @@ describe('buildScene', () => {
     expect(scene.sprites[0]?.y).toBe(36)
   })
 
+  it('centers a PlayerControlled entity at the viewport center, not the bounding box (decision 0033)', () => {
+    const world = new World({ seed: 1 })
+    const player = world.spawn()
+    const monster = world.spawn()
+    world.add(player, Position, { x: 3, y: 5 })
+    world.add(player, PlayerControlled, {})
+    world.add(monster, Position, { x: 23, y: 15 })
+
+    const scene = buildScene(world.snapshot())
+
+    // Follow camera: the player's world point (3,5) maps to the viewport
+    // center. The monster lands at (23-3)*24 + 400 = 880, (15-5)*24 + 300 =
+    // 540 — off the 800-wide frame, which a follow camera accepts.
+    expect(scene.sprites[0]).toMatchObject({ x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 })
+    expect(scene.sprites[1]).toMatchObject({ x: 880, y: 540 })
+    // Under the superseded bounding-box rule the midpoint of the two sprites
+    // would sit at the viewport center; under the follow camera it must not.
+    const first = scene.sprites[0]
+    const second = scene.sprites[1]
+    expect(((first?.x ?? 0) + (second?.x ?? 0)) / 2).not.toBe(VIEWPORT.width / 2)
+    expect(((first?.y ?? 0) + (second?.y ?? 0)) / 2).not.toBe(VIEWPORT.height / 2)
+  })
+
+  it('falls back to the bounding-box camera when the player has no valid position', () => {
+    const world = new World({ seed: 1 })
+    const player = world.spawn()
+    const a = world.spawn()
+    const b = world.spawn()
+    world.add(player, PlayerControlled, {}) // marker only — no Position
+    world.add(a, Position, { x: 3, y: 5 })
+    world.add(b, Position, { x: 7, y: 9 })
+
+    const scene = buildScene(world.snapshot())
+
+    // Decision 0019's rule governs: bbox center (5,7) at the viewport center.
+    expect(scene.sprites[1]).toMatchObject({ x: 352, y: 252 })
+    expect(scene.sprites[2]).toMatchObject({ x: 448, y: 348 })
+  })
+
   it('does not place an entity by a non-Position component with numeric x/y fields', () => {
     // Decision 0012's misread hazard, now closed by 0027: only core `Position`
     // is a position. This entity must land on the fallback grid, not at (3,5)
@@ -197,6 +245,43 @@ describe('buildScene', () => {
 
     expect(scene.sprites).toHaveLength(1)
     expect(scene.sprites[0]?.color).toMatch(/^#[0-9a-f]{6}$/)
+  })
+})
+
+describe('cameraFor and the exported transform', () => {
+  it('follows the lowest-id positioned player and inverts exactly', () => {
+    const world = new World({ seed: 1 })
+    const monster = world.spawn()
+    const player = world.spawn()
+    const secondPlayer = world.spawn()
+    world.add(monster, Position, { x: 0, y: 0 })
+    world.add(player, Position, { x: 10, y: 6 })
+    world.add(player, PlayerControlled, {})
+    world.add(secondPlayer, Position, { x: 99, y: 99 })
+    world.add(secondPlayer, PlayerControlled, {})
+
+    const camera = cameraFor(world.snapshot(), VIEWPORT)
+    expect(camera).toMatchObject({ x: 10, y: 6 })
+    if (camera === null) return // narrowed; the expectation above already failed
+
+    // worldToScreen and screenToWorld are exact inverses at these values:
+    // (12,5) → ((12-10)*24+400, (5-6)*24+300) = (448, 276) → (12, 5).
+    const screen = worldToScreen(camera, { x: 12, y: 5 })
+    expect(screen).toEqual({ x: 448, y: 276 })
+    expect(screenToWorld(camera, screen)).toEqual({ x: 12, y: 5 })
+  })
+
+  it('returns null when nothing has a position', () => {
+    const world = new World({ seed: 1 })
+    world.spawn()
+    expect(cameraFor(world.snapshot(), VIEWPORT)).toBeNull()
+  })
+
+  it('uses the bounding-box center when no player exists (decision 0019 fallback)', () => {
+    const world = new World({ seed: 1 })
+    world.add(world.spawn(), Position, { x: 3, y: 5 })
+    world.add(world.spawn(), Position, { x: 7, y: 9 })
+    expect(cameraFor(world.snapshot(), VIEWPORT)).toMatchObject({ x: 5, y: 7 })
   })
 })
 
