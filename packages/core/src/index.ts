@@ -31,11 +31,12 @@ export {
   approachSystem,
   attackSystem,
   deathSystem,
+  MELEE_RANGE_EPSILON_TILES,
   MELEE_RANGE_TILES,
 } from './combat/systems'
 
 export { MoveOrder, PlayerControlled } from './player/components'
-export { moveOrderSystem } from './player/systems'
+export { moveOrderSystem, tileOf } from './player/systems'
 
 export { ATTRIBUTE_DERIVATIONS, ATTRIBUTE_KEYS, computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type {

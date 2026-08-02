@@ -6,7 +6,8 @@
  * attacks resolve against those positions in ascending entity order (decision
  * 0006 — the dead deal no damage), and the reaper removes anything at zero
  * life in the same tick. Melee range, the movement clamp, and attack cadence
- * are recorded in docs/decisions/0010.
+ * are recorded in docs/decisions/0010; the float-error tolerance that makes
+ * the clamp and the attack gate agree at the boundary is decision 0032.
  *
  * Hostility is decision 0021's faction rule, extended to melee by decision
  * 0023: opponents are living combatants whose `Faction` id differs from the
@@ -28,6 +29,32 @@ import { computeDamage } from './damage'
 
 /** Melee reach: attack (and stop approaching) at Euclidean distance ≤ this. Decision 0010. */
 export const MELEE_RANGE_TILES = 1
+
+/**
+ * Float-error tolerance on the melee boundary (decision 0032, refining
+ * decision 0010's "lands the mover exactly on the range boundary").
+ *
+ * `approachSystem`'s clamp intends to land exactly at `MELEE_RANGE_TILES`,
+ * but IEEE-754 rounding can leave the landing a few ulps above it (the
+ * dungeon crawl recorded 1.0000000000000004 — 2 ulps over — task 0340), and
+ * from there the correction step can be below half-ulp of the position
+ * coordinates, so `position += step` is a bit-level no-op: a permanent
+ * livelock against a strict `> MELEE_RANGE_TILES` gate. The tolerance is
+ * float-error scale, not gameplay scale: 1e-9 tiles sits four orders above
+ * ulp noise at plausible coordinate magnitudes (ulp of a coordinate near 1e3
+ * is ~1.1e-13) and seven below anything a player could ever observe.
+ */
+export const MELEE_RANGE_EPSILON_TILES = 1e-9
+
+/**
+ * The one "in melee range" predicate. Every comparison meaning "in melee
+ * range" in this file goes through it, which is the whole fix: any position
+ * `approachSystem` is willing to stop at is a position `attackSystem` is
+ * willing to swing from (decision 0032's invariant).
+ */
+function withinMeleeRange(distance: number): boolean {
+  return distance <= MELEE_RANGE_TILES + MELEE_RANGE_EPSILON_TILES
+}
 
 /**
  * AI approach only chases a hostile at Euclidean distance ≤ this (decision
@@ -91,9 +118,13 @@ function nearestOpponent(
 
 /**
  * Move each combatant straight toward its nearest opponent at `moveSpeed`
- * tiles/second, stopping exactly at melee range: the final step is clamped to
+ * tiles/second, stopping at melee range: the final step is clamped to
  * `distance - MELEE_RANGE_TILES`, so an entity lands on the range boundary
- * instead of overshooting and oscillating through its target.
+ * instead of overshooting and oscillating through its target. "At the
+ * boundary" is judged by `withinMeleeRange` — the same tolerance the attack
+ * gate uses — so a landing that float error leaves a few ulps above the exact
+ * boundary still counts as arrived (decision 0032) instead of wedging into
+ * sub-ulp no-op steps forever.
  *
  * This is the AI half of movement, gated two ways (task 0330, decision 0029):
  * an entity carrying `PlayerControlled` is never moved here — its movement
@@ -119,12 +150,19 @@ export const approachSystem: System = {
       const target = nearestOpponent(rows, entity, faction, position)
       if (target === null) continue
       if (target.distance > AGGRO_RADIUS_TILES) continue // decision 0029: out of aggro range
-      if (target.distance <= MELEE_RANGE_TILES) continue
+      if (withinMeleeRange(target.distance)) continue // decision 0032: arrived, within tolerance
 
       const step = Math.min(combatant.moveSpeed / TICK_HZ, target.distance - MELEE_RANGE_TILES)
       const scale = step / target.distance
+      const beforeX = position.x
+      const beforeY = position.y
       position.x += (target.position.x - position.x) * scale
       position.y += (target.position.y - position.y) * scale
+
+      // Trace only actual movement: a moveSpeed-0 combatant computes a zero
+      // step every tick, and a sub-ulp step is a bit-level no-op — neither is
+      // a move worth reporting. (Traces are not hash-visible.)
+      if (position.x === beforeX && position.y === beforeY) continue
 
       world.trace(
         () =>
@@ -163,7 +201,7 @@ export const attackSystem: System = {
       if (combatant.life <= 0) continue // decision 0006: the dead deal no damage
 
       const target = nearestOpponent(rows, entity, faction, position)
-      if (target === null || target.distance > MELEE_RANGE_TILES) continue
+      if (target === null || !withinMeleeRange(target.distance)) continue
 
       if (combatant.ticksUntilAttack > 0) combatant.ticksUntilAttack--
       if (combatant.ticksUntilAttack > 0) continue

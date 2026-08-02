@@ -1,0 +1,7 @@
+{
+  "scenario": "dungeon-crawl",
+  "seed": 1,
+  "ticks": 3600,
+  "hash": "f571a61831717cac",
+  "note": "Guards the phase-2 exit criterion: a bot clears the five-room charnel-vaults dungeon headlessly — 8/8 kills (last at tick 1361), avatarDamageDealt exactly 362, avatarLife 59/200, avatar ending on the exit tile (20, 15) at tick 1634. First recorded by task 0450, whose melee-boundary fix (decision 0032) made the crawl completable. A mismatch means melee engagement (approach clamp, boundary tolerance, attack cadence), movement/pathing (moveOrderSystem, the grid), or an involved monster's or the slice avatar's (decision 0030) authored numbers changed."
+}

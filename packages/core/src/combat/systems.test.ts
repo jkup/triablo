@@ -14,6 +14,7 @@ import {
   approachSystem,
   attackSystem,
   deathSystem,
+  MELEE_RANGE_EPSILON_TILES,
   MELEE_RANGE_TILES,
 } from './systems'
 
@@ -283,6 +284,64 @@ describe('attackSystem', () => {
     expect(world.getOrThrow(left, Combatant).life).toBe(30 - 5)
     expect(world.getOrThrow(right, Combatant).life).toBe(30)
     expect(world.getOrThrow(middle, Combatant).life).toBe(30)
+  })
+})
+
+describe('melee-range boundary reconciliation (task 0450, decision 0032)', () => {
+  it('lands a hit after the approach clamp wedges ulps above range against a stationary target', () => {
+    // The recorded live geometry from the dungeon crawl (task 0340, tick 861):
+    // skeleton-archer (moveSpeed 2.2) approaching the avatar parked on (18, 7).
+    // Do NOT simplify these coordinates — the bug only exists at these
+    // magnitudes. The clamp's landing comes out at distance 1.000000000000001,
+    // the next one-ulp correction reaches distance 1.0000000000000004 (2 ulps
+    // above MELEE_RANGE_TILES), and from there the correction step (~4.4e-16)
+    // is below half-ulp of both coordinates, so `position += step` is a
+    // bit-level no-op: a permanent fixed point.
+    //
+    // Revert verification: with the boundary fix reverted (strict
+    // `distance <= / > MELEE_RANGE_TILES` comparisons), this test fails with
+    // damageDealt === 0 and the attacker frozen at exactly
+    // (18.561214597020065, 7.827670330561394), distance 1.0000000000000004
+    // from the target — the livelock this test exists to pin.
+    const world = new World({ seed: 1 })
+    world.addSystem(approachSystem)
+    world.addSystem(attackSystem)
+    // PlayerControlled target: approachSystem never moves it (decision 0029),
+    // so nothing perturbs the wedge loose. damage 0 keeps the fight one-sided.
+    spawnFighter(world, {
+      x: 18,
+      y: 7,
+      player: true,
+      combatant: { damage: 0 },
+      faction: 'blue',
+    })
+    const attacker = spawnFighter(world, {
+      x: 18.595426455774202,
+      y: 7.8781254338222695,
+      combatant: { moveSpeed: 2.2 },
+      faction: 'red',
+    })
+
+    world.run(10)
+
+    // The fix's invariant: any position approach is willing to stop at is a
+    // position attack is willing to swing from.
+    expect(world.getOrThrow(attacker, Combatant).damageDealt).toBeGreaterThan(0)
+
+    // And the attacker settled within float-error tolerance of the boundary —
+    // never a gameplay-visible distance beyond it.
+    const position = world.getOrThrow(attacker, Position)
+    const dx = 18 - position.x
+    const dy = 7 - position.y
+    expect(Math.sqrt(dx * dx + dy * dy)).toBeLessThanOrEqual(
+      MELEE_RANGE_TILES + MELEE_RANGE_EPSILON_TILES,
+    )
+
+    // Once stopped, approach stops computing futile sub-ulp steps: the
+    // position is a true fixed point, not a live wedge.
+    const settled = { ...position }
+    world.run(5)
+    expect(world.getOrThrow(attacker, Position)).toEqual(settled)
   })
 })
 
