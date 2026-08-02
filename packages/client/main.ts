@@ -1,27 +1,36 @@
 import { ContentRegistry } from '@triablo/content'
 import type { ContentBundle } from '@triablo/content'
-import { World } from '@triablo/core'
+import type { WorldSnapshot } from '@triablo/core'
 
-import type { Scene } from './src/index'
+import type { Point, Scene } from './src/index'
 import {
+  applyCast,
+  applyMoveOrder,
   buildScene,
+  cameraFor,
+  clickToMoveOrder,
+  createGame,
   createTickAccumulator,
+  gameStatus,
   interpolateScene,
-  setupDemoWorld,
+  keyToCast,
+  PLAYER_FACTION,
+  screenToWorld,
   VIEWPORT,
 } from './src/index'
 
 /**
  * The browser entry: DOM glue around the pure pipeline in ./src.
  *
- * This file is deliberately thin — it owns the canvas, the clock, and the
- * requestAnimationFrame loop, and nothing else. Everything with logic in it
- * (scene building, interpolation, accumulator math, the demo world) lives in
- * ./src where it is unit-tested headlessly. An agent cannot see this page;
- * a human can, via `npm run dev`.
+ * This file is deliberately thin — it owns the canvas, the clock, the
+ * requestAnimationFrame loop, and the translation of DOM events into plain
+ * points and key strings, and nothing else. Everything with logic in it
+ * (world assembly, input mapping, scene building, interpolation, accumulator
+ * math) lives in ./src where it is unit-tested headlessly. An agent cannot
+ * see this page; a human can, via `npm run dev`.
  */
 
-const DEMO_SEED = 1
+const GAME_SEED = 1
 
 function drawScene(context: CanvasRenderingContext2D, scene: Scene): void {
   context.fillStyle = '#121016'
@@ -70,23 +79,56 @@ async function main(): Promise<void> {
   const bundle = (await response.json()) as ContentBundle
   const registry = new ContentRegistry(bundle)
 
-  const world = new World({ seed: DEMO_SEED })
-  setupDemoWorld(world, registry.monsters.values())
+  const game = createGame(registry, GAME_SEED)
+  const { world, player } = game
 
-  let previous = buildScene(world.snapshot(), VIEWPORT)
+  let snapshot: WorldSnapshot = world.snapshot()
+  let previous = buildScene(snapshot, VIEWPORT)
   let current = previous
+  let cursor: Point = { x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 }
   const accumulator = createTickAccumulator()
+
+  // DOM event → plain canvas-pixel point (scales CSS pixels to canvas pixels).
+  const canvasPoint = (event: MouseEvent): Point => {
+    const rect = canvas.getBoundingClientRect()
+    return {
+      x: ((event.clientX - rect.left) * canvas.width) / rect.width,
+      y: ((event.clientY - rect.top) * canvas.height) / rect.height,
+    }
+  }
+
+  canvas.addEventListener('mousemove', (event) => {
+    cursor = canvasPoint(event)
+  })
+
+  canvas.addEventListener('click', (event) => {
+    const camera = cameraFor(snapshot, VIEWPORT)
+    if (camera === null) return
+    applyMoveOrder(world, player, clickToMoveOrder(camera, canvasPoint(event)))
+  })
+
+  window.addEventListener('keydown', (event) => {
+    const camera = cameraFor(snapshot, VIEWPORT)
+    if (camera === null) return
+    const cast = keyToCast(event.key, snapshot, screenToWorld(camera, cursor), PLAYER_FACTION, game.skills)
+    if (cast !== null) applyCast(world, player, cast)
+  })
 
   const frame = (nowMs: number): void => {
     const { ticks, alpha } = accumulator.advance(nowMs)
     for (let i = 0; i < ticks; i++) {
       previous = current
       world.step()
-      current = buildScene(world.snapshot(), VIEWPORT)
+      snapshot = world.snapshot()
+      current = buildScene(snapshot, VIEWPORT)
     }
 
     drawScene(context, interpolateScene(previous, current, alpha))
-    status.textContent = `tick ${world.tick} · ${world.entityCount} monsters · seed ${DEMO_SEED}`
+    const { tick, playerLife, monstersRemaining } = gameStatus(world, player)
+    status.textContent =
+      playerLife === null
+        ? `tick ${tick} · you died · ${monstersRemaining}/${game.monstersAuthored} monsters remain`
+        : `tick ${tick} · life ${playerLife} · ${monstersRemaining}/${game.monstersAuthored} monsters remain`
     requestAnimationFrame(frame)
   }
 

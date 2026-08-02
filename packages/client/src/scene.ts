@@ -1,4 +1,4 @@
-import { Combatant, hashString, Position } from '@triablo/core'
+import { Combatant, hashString, PlayerControlled, Position } from '@triablo/core'
 import type { WorldSnapshot } from '@triablo/core'
 
 /**
@@ -111,37 +111,90 @@ function hslToHex(hue: number, saturation: number, lightness: number): string {
 }
 
 /**
- * The camera: the world-space point rendered at the viewport center. It is the
- * center of the bounding box of every positioned entity — a pure function of
- * the snapshot, with no history or smoothing, so identical snapshots render
- * identical pixels. Returns null when nothing has a position. See
- * docs/decisions/0019.
+ * The camera transform: the world-space point rendered at the viewport
+ * center, plus the viewport it maps into. `worldToScreen` / `screenToWorld`
+ * are the ONLY camera math in the client — `buildScene` places sprites
+ * through them and input inverts clicks through them, so the two can never
+ * drift apart.
  */
-function cameraCenter(views: Iterable<EntityView>): { x: number; y: number } | null {
+export interface Camera {
+  /** World-space x rendered at the viewport center. */
+  readonly x: number
+  /** World-space y rendered at the viewport center. */
+  readonly y: number
+  readonly viewport: Viewport
+}
+
+/** World units → viewport pixels under `camera`. */
+export function worldToScreen(camera: Camera, point: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: (point.x - camera.x) * PIXELS_PER_UNIT + camera.viewport.width / 2,
+    y: (point.y - camera.y) * PIXELS_PER_UNIT + camera.viewport.height / 2,
+  }
+}
+
+/** Viewport pixels → world units: the exact inverse of {@link worldToScreen}. */
+export function screenToWorld(camera: Camera, point: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: (point.x - camera.viewport.width / 2) / PIXELS_PER_UNIT + camera.x,
+    y: (point.y - camera.viewport.height / 2) / PIXELS_PER_UNIT + camera.y,
+  }
+}
+
+/**
+ * The camera rule (docs/decisions/0033, superseding 0019):
+ *
+ * - When a `PlayerControlled` entity with a valid `Position` exists, the
+ *   camera centers on it — the follow camera of the playable page. Several
+ *   players (unexpected) resolve to the lowest entity id, deterministically.
+ * - Otherwise the decision-0019 rule applies unchanged: the center of the
+ *   world-space bounding box of every positioned entity.
+ *
+ * Still a pure function of the snapshot — no history, no smoothing — so
+ * identical snapshots render identical pixels. Returns null when nothing has
+ * a position.
+ */
+export function cameraFor(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT): Camera | null {
+  const alive = new Set(snapshot.entities)
+  const positions = new Map<number, { x: number; y: number }>()
+  for (const [entity, value] of snapshot.components[Position.id] ?? []) {
+    if (!alive.has(entity)) continue
+    const position = readPosition(value)
+    if (position !== null) positions.set(entity, position)
+  }
+
+  // Follow a positioned player. Component entries arrive sorted by ascending
+  // entity id (snapshot() sorts them), so the first hit is the lowest id.
+  for (const [entity] of snapshot.components[PlayerControlled.id] ?? []) {
+    const position = positions.get(entity)
+    if (position !== undefined) return { x: position.x, y: position.y, viewport }
+  }
+
+  // Fallback: the decision-0019 bounding-box center.
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
   let maxY = -Infinity
-  for (const view of views) {
-    if (view.position === null) continue
-    minX = Math.min(minX, view.position.x)
-    minY = Math.min(minY, view.position.y)
-    maxX = Math.max(maxX, view.position.x)
-    maxY = Math.max(maxY, view.position.y)
+  for (const position of positions.values()) {
+    minX = Math.min(minX, position.x)
+    minY = Math.min(minY, position.y)
+    maxX = Math.max(maxX, position.x)
+    maxY = Math.max(maxY, position.y)
   }
   if (minX === Infinity) return null
-  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 }
+  return { x: (minX + maxX) / 2, y: (minY + maxY) / 2, viewport }
 }
 
 /**
  * Build the display list for one snapshot.
  *
  * Entities with a core `Position` component are placed at `PIXELS_PER_UNIT`
- * scale, with the camera (the bounding-box center of all positioned entities)
- * mapped to the viewport center. Entities without one are laid out on a fixed
- * screen-space grid in entity-id order — a debug layout the camera does not
- * transform — so that position-less simulations still render every entity
- * visibly. Life bars come from core `Combatant` only.
+ * scale under the camera from {@link cameraFor} (player-follow when a
+ * `PlayerControlled` entity is positioned, bounding-box center otherwise —
+ * decision 0033). Entities without one are laid out on a fixed screen-space
+ * grid in entity-id order — a debug layout the camera does not transform —
+ * so that position-less simulations still render every entity visibly. Life
+ * bars come from core `Combatant` only.
  */
 export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT): Scene {
   const views = new Map<number, EntityView>()
@@ -175,7 +228,7 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     }
   }
 
-  const camera = cameraCenter(views.values())
+  const camera = cameraFor(snapshot, viewport)
   const sprites: SceneSprite[] = []
   const fallbackColumns = Math.max(1, Math.floor(viewport.width / FALLBACK_CELL))
   let fallbackIndex = 0
@@ -188,8 +241,9 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     let y: number
     let radius: number
     if (view.position !== null && camera !== null) {
-      x = (view.position.x - camera.x) * PIXELS_PER_UNIT + viewport.width / 2
-      y = (view.position.y - camera.y) * PIXELS_PER_UNIT + viewport.height / 2
+      const screen = worldToScreen(camera, view.position)
+      x = screen.x
+      y = screen.y
       radius = Math.round(PIXELS_PER_UNIT * 0.4)
     } else {
       const column = fallbackIndex % fallbackColumns

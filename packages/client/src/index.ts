@@ -7,8 +7,37 @@
 export { createTickAccumulator } from './accumulator'
 export type { AccumulatorOptions, FrameAdvance, TickAccumulator } from './accumulator'
 
-export { buildScene, colorFor, interpolateScene, PIXELS_PER_UNIT, VIEWPORT } from './scene'
-export type { Scene, SceneSprite, Viewport } from './scene'
+export {
+  buildScene,
+  cameraFor,
+  colorFor,
+  interpolateScene,
+  PIXELS_PER_UNIT,
+  screenToWorld,
+  VIEWPORT,
+  worldToScreen,
+} from './scene'
+export type { Camera, Scene, SceneSprite, Viewport } from './scene'
+
+export {
+  createGame,
+  DUNGEON_ID,
+  gameStatus,
+  MONSTER_FACTION,
+  PLAYER_FACTION,
+  PLAYER_LEVEL,
+  PLAYER_STATS,
+} from './game'
+export type { GameStatus, PlayableGame } from './game'
+
+export {
+  applyCast,
+  applyMoveOrder,
+  clickToMoveOrder,
+  keyToCast,
+  REND_PICK_RADIUS_TILES,
+} from './input'
+export type { Point, SkillBindings } from './input'
 
 export {
   BACKGROUND,

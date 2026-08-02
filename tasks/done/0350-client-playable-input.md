@@ -134,9 +134,58 @@ seconds") becomes checkable by the owner.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/client/src/game.ts` + test (new: `createGame`
+  assembles the Charnel Vaults, its 8 monsters, and the commanded avatar from
+  a `ContentRegistry`; system order = the crawl's minus its bot, plus
+  skill-cast → skill-resolve → projectile-flight before death; `gameStatus`
+  feeds the status line), `packages/client/src/input.ts` + test (new: pure
+  click→`MoveOrder` and key→`QueuedCast` mapping plus the `apply` step),
+  `packages/client/src/scene.ts` + test (follow camera superseding 0019;
+  exported `cameraFor`/`worldToScreen`/`screenToWorld` — the one camera math,
+  used by both `buildScene` and the click inversion), `src/index.ts`
+  re-exports, `main.ts` (game world + listeners, glue only), `index.html`
+  (control legend), decisions 0033 (new) and 0019 (status → superseded by
+  0033).
+- **The duplicated avatar stats**, copied verbatim from decision 0030 (owned
+  by `packages/sim/src/scenarios/dungeon-crawl.ts`; client may not import
+  sim — phase-3 class content unifies them):
+  `PLAYER_STATS = { life: 200, armor: 14, damage: 18, damageType: 'physical',
+  attackIntervalSeconds: 1.2, moveSpeed: 2.4 }`, `PLAYER_LEVEL = 5`.
+- **Decision 0033:** follow camera (a positioned `PlayerControlled` entity
+  centers the camera, lowest id wins; else 0019's bbox rule — also resolves
+  0270's off-frame caveat), keybinds click/1/2/3, rend pick radius 1.5
+  tiles.
+- **Evidence:** `npm run verify` green (417 tests / 30 files, coverage
+  93.02% lines). Render-regression golden passes UNMODIFIED (no
+  `PlayerControlled` in its fixture — the bbox fallback is pixel-identical).
+  Scripted headless play (game.test.ts): a mapped click at the pixel over
+  tile (7, 7) walks the avatar off the entrance (2, 7); the gallery zombie
+  aggros, meets it at the doorway, and dies to auto-attack + 4 mapped rend
+  casts; a second isolation test proves a mapped ground-stomp alone (target
+  2 tiles away — outside melee, inside the burst) damages a monster with
+  `damageDealt` exactly equal to the loss. Click-inversion arithmetic is
+  hand-computed in input.test.ts: pixel (448, 276) → world (12, 5); pixel
+  (461, 287) → world (12.54, 5.46) → tile (13, 5) — and cross-checked
+  against the exported transform's own constants.
+- **Pixels read** (scratch script through the raster pipeline, deleted
+  before commit): at t0 the avatar renders exactly at (400, 300) with the
+  gallery zombies east at (616, 300)/(664, 276); at t60 mid-walk the avatar
+  is still pixel-centered while the world scrolls (ossuary + sepulchre
+  monsters enter frame right); at t130 the first zombie is gone and the
+  second fights at melee range; at t300 the gallery is cleared, avatar
+  192/200. Canonical shot: `shot dungeon-crawl seed=1 tick=244 entities=10
+  sprites=10 hash=8cd7b91f7d7793b7 800x600` — the crawl's avatar is now
+  follow-camera-centered too. Note: the pipeline draws entities only; there
+  is no wall/tile rendering yet, so "the dungeon" reads as its inhabitants
+  (the position-less `DungeonMap` entity sits on the 0027 fallback debug
+  grid, top-left).
+- **Replays re-blessed:** none. No sim/replay files touched.
+- **Scope deviations:** none. `packages/core`, `packages/content/data`,
+  `packages/sim`, `demo.ts` untouched; `MoveOrder` + `CastPlan` expressed
+  every input.
+- **Follow-ups worth a new task:** (1) render the `DungeonMap` grid (walls/
+  floor) — the playable page currently shows actors on black; (2) hide or
+  restyle the fallback-grid sprites for map/monitor entities on the playable
+  page; (3) phase-3 class content to delete the duplicated `PLAYER_STATS`.
+- **Owner playtest:** the sixty-second human half of the phase-2 exit
+  criterion is yours to run: `npm run dev`, click to move, 1/2/3 to cast.
