@@ -132,9 +132,42 @@ import, not by discipline.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `approachSystem` now queries `DungeonMap` once per tick
+  (lowest entity id wins, `Grid.fromJSON` at point of use, mirroring
+  `moveOrderSystem`). With a map, an aggroed monster walks
+  `grid.findPath(tileOf(self), tileOf(target))` node to node on a
+  `moveSpeed / TICK_HZ` budget with the clamp-onto-node discipline; the chase
+  stops via the shared `withinMeleeRange` predicate (decision 0032), checked
+  at mover entry and between path legs; a null path stands still with a trace
+  — no straight-line fallback in a mapped world. No map → the pre-change
+  straight-line arithmetic runs unchanged, and `duel`/`skill-strike`/
+  `content-seam`/`harness-selftest` replays passed byte-identical, proving
+  the identity. New tests: wall-detour chase with an every-tick
+  `grid.isWalkable(tileOf(position))` assertion and a computed 56-tick bound
+  (5-tile detour at 0.1 tiles/tick ≈ 50 ticks + float slack); null-path
+  stand-still; exact-position unmapped trajectory (moveSpeed 120 → steps of
+  4 then clamp-3, all values exactly representable, asserted with `toBe`).
+  `grid.ts` got the comment-only warning that `Grid`'s enumerable fields
+  coincidentally alias `GridJSON` (the real guard is `populate.test.ts`'s
+  `not.toBeInstanceOf(Grid)`). Rules recorded in decision 0035.
+- **Replays re-blessed:** `dungeon-crawl.seed1.json` only
+  (`f571a61831717cac` → `f7dc3d682f986a80`): monsters now path around walls
+  instead of clipping them — intended behavior change. Crawl report before →
+  after: monstersRemaining 0 → 0, avatarLife 59/200 → 59/200,
+  avatarDamageDealt 362 → 362, avatarTile (20,15) = exitTile both runs,
+  waypoints 7/7 both, lastMonsterDeathTick 1361 → 1466 (pathing lengthens
+  monster travel). Deadline (3600) comfortably met; no scenario code touched.
+  Verbose trace shows e.g. skeleton-archer (7) walking east along y=1,
+  turning south down x=20, then west along y=7 — a grid detour where the old
+  system cut the diagonal through walls.
+- **Scope deviations:** none in files touched. One stale-spec adaptation: the
+  task's "move/export `tileOf`" was already done by task 0450 (PR #48) —
+  `tileOf` was already exported from `player/systems.ts` and re-exported from
+  `index.ts` on main, so this task only added the import in
+  `combat/systems.ts`; `player/systems.ts`, `player/systems.test.ts`, and
+  `index.ts` are unchanged. `grep -rn "Math.round(position" packages/core/src`
+  shows exactly one site.
+- **Follow-ups worth a new task:** 0390 (leash/return-to-post) builds directly
+  on this. The per-tick `findPath` + `Grid.fromJSON` recompute per aggroed
+  mover is fine at authored scale but is the cost boundary the procgen scout
+  (0440) should revisit (decision 0035 notes it).
