@@ -116,9 +116,51 @@ roster.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `MonsterInstance` is gone from the repo
+  (`grep -rn "MonsterInstance" packages` finds nothing). `spawnMonsters` now
+  attaches core `Combatant` via `makeCombatant(monster.id, monster.level,
+  monster.stats)` — authored stats route through `computeStats`, and integer
+  authored stats quantize to themselves (decision 0005), so every spawn-trace
+  life value is unchanged (verified: 22/140/24/32/44) — plus a `Position` that
+  is a pure function of spawn index (8-wide grid, 2 tiles apart), plus a
+  scenario-local `AttackTally` component carrying `attacksMade` (the
+  scenario-owned-component pattern, like duel's `DuelRecord`). No `Faction`
+  and no combat systems, deliberately: a `Combatant` without a `Faction` is
+  inert to every combat and skill system (decision 0023), which keeps the
+  breadth check combat-free; a comment says so at the spawn site.
+  **Cadence ruling:** adopted the core convention — `ticksUntilAttack` stays
+  at `makeCombatant`'s 0 and the timer system mirrors core `attackSystem`'s
+  exact decrement pattern. Chosen because it leaves `makeCombatant`'s output
+  untouched (the scenario now proves exactly what every real spawn path
+  produces) and measures the cadence contract combat actually uses (decision
+  0010: first swing on the first eligible tick, then exactly
+  `attackIntervalTicks` apart). Trace consequence, verified before/after:
+  each monster's first attack moves from tick=interval to tick 1 and every
+  monster gains exactly one attack over 300 ticks (content-seam totalAttacks
+  12 → 14); spacing between swings is unchanged (e.g. skeleton-warrior at
+  ticks 1, 43, 85, … — still 42 apart). **Registry-order trap:**
+  content-smoke now sorts the roster explicitly by id with a plain code-unit
+  comparison (not `localeCompare`, which would leak the host locale into the
+  hash); ids equal filenames and `node.ts` already sorts the directory
+  listing, so this reproduces the previous spawn order exactly — same five
+  monsters, same order, now visible in the code. **Shot cross-check:**
+  `npm run shot -- content-smoke --seed 1 --tick 60` reports
+  `entities=5 sprites=5 hash=16e4e885c68ecddc`, equal to the headless
+  `sim run content-smoke --seed 1 --ticks 60` hash — and the Combatant +
+  Position components are what make decision 0027's renderer draw placed
+  sprites with life bars. The PNG was also actually read: five distinctly
+  colored sprites in a row, each with a full life bar above and entity id
+  below — no fallback grid.
+- **Replays re-blessed:** `content-seam.seed1.json` only
+  (`f654eb09b7964b65` → `2e858b7ba2bc7958`): the scenario's entities change
+  component shape (`MonsterInstance` → `Combatant` + `Position` +
+  `AttackTally`) and gain positions, and the cadence ruling shifts each
+  monster's attack count by +1 — an intended representation/cadence change
+  with identical scenario semantics. All other replays pass untouched.
+- **Scope deviations:** none. Zero changes outside
+  `packages/sim/src/scenarios/` and the one replay file; `content-seam.ts`
+  needed no edits (the shared-module exports kept their names).
+- **Follow-ups worth a new task:** none required. (Decision 0027's prose
+  mentions `MonsterInstance` as the example for the renderer's cosmetic
+  color exception; the decision record is history and stays as written — the
+  exception itself still applies to any non-Combatant entity.)
