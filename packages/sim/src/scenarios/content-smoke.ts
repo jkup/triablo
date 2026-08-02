@@ -25,7 +25,16 @@ export const contentSmoke: Scenario = {
   defaultTicks: 300,
 
   setup(world, registry) {
-    spawnMonsters(world, registry.monsters.values())
+    // Spawn positions are derived from roster index (see spawnMonsters), so
+    // the roster order must be deterministic. The registry's Map order is
+    // already filename-sorted (node.ts sorts the directory listing), but that
+    // guarantee lives far from here — sort by id explicitly, with a plain
+    // code-unit comparison (localeCompare would drag the host locale into
+    // the state hash). Ids equal filenames, so this reproduces today's order.
+    const roster = [...registry.monsters.values()].sort((a, b) =>
+      a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
+    )
+    spawnMonsters(world, roster)
     addAttackTimerSystem(world)
   },
 
