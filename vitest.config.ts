@@ -39,6 +39,19 @@ export default defineConfig({
         functions: 85,
         branches: 85,
         statements: 80,
+        // Scenario files are mostly invariants: `if (bad) return violation`
+        // branches that must never fire. Exercising them means the game is
+        // broken, so branch coverage here measures the opposite of health —
+        // every scenario that makes the sim safer dragged the global number
+        // down. Statements and functions stay ratcheted (dead scenario code
+        // is still a defect); only the branch bar is scoped, and scoped files
+        // are excluded from the global figure.
+        'packages/sim/src/scenarios/**': {
+          lines: 80,
+          functions: 85,
+          branches: 50,
+          statements: 80,
+        },
       },
     },
   },

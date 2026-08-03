@@ -101,6 +101,15 @@ export type {
   DungeonTemplate,
 } from './world/dungeon'
 
+export { generateDungeon } from './world/generate'
+export type {
+  GenerateDungeonInput,
+  GenerateRange,
+  MonsterWeight,
+  RoomSpawnSlot,
+  RoomTemplateInput,
+} from './world/generate'
+
 export { DungeonMap, populateDungeon } from './world/populate'
 export type { PopulateDungeonOptions, PopulatedDungeon } from './world/populate'
 

@@ -16,6 +16,7 @@ import {
   projectileSystem,
   skillCastSystem,
   skillResolveSystem,
+  statusTickSystem,
   World,
 } from '@triablo/core'
 import type { CombatantBaseStats, EntityId, Tile } from '@triablo/core'
@@ -75,7 +76,15 @@ export interface PlayableGame {
  * its scenario-local bot (a human drives this world), plus the skill executor
  * systems in their documented slot (the human casts; the bot did not):
  * move-order → approach → attack → skill-cast → skill-resolve →
- * projectile-flight → death.
+ * projectile-flight → status-tick → death.
+ *
+ * `status-tick` sits exactly where decision 0036 records it — after
+ * projectileSystem, before deathSystem — so a DoT applied this tick deals its
+ * first tick the same tick (the projectile "first step on the launch tick"
+ * convention) and a lethal tick is reaped by deathSystem without a one-tick
+ * zombie. No shipped skill carries a rider yet, so this registration changes
+ * nothing visible today; it is here so the first rider that ships ticks in
+ * the browser instead of tagging monsters that never bleed.
  */
 export function createGame(registry: ContentRegistry, seed: number | string = 1): PlayableGame {
   const world = new World({ seed })
@@ -106,6 +115,7 @@ export function createGame(registry: ContentRegistry, seed: number | string = 1)
   world.addSystem(skillCastSystem)
   world.addSystem(skillResolveSystem)
   world.addSystem(projectileSystem)
+  world.addSystem(statusTickSystem)
   world.addSystem(deathSystem)
 
   return {

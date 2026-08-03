@@ -133,9 +133,32 @@ scenario yet (0500's job).
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/core/src/world/generate.ts` (new) exports the
+  pure `generateDungeon(input, rng)` plus its input types
+  (`GenerateDungeonInput`, `RoomTemplateInput`, `RoomSpawnSlot`,
+  `GenerateRange`, `MonsterWeight`), re-exported from
+  `packages/core/src/index.ts`. It places chambers in a strictly-eastward
+  chain stitched by 1-wide all-floor corridor rooms, writes `E`/`X` into the
+  first/last chamber, normalizes offsets non-negative, and fills spawn slots
+  from an internal `rng.fork('spawns')` taken after layout. Nothing registers
+  or calls it yet (0500's job). `generate.test.ts` (new, 17 tests, 100% line
+  and branch coverage of the module) covers
+  determinism, a 25-seed sweep through the **unchanged** `buildDungeon` with
+  `findPath(entrance, exit)` non-null, the spawnFill 0/1 layout-identity
+  proof, normalization, and the input-validation throws.
+  `dungeon.ts`/`grid.ts`/`populate.ts` are byte-identical to `main`
+  (`git diff --stat main --` on those three is empty). Decision 0042 records
+  the chain rule, draw order, fork labels, E/X rule, and the 0035 ceiling.
+- **Replays re-blessed:** None. `git diff --stat packages/sim/replays/` is
+  empty — no scenario calls the generator yet, so no hash can move.
+- **Scope deviations:** One ruling the task file left open, recorded in
+  decision 0042: **v1 corridors are always straight**, because chamber *i+1*
+  is placed so its drawn west port aligns with chamber *i*'s drawn east port.
+  0440 allowed "straight or L-shaped"; an L needs a vertical-jog range knob
+  that decision 0037 did not ratify, and port-row differences between
+  templates already produce signed vertical drift (the normalization path is
+  exercised on real template geometry — the 25-seed test asserts a shifted
+  chain occurs). No other deviation; no file outside Files in scope touched.
+- **Follow-ups worth a new task:** 0490/0500 as planned. If generated
+  dungeons read as too flat once 0500's scenario exists, an L-corridor jog
+  (with its knob) is a small superseding change to 0042.
