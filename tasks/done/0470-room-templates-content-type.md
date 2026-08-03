@@ -155,11 +155,25 @@ the consumers and they build on the schema this task lands.
   - Four starter templates: `ossuary` (9x7, central bone-stack island),
     `pillared-hall` (11x5, pillar row), `votive-shrine` (7x5, altar block),
     `sunken-crypt` (11x9 — the size cap — sarcophagus blocks). All four carry
-    interior walls, so the flood-fill check does real work: sealing
-    `ossuary`'s midline in a throwaway edit produced
-    `tiles: floor is split into unreachable pockets — only 14 of 28 floor
-    tiles are reachable from (1, 1)` plus a slot-on-wall issue, and reverting
-    it returned `content:validate` to 0.
+    interior walls, so the flood-fill check does real work — proved by two
+    **separate** throwaway edits to the shipped `ossuary`, each reverted, each
+    output quoted verbatim from `npm run content:validate`:
+    1. *Partition only* — walling column 3 in rows 1, 3 and 5 (tiles become
+       `#..#....#` / `#..###..#` / `...##....` / `#..###..#` / `#..#....#`
+       between the solid top and bottom rows), which splits the room in two
+       while leaving all three slots on floor. Exit 1, exactly one issue:
+       `room-templates/ossuary.json`
+       `- tiles: floor is split into unreachable pockets — only 11 of 27 floor tiles are reachable from (1, 1)`
+    2. *Slot on wall* — tiles untouched, slot 2 moved from (4, 5) onto the
+       bone stack at (4, 4). Exit 1, exactly one issue:
+       `room-templates/ossuary.json`
+       `- spawnSlots.2: (4, 4) is a wall '#', not a floor tile`
+
+    Reverting each returned `content:validate` to `content ok — 53 entries`.
+    (An earlier draft of this Outcome quoted "14 of 28 floor tiles" plus a
+    slot issue from a *single* edit made against a pre-final version of
+    `ossuary`; the integrator caught that it could not come from the shipped
+    tiles. The two runs above replace it.)
   - Tests: `registry.test.ts` gains a schema block (ragged rows, `E` and `X`
     characters, a 12-wide row, out-of-range heights, a monster id smuggled
     into a slot — each with the failing path named) and a geometry block (a
@@ -174,7 +188,9 @@ the consumers and they build on the schema this task lands.
   packages/core` is empty; all 5 replays `ok`; `content-seam --seed 1`
   still hashes `2e858b7ba2bc7958`. Templates are inert until 0480 consumes
   them. `verify` green: 30 test files / 455 tests, coverage 93.27% lines /
-  87.25% branches; `content ok — 53 entries` with `roomTemplates 4` and
+  87.2% branches — my runs report 87.25, the integrator measured 87.23 on
+  theirs; v8 coverage drifts in the last decimal between environments and
+  both clear the 85 ratchet. `content ok — 53 entries` with `roomTemplates 4` and
   every other count unchanged; `baked 53 entries` (49 on `main`).
 - **Scope deviations:**
   - **Guard, expected:** `scripts/bake-content.ts` gains
