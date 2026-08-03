@@ -4,6 +4,7 @@ import type {
   AffixKind as CoreAffixKind,
   DamageType as CoreDamageType,
   LootRarity as CoreLootRarity,
+  SkillEffectSource as CoreSkillEffectSource,
   StatModMode as CoreStatModMode,
   StatModRange as CoreStatModRange,
 } from '@triablo/core'
@@ -14,9 +15,10 @@ import type {
   DAMAGE_TYPES,
   MOD_MODES,
   RARITIES,
+  SkillEffect as ContentSkillEffect,
   StatModRange as ContentStatModRange,
 } from '@triablo/content'
-import { STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
+import { SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
 
 /**
  * The core↔content vocabulary contract, made mechanical.
@@ -90,6 +92,88 @@ describe('core↔content vocabulary sync', () => {
     const coreWithinContent: Covers<CoreStatModRange, ContentStatModRange> = true
     const contentWithinCore: Covers<ContentStatModRange, CoreStatModRange> = true
     expect(coreWithinContent && contentWithinCore).toBe(true)
+  })
+
+  it('SkillEffect mirrors SkillEffectSource, status riders included (enforced at compile time)', () => {
+    // The effect-vocabulary mirror (decision 0009's bricks plus decision
+    // 0036's optional `status` rider): a parsed content effect must be
+    // structurally assignable to core's authored form — that is what lets
+    // `makeSkillRecipe(registry.skill(id))` typecheck — and core's form must
+    // add nothing content cannot author. Field names are identical by
+    // contract (`durationSeconds` stays seconds on both sides; ticks exist
+    // only past `makeSkillRecipe`).
+    const contentWithinCore: Covers<ContentSkillEffect, CoreSkillEffectSource> = true
+    const coreWithinContent: Covers<CoreSkillEffectSource, ContentSkillEffect> = true
+    expect(contentWithinCore && coreWithinContent).toBe(true)
+  })
+
+  it('parses a hand-written skill carrying a dot status rider (decision 0036)', () => {
+    // No shipped data file uses `status` yet — the first bleed is a later
+    // content task — so the schema's acceptance is pinned here instead.
+    const parsed = SkillSchema.parse({
+      id: 'test-rend-bleed',
+      name: 'Test Rend Bleed',
+      class: 'barbarian',
+      description: 'A schema fixture: a melee hit that leaves a bleed.',
+      resourceCost: 0,
+      cooldownSeconds: 0,
+      castTimeSeconds: 0.45,
+      effects: [
+        {
+          type: 'melee-hit',
+          reachTiles: 1,
+          damage: { type: 'physical', weaponMultiplier: 1.4 },
+          status: {
+            kind: 'dot',
+            damage: { type: 'physical', weaponMultiplier: 4.4 },
+            durationSeconds: 2,
+          },
+        },
+      ],
+      tags: [],
+    })
+    const [effect] = parsed.effects
+    if (effect?.type !== 'melee-hit') throw new Error('fixture must parse as a melee-hit')
+    expect(effect.status).toEqual({
+      kind: 'dot',
+      damage: { type: 'physical', weaponMultiplier: 4.4 },
+      durationSeconds: 2,
+    })
+
+    // Strictness holds inside the rider: unknown keys and unknown kinds fail.
+    const withUnknownKey = SkillSchema.safeParse({
+      ...parsed,
+      effects: [
+        {
+          type: 'melee-hit',
+          reachTiles: 1,
+          damage: { type: 'physical', weaponMultiplier: 1.4 },
+          status: {
+            kind: 'dot',
+            damage: { type: 'physical', weaponMultiplier: 4.4 },
+            durationSeconds: 2,
+            stacks: 3,
+          },
+        },
+      ],
+    })
+    expect(withUnknownKey.success).toBe(false)
+    const withUnknownKind = SkillSchema.safeParse({
+      ...parsed,
+      effects: [
+        {
+          type: 'melee-hit',
+          reachTiles: 1,
+          damage: { type: 'physical', weaponMultiplier: 1.4 },
+          status: {
+            kind: 'slow',
+            damage: { type: 'physical', weaponMultiplier: 4.4 },
+            durationSeconds: 2,
+          },
+        },
+      ],
+    })
+    expect(withUnknownKind.success).toBe(false)
   })
 
   it('LootRarity is a strict subset of content rarities (enforced at compile time)', () => {

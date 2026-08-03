@@ -53,23 +53,27 @@ export type {
   AreaBurstSpec,
   ChainSpec,
   DealDamageSpec,
+  DotStatusSource,
+  DotStatusSpec,
   MeleeHitSpec,
   MeleeSweepSpec,
   ProjectileSpec,
   SelfBurstSpec,
+  SkillEffectSource,
   SkillEffectSpec,
   SkillRecipe,
   SkillRecipeSource,
 } from './skills/recipe'
 
-export { CastPlan, CastState, Faction, Projectile } from './skills/components'
-export type { QueuedCast, WindingCast } from './skills/components'
+export { CastPlan, CastState, Faction, Projectile, StatusEffects } from './skills/components'
+export type { QueuedCast, StatusEffectEntry, WindingCast } from './skills/components'
 
 export {
   PROJECTILE_HIT_RADIUS_TILES,
   projectileSystem,
   skillCastSystem,
   skillResolveSystem,
+  statusTickSystem,
 } from './skills/systems'
 
 export { RARITY_AFFIX_RULES, rollItem } from './loot/roll'

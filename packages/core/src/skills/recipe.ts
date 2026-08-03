@@ -8,8 +8,9 @@
  * Zod output is structurally assignable to {@link SkillRecipeSource}.
  *
  * Authored units are tiles / seconds / degrees (decision 0018).
- * {@link makeSkillRecipe} converts the two authored durations to integer ticks
- * exactly once, at load time — everything downstream sees ticks only. Geometry
+ * {@link makeSkillRecipe} converts every authored duration (cast time,
+ * cooldown, and any status rider's duration) to integer ticks exactly once,
+ * at load time — everything downstream sees ticks only. Geometry
  * stays in tiles/degrees (distances, not durations), and projectile speed
  * stays in tiles per second; the flight system divides by TICK_HZ.
  */
@@ -24,57 +25,104 @@ export interface DealDamageSpec {
   weaponMultiplier: number
 }
 
+/**
+ * A damage-over-time rider on a delivery, in its authored form (decision
+ * 0036 — the reviewed arrival of decision 0009's deferred `apply-status`,
+ * scoped to the one status kind: a DoT). `kind` is a discriminant left open
+ * for future statuses, but only `'dot'` exists.
+ *
+ * `damage.weaponMultiplier` is the DoT's **total** over the whole duration,
+ * not a per-second rate: the executor fixes the total once at application
+ * via `computeDamage` and splits it across the duration's ticks.
+ */
+export interface DotStatusSource {
+  kind: 'dot'
+  damage: DealDamageSpec
+  durationSeconds: number
+}
+
+/**
+ * The executor form of {@link DotStatusSource}: duration converted to
+ * integer ticks exactly once, by {@link makeSkillRecipe} (2 s → 60 ticks at
+ * TICK_HZ 30). Everything downstream sees ticks only.
+ */
+export interface DotStatusSpec {
+  kind: 'dot'
+  damage: DealDamageSpec
+  durationTicks: number
+}
+
+/**
+ * Every delivery spec is generic over the shape of its optional `status`
+ * rider: `DotStatusSource` (seconds) when authored, `DotStatusSpec` (ticks)
+ * once through `makeSkillRecipe`. The default is the executor form, so the
+ * names the executor always used (`MeleeHitSpec` etc.) still mean what its
+ * systems expect.
+ */
+
 /** Strikes one target in reach (Rend, Ravage). */
-export interface MeleeHitSpec {
+export interface MeleeHitSpec<Status = DotStatusSpec> {
   type: 'melee-hit'
   reachTiles: number
   damage: DealDamageSpec
+  /** Optional DoT applied to the struck target (decision 0036). */
+  status?: Status
 }
 
 /** Strikes every target in an arc in front of the caster (Cleave). */
-export interface MeleeSweepSpec {
+export interface MeleeSweepSpec<Status = DotStatusSpec> {
   type: 'melee-sweep'
   reachTiles: number
   /** Total arc width in degrees, centered on the caster's facing. */
   arcDegrees: number
   damage: DealDamageSpec
+  /** Optional DoT applied to every struck target (decision 0036). */
+  status?: Status
 }
 
 /** Strikes every target in a radius around the caster (Ground Stomp). */
-export interface SelfBurstSpec {
+export interface SelfBurstSpec<Status = DotStatusSpec> {
   type: 'self-burst'
   radiusTiles: number
   damage: DealDamageSpec
+  /** Optional DoT applied to every struck target (decision 0036). */
+  status?: Status
 }
 
 /** Strikes every target in a radius at a point (standalone, or on projectile impact). */
-export interface AreaBurstSpec {
+export interface AreaBurstSpec<Status = DotStatusSpec> {
   type: 'area-burst'
   radiusTiles: number
   damage: DealDamageSpec
+  /** Optional DoT applied to every struck target (decision 0036). */
+  status?: Status
 }
 
 /** Travels in a straight line and hits the first target in its path (Spark, Ice Lance, Fireball). */
-export interface ProjectileSpec {
+export interface ProjectileSpec<Status = DotStatusSpec> {
   type: 'projectile'
   speedTilesPerSecond: number
   maxRangeTiles: number
   damage: DealDamageSpec
   /** The only composition v1 allows: an area-burst at the impact point (decision 0018). */
-  onImpact?: AreaBurstSpec
+  onImpact?: AreaBurstSpec<Status>
+  /** Optional DoT applied to the target the projectile strikes directly (decision 0036). */
+  status?: Status
 }
 
 /** Leaps between nearby targets up to a jump limit (Chain Lightning). */
-export interface ChainSpec {
+export interface ChainSpec<Status = DotStatusSpec> {
   type: 'chain'
   /** Acquisition range for the first target (from the caster) and for each leap. */
   jumpRangeTiles: number
   /** Leaps after the first strike, so at most `maxJumps + 1` targets are hit. */
   maxJumps: number
   damage: DealDamageSpec
+  /** Optional DoT applied to every struck target, first hit and leaps alike (decision 0036). */
+  status?: Status
 }
 
-/** The decision-0009 delivery bricks, as plain core data. */
+/** The decision-0009 delivery bricks, as plain core data (executor form: tick durations). */
 export type SkillEffectSpec =
   | MeleeHitSpec
   | MeleeSweepSpec
@@ -82,6 +130,15 @@ export type SkillEffectSpec =
   | AreaBurstSpec
   | ProjectileSpec
   | ChainSpec
+
+/** The same bricks in authored form: any `status` rider still carries seconds. */
+export type SkillEffectSource =
+  | MeleeHitSpec<DotStatusSource>
+  | MeleeSweepSpec<DotStatusSource>
+  | SelfBurstSpec<DotStatusSource>
+  | AreaBurstSpec<DotStatusSource>
+  | ProjectileSpec<DotStatusSource>
+  | ChainSpec<DotStatusSource>
 
 /**
  * What {@link makeSkillRecipe} needs from an authored skill. A parsed content
@@ -92,7 +149,7 @@ export interface SkillRecipeSource {
   id: string
   cooldownSeconds: number
   castTimeSeconds: number
-  effects: readonly SkillEffectSpec[]
+  effects: readonly SkillEffectSource[]
 }
 
 /**
@@ -114,46 +171,89 @@ function copyDamage(damage: DealDamageSpec): DealDamageSpec {
   return { type: damage.type, weaponMultiplier: damage.weaponMultiplier }
 }
 
-function copyEffect(effect: SkillEffectSpec): SkillEffectSpec {
+/** Copy a status rider, converting its one duration to ticks (once, here). */
+function convertStatus(status: DotStatusSource): DotStatusSpec {
+  return {
+    kind: 'dot',
+    damage: copyDamage(status.damage),
+    durationTicks: secondsToTicks(status.durationSeconds),
+  }
+}
+
+/**
+ * Attach the converted status rider only when the source has one: an absent
+ * key stays absent, so recipes without a status serialize byte-identically
+ * to their pre-status shape (this is what keeps replay hashes still).
+ */
+function withStatus<T extends { status?: DotStatusSpec }>(
+  copy: T,
+  status: DotStatusSource | undefined,
+): T {
+  if (status !== undefined) copy.status = convertStatus(status)
+  return copy
+}
+
+function copyEffect(effect: SkillEffectSource): SkillEffectSpec {
   switch (effect.type) {
     case 'melee-hit':
-      return { type: 'melee-hit', reachTiles: effect.reachTiles, damage: copyDamage(effect.damage) }
+      return withStatus<MeleeHitSpec>(
+        { type: 'melee-hit', reachTiles: effect.reachTiles, damage: copyDamage(effect.damage) },
+        effect.status,
+      )
     case 'melee-sweep':
-      return {
-        type: 'melee-sweep',
-        reachTiles: effect.reachTiles,
-        arcDegrees: effect.arcDegrees,
-        damage: copyDamage(effect.damage),
-      }
+      return withStatus<MeleeSweepSpec>(
+        {
+          type: 'melee-sweep',
+          reachTiles: effect.reachTiles,
+          arcDegrees: effect.arcDegrees,
+          damage: copyDamage(effect.damage),
+        },
+        effect.status,
+      )
     case 'self-burst':
-      return { type: 'self-burst', radiusTiles: effect.radiusTiles, damage: copyDamage(effect.damage) }
+      return withStatus<SelfBurstSpec>(
+        { type: 'self-burst', radiusTiles: effect.radiusTiles, damage: copyDamage(effect.damage) },
+        effect.status,
+      )
     case 'area-burst':
-      return { type: 'area-burst', radiusTiles: effect.radiusTiles, damage: copyDamage(effect.damage) }
+      return withStatus<AreaBurstSpec>(
+        { type: 'area-burst', radiusTiles: effect.radiusTiles, damage: copyDamage(effect.damage) },
+        effect.status,
+      )
     case 'projectile': {
-      const projectile: ProjectileSpec = {
-        type: 'projectile',
-        speedTilesPerSecond: effect.speedTilesPerSecond,
-        maxRangeTiles: effect.maxRangeTiles,
-        damage: copyDamage(effect.damage),
-      }
+      const projectile: ProjectileSpec = withStatus<ProjectileSpec>(
+        {
+          type: 'projectile',
+          speedTilesPerSecond: effect.speedTilesPerSecond,
+          maxRangeTiles: effect.maxRangeTiles,
+          damage: copyDamage(effect.damage),
+        },
+        effect.status,
+      )
       // Copied only when present: an absent key stays absent, so the recipe
       // serializes identically to its authored shape.
       if (effect.onImpact !== undefined) {
-        projectile.onImpact = {
-          type: 'area-burst',
-          radiusTiles: effect.onImpact.radiusTiles,
-          damage: copyDamage(effect.onImpact.damage),
-        }
+        projectile.onImpact = withStatus<AreaBurstSpec>(
+          {
+            type: 'area-burst',
+            radiusTiles: effect.onImpact.radiusTiles,
+            damage: copyDamage(effect.onImpact.damage),
+          },
+          effect.onImpact.status,
+        )
       }
       return projectile
     }
     case 'chain':
-      return {
-        type: 'chain',
-        jumpRangeTiles: effect.jumpRangeTiles,
-        maxJumps: effect.maxJumps,
-        damage: copyDamage(effect.damage),
-      }
+      return withStatus<ChainSpec>(
+        {
+          type: 'chain',
+          jumpRangeTiles: effect.jumpRangeTiles,
+          maxJumps: effect.maxJumps,
+          damage: copyDamage(effect.damage),
+        },
+        effect.status,
+      )
   }
 }
 

@@ -10,8 +10,9 @@
  * Faction neither casts effectively nor can be struck by one.
  */
 
+import type { DamageType } from '../combat/damage'
 import { defineComponent } from '../ecs'
-import type { AreaBurstSpec, DealDamageSpec, SkillRecipe } from './recipe'
+import type { AreaBurstSpec, DealDamageSpec, DotStatusSpec, SkillRecipe } from './recipe'
 
 /**
  * Which side an entity fights for. Effects strike entities of any *other*
@@ -100,5 +101,61 @@ export interface Projectile {
   damage: DealDamageSpec
   /** Burst resolved at the impact point, or null (plain projectile). */
   onImpact: AreaBurstSpec | null
+  /**
+   * DoT rider applied to the directly struck target (decision 0036). Absent —
+   * not null — when the recipe carries none, so projectiles from status-free
+   * skills serialize exactly as they did before DoTs existed.
+   */
+  status?: DotStatusSpec
 }
 export const Projectile = defineComponent<Projectile>('Projectile')
+
+/**
+ * One active damage-over-time entry on an entity (decision 0036).
+ *
+ * Everything is snapshotted at application time — the same precedent as
+ * {@link Projectile}: the damage a DoT deals is the damage its caster fixed
+ * when it landed, even if the caster's stats change or the caster dies
+ * mid-duration. `damageDealt` credit still goes to the caster entity each
+ * tick iff it still exists and lives; a dead caster's bleed keeps ticking
+ * but credits no one.
+ *
+ * The per-tick amounts are pre-split from the application-time total
+ * (`computeDamage` run exactly once, armor consulted exactly once): every
+ * tick but the last deals `tickAmount`; the last deals `finalTickAmount`,
+ * which absorbs the quantization remainder so the summed ticks equal the
+ * total exactly. Ticking never recomputes and never draws rng.
+ */
+export interface StatusEffectEntry {
+  /** Status discriminant. Only 'dot' exists (decision 0036 scope). */
+  kind: 'dot'
+  /** The applying skill — with `caster`, the refresh key (same pair replaces, never stacks). */
+  skillId: string
+  /**
+   * Caster entity id at application, or null if the hit had no creditable
+   * caster. Entity ids are never reused (see ecs.ts), so a stored id always
+   * means the original caster.
+   */
+  caster: number | null
+  /** Caster display name at application, for traces. */
+  casterName: string
+  /** Damage type, for traces; mitigation already happened at application. */
+  damageType: DamageType
+  /** Damage per tick for every tick but the last, quantized to 1/STAT_SCALE (decision 0005). */
+  tickAmount: number
+  /** The last tick's damage: total − (durationTicks − 1) × tickAmount, quantized. */
+  finalTickAmount: number
+  /** Ticks left, including the current one; the entry is dropped at 0. */
+  remainingTicks: number
+}
+
+/**
+ * Active status effects on an entity, in application order. Added by the
+ * executor on the first DoT application and **removed entirely** when the
+ * last entry expires — absence is the clean state, so an entity that was
+ * once bled hashes identically to one that never was.
+ */
+export interface StatusEffects {
+  entries: StatusEffectEntry[]
+}
+export const StatusEffects = defineComponent<StatusEffects>('StatusEffects')
