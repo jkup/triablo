@@ -1,10 +1,23 @@
-import { Combatant, defineComponent, DungeonMap, Grid, PlayerControlled, Position, World } from '@triablo/core'
+import {
+  CastState,
+  Combatant,
+  defineComponent,
+  DungeonMap,
+  Grid,
+  PlayerControlled,
+  Position,
+  World,
+} from '@triablo/core'
+import type { EntityId } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
+import { captureEffectFrame, DAMAGE_NUMBER_TICKS, HIT_FLASH_TICKS } from './effects'
+import type { EffectFrame } from './effects'
 import {
   buildScene,
   cameraFor,
   colorFor,
+  EFFECT_COLORS,
   interpolateScene,
   PIXELS_PER_UNIT,
   screenToWorld,
@@ -377,6 +390,169 @@ describe('cameraFor and the exported transform', () => {
   })
 })
 
+describe('buildScene attack feedback (decision 0040)', () => {
+  /** A world with a player and one monster a tile apart, both positioned. */
+  function fightWorld(): { world: World; player: EntityId; monster: EntityId } {
+    const world = new World({ seed: 1 })
+    const player = world.spawn()
+    world.add(player, Combatant, combatant('avatar', 200, 200))
+    world.add(player, Position, { x: 5, y: 5 })
+    world.add(player, PlayerControlled, {})
+    const monster = world.spawn()
+    world.add(monster, Combatant, combatant('zombie', 44, 44))
+    world.add(monster, Position, { x: 6, y: 5 })
+    return { world, player, monster }
+  }
+
+  it('leaves the effects key absent — never [] — when nothing is winding or hurt', () => {
+    const { world } = fightWorld()
+    const frames = [captureEffectFrame(world.snapshot())]
+
+    const scene = buildScene(world.snapshot(), VIEWPORT, { frames })
+
+    expect('effects' in scene).toBe(false)
+  })
+
+  it('flashes a struck entity and floats its rounded damage amount', () => {
+    const { world, monster } = fightWorld()
+    const frames: EffectFrame[] = [captureEffectFrame(world.snapshot())]
+    const hurt = world.get(monster, Combatant)
+    if (hurt === undefined) throw new Error('combatant missing')
+    hurt.life -= 17
+    world.step()
+    frames.push(captureEffectFrame(world.snapshot()))
+
+    const scene = buildScene(world.snapshot(), VIEWPORT, { frames })
+    const effects = scene.effects ?? []
+    const sprite = scene.sprites.find((candidate) => candidate.entity === monster)
+
+    const flash = effects.find((effect) => effect.kind === 'stroke')
+    expect(flash).toMatchObject({
+      x: sprite?.x,
+      y: sprite?.y,
+      startDegrees: 0,
+      endDegrees: 360,
+      color: EFFECT_COLORS.impact,
+    })
+    const amount = effects.find((effect) => effect.kind === 'number')
+    expect(amount).toMatchObject({ text: '17', color: EFFECT_COLORS.impact })
+    expect(amount?.y).toBeLessThan(sprite?.y ?? 0)
+  })
+
+  it('colors damage taken by the player differently from damage it deals', () => {
+    const { world, player } = fightWorld()
+    const frames: EffectFrame[] = [captureEffectFrame(world.snapshot())]
+    const hurt = world.get(player, Combatant)
+    if (hurt === undefined) throw new Error('combatant missing')
+    hurt.life -= 4
+    world.step()
+    frames.push(captureEffectFrame(world.snapshot()))
+
+    const effects = buildScene(world.snapshot(), VIEWPORT, { frames }).effects ?? []
+
+    expect(effects.map((effect) => effect.color)).toEqual([
+      EFFECT_COLORS.playerImpact,
+      EFFECT_COLORS.playerImpact,
+    ])
+  })
+
+  it('expires the flash before the amount, counting ticks — never wall time', () => {
+    const { world, monster } = fightWorld()
+    const frames: EffectFrame[] = [captureEffectFrame(world.snapshot())]
+    const hurt = world.get(monster, Combatant)
+    if (hurt === undefined) throw new Error('combatant missing')
+    hurt.life -= 9
+    world.step()
+    frames.push(captureEffectFrame(world.snapshot()))
+
+    const kinds = (): string[] =>
+      (buildScene(world.snapshot(), VIEWPORT, { frames }).effects ?? []).map(
+        (effect) => effect.kind,
+      )
+    expect(kinds()).toEqual(['stroke', 'number'])
+
+    for (let i = 0; i < HIT_FLASH_TICKS; i++) {
+      world.step()
+      frames.push(captureEffectFrame(world.snapshot()))
+    }
+    expect(kinds()).toEqual(['number'])
+
+    for (let i = 0; i < DAMAGE_NUMBER_TICKS; i++) {
+      world.step()
+      frames.push(captureEffectFrame(world.snapshot()))
+    }
+    expect(buildScene(world.snapshot(), VIEWPORT, { frames }).effects).toBeUndefined()
+  })
+
+  it('ignores a window that does not end at this snapshot rather than lying about it', () => {
+    const { world, monster } = fightWorld()
+    const frames: EffectFrame[] = [captureEffectFrame(world.snapshot())]
+    const hurt = world.get(monster, Combatant)
+    if (hurt === undefined) throw new Error('combatant missing')
+    hurt.life -= 12
+    world.step()
+    frames.push(captureEffectFrame(world.snapshot()))
+    world.step() // the snapshot moves on; the window does not
+
+    expect(buildScene(world.snapshot(), VIEWPORT, { frames }).effects).toBeUndefined()
+  })
+
+  it('telegraphs a winding cast from the snapshot alone, with no window at all', () => {
+    const { world, player } = fightWorld()
+    world.add(player, CastState, {
+      cooldownReadyAt: {},
+      winding: [
+        {
+          resolveAtTick: 12,
+          skill: {
+            id: 'cleave',
+            cooldownTicks: 0,
+            castTimeTicks: 12,
+            effects: [
+              {
+                type: 'melee-sweep',
+                reachTiles: 1.5,
+                arcDegrees: 180,
+                damage: { type: 'physical', weaponMultiplier: 0.8 },
+              },
+            ],
+          },
+          aimX: 7,
+          aimY: 5,
+          target: null,
+        },
+      ],
+    })
+
+    const scene = buildScene(world.snapshot())
+    const playerSprite = scene.sprites.find((candidate) => candidate.entity === player)
+
+    expect(scene.effects).toEqual([
+      {
+        kind: 'stroke',
+        x: playerSprite?.x,
+        y: playerSprite?.y,
+        radius: 1.5 * PIXELS_PER_UNIT,
+        startDegrees: -90,
+        endDegrees: 90,
+        thickness: 2,
+        color: EFFECT_COLORS.telegraph,
+      },
+    ])
+  })
+
+  it('honors a camera override without disturbing the default camera rule', () => {
+    const { world, monster } = fightWorld()
+    const camera = { x: 6, y: 5, viewport: VIEWPORT }
+
+    const focused = buildScene(world.snapshot(), VIEWPORT, { camera })
+    const sprite = focused.sprites.find((candidate) => candidate.entity === monster)
+
+    expect(sprite).toMatchObject({ x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 })
+    expect(buildScene(world.snapshot())).toEqual(buildScene(world.snapshot(), VIEWPORT, {}))
+  })
+})
+
 describe('colorFor', () => {
   it('produces a stable #rrggbb color per seed', () => {
     expect(colorFor('zombie')).toMatch(/^#[0-9a-f]{6}$/)
@@ -442,5 +618,26 @@ describe('interpolateScene', () => {
 
     const bare = interpolateScene(scene(1, []), scene(2, []), 0.5)
     expect('tiles' in bare).toBe(false)
+  })
+
+  const flash = (x: number) =>
+    ({
+      kind: 'stroke',
+      x,
+      y: 0,
+      radius: 13,
+      startDegrees: 0,
+      endDegrees: 360,
+      thickness: 2,
+      color: EFFECT_COLORS.impact,
+    }) as const
+
+  it('snaps attack feedback to current and never invents an effects key (decision 0040)', () => {
+    const previous = { ...scene(1, []), effects: [flash(0), flash(100)] }
+    const current = { ...scene(2, []), effects: [flash(24)] }
+
+    expect(interpolateScene(previous, current, 0.5).effects).toEqual(current.effects)
+    expect(interpolateScene(previous, scene(2, []), 0.5).effects).toBeUndefined()
+    expect('effects' in interpolateScene(scene(1, []), scene(2, []), 0.5)).toBe(false)
   })
 })
