@@ -1,14 +1,18 @@
 /**
  * The skill-effect executor: cast scheduling, effect resolution, projectile
- * flight.
+ * flight, status ticking.
  *
  * Intended registration order is skillCastSystem → skillResolveSystem →
- * projectileSystem (→ deathSystem). The cast system accepts casts and starts
- * wind-ups; the resolve system fires effects whose wind-up completed —
- * including spawning projectiles — and the flight system advances every
- * projectile afterwards, so a projectile launched this tick takes its first
- * step this tick. A death system registered after all three reaps anything an
- * effect killed within the same tick.
+ * projectileSystem → statusTickSystem (→ deathSystem). The cast system
+ * accepts casts and starts wind-ups; the resolve system fires effects whose
+ * wind-up completed — including spawning projectiles — and the flight system
+ * advances every projectile afterwards, so a projectile launched this tick
+ * takes its first step this tick. The status system ticks every active DoT
+ * after both hit paths, so a DoT applied this tick (by a resolve or an
+ * impact) deals its first tick this tick — the same "first step on the
+ * launch tick" convention the projectiles follow. A death system registered
+ * after all four reaps anything an effect or a DoT tick killed within the
+ * same tick.
  *
  * Semantics (binding sources: decisions 0009, 0018, 0020, 0021, 0022):
  * - Hit checks are inclusive: distance ≤ reach/radius (0018).
@@ -40,10 +44,11 @@ import type { EntityId, System, World } from '../ecs'
 import type { Combatant as CombatantValue, Position as PositionValue } from '../combat/components'
 import { Combatant, Position } from '../combat/components'
 import { computeDamage } from '../combat/damage'
+import { STAT_SCALE } from '../combat/stats'
 import { TICK_HZ } from '../time'
-import type { Faction as FactionValue } from './components'
-import { CastPlan, CastState, Faction, Projectile } from './components'
-import type { AreaBurstSpec, ChainSpec, DealDamageSpec, SkillEffectSpec } from './recipe'
+import type { Faction as FactionValue, StatusEffectEntry } from './components'
+import { CastPlan, CastState, Faction, Projectile, StatusEffects } from './components'
+import type { AreaBurstSpec, ChainSpec, DealDamageSpec, DotStatusSpec, SkillEffectSpec } from './recipe'
 
 /**
  * How close to a projectile's swept path a hostile must be to be struck, in
@@ -57,6 +62,17 @@ function distance(ax: number, ay: number, bx: number, by: number): number {
   const dx = bx - ax
   const dy = by - ay
   return Math.sqrt(dx * dx + dy * dy)
+}
+
+/**
+ * Snap a value onto the 1/STAT_SCALE grid (decision 0005's discipline). Life
+ * and damageDealt become fractional once DoTs tick; every intermediate value
+ * is re-quantized after each arithmetic step so float dust can never reach
+ * the state hash — the inputs are grid values, so the true result is a grid
+ * value and the rounding merely removes the representation error.
+ */
+function quantize(value: number): number {
+  return Math.round(value * STAT_SCALE) / STAT_SCALE
 }
 
 /** The attacker half of the computeDamage mapping: caster stats, no mods, no crit. */
@@ -92,6 +108,10 @@ function hostileRows(world: World, factionId: string): HostileRow[] {
 /**
  * Resolve one hit: computeDamage with the exact 0260 stat mapping, clamp to
  * remaining life, credit the caster's damageDealt (if it still exists), trace.
+ * A present `status` rider is then applied to the struck target — unless the
+ * hit itself was lethal: the dead do not bleed (decisions 0006/0036).
+ * `skillId` is the bare skill id for the status refresh key; `label` may
+ * carry a suffix (e.g. "fireball burst") and is for traces only.
  */
 function applyHit(
   world: World,
@@ -100,6 +120,8 @@ function applyHit(
   targetCombatant: CombatantValue,
   payload: DealDamageSpec,
   label: string,
+  skillId: string,
+  status: DotStatusSpec | undefined,
 ): void {
   const result = computeDamage(
     {
@@ -128,6 +150,89 @@ function applyHit(
       `${result.breakdown.afterCrit} pre-mitigation); ${targetCombatant.monsterId} at ` +
       `${targetCombatant.life}/${targetCombatant.maxLife}`,
   )
+
+  if (status !== undefined && targetCombatant.life > 0) {
+    applyDot(world, attacker, target, targetCombatant, skillId, status)
+  }
+}
+
+/**
+ * Apply (or refresh) a DoT rider at hit resolution (decisions 0020's spirit
+ * and 0036): the total is fixed HERE, exactly once, by the same
+ * computeDamage mapping as the direct hit — caster snapshot, no mods,
+ * critChance 0 (so no rng draw; the executor stays rng-silent), target armor
+ * consulted this one time. Ticking (statusTickSystem) only replays the
+ * pre-split amounts; it never recomputes.
+ *
+ * Exact-total split (decision 0036, under decision 0005's quantization):
+ * work in integer quanta of 1/STAT_SCALE. Each of the first
+ * `durationTicks − 1` ticks deals floor(totalQuanta / durationTicks) quanta;
+ * the final tick absorbs the remainder, so the summed ticks equal the
+ * application-time total exactly. Worked example (does not divide evenly):
+ * total 44 over 60 ticks → floor(440000 / 60) = 7333 quanta = 0.7333/tick;
+ * 59 × 0.7333 = 43.2647; final tick 440000 − 59 × 7333 = 7353 quanta =
+ * 0.7353; 43.2647 + 0.7353 = 44.0000 exactly. A flat 0.7333 × 60 would land
+ * on 43.998 and drift every total.
+ *
+ * Reapplication refreshes, never stacks: an entry with the same skill id and
+ * the same caster entity id is replaced wholesale (amounts and remaining
+ * ticks); distinct skill ids or distinct casters coexist as separate entries
+ * in application order.
+ */
+function applyDot(
+  world: World,
+  attacker: AttackerSnapshot,
+  target: EntityId,
+  targetCombatant: CombatantValue,
+  skillId: string,
+  status: DotStatusSpec,
+): void {
+  if (status.durationTicks < 1) return // zero-duration rider: nothing to tick
+  const result = computeDamage(
+    {
+      weaponDamage: attacker.weaponDamage,
+      mods: { flat: 0, increased: 0, more: [] },
+      critChance: 0,
+      critDamage: 1,
+      level: attacker.level,
+    },
+    { armor: targetCombatant.armor, resistances: {} },
+    { weaponMultiplier: status.damage.weaponMultiplier, damageType: status.damage.type },
+    world.rng,
+  )
+
+  const totalQuanta = result.amount * STAT_SCALE
+  const baseQuanta = Math.floor(totalQuanta / status.durationTicks)
+  const finalQuanta = totalQuanta - baseQuanta * (status.durationTicks - 1)
+  const entry: StatusEffectEntry = {
+    kind: 'dot',
+    skillId,
+    caster: attacker.entity,
+    casterName: attacker.name,
+    damageType: status.damage.type,
+    tickAmount: baseQuanta / STAT_SCALE,
+    finalTickAmount: finalQuanta / STAT_SCALE,
+    remainingTicks: status.durationTicks,
+  }
+
+  let effects = world.get(target, StatusEffects)
+  if (effects === undefined) {
+    effects = { entries: [] }
+    world.add(target, StatusEffects, effects)
+  }
+  const existing = effects.entries.findIndex(
+    (candidate) => candidate.skillId === skillId && candidate.caster === entry.caster,
+  )
+  if (existing >= 0) effects.entries[existing] = entry
+  else effects.entries.push(entry)
+
+  world.trace(
+    () =>
+      `${skillId}: ${attacker.name} ${existing >= 0 ? 'refreshes' : 'applies'} a ` +
+      `${status.damage.type} dot on ${targetCombatant.monsterId} (${target}) — total ` +
+      `${result.amount} over ${status.durationTicks} ticks (${entry.tickAmount}/tick, ` +
+      `final ${entry.finalTickAmount})`,
+  )
 }
 
 /** An area-burst at a point: every hostile within radius, inclusive (decision 0018). */
@@ -139,10 +244,11 @@ function resolveBurstAt(
   centerY: number,
   burst: AreaBurstSpec,
   label: string,
+  skillId: string,
 ): void {
   for (const [target, combatant, position] of hostileRows(world, factionId)) {
     if (distance(centerX, centerY, position.x, position.y) > burst.radiusTiles) continue
-    applyHit(world, attacker, target, combatant, burst.damage, label)
+    applyHit(world, attacker, target, combatant, burst.damage, label, skillId, burst.status)
   }
 }
 
@@ -175,7 +281,7 @@ function resolveChain(
     return
   }
 
-  applyHit(world, attacker, target as EntityId, first, effect.damage, skillId)
+  applyHit(world, attacker, target as EntityId, first, effect.damage, skillId, skillId, effect.status)
   const struck = new Set<number>([target])
   let current = firstPosition
 
@@ -196,7 +302,7 @@ function resolveChain(
     world.trace(
       () => `${skillId}: leap ${jump} to ${leap.combatant.monsterId} (${leap.entity}), ${leap.d.toFixed(2)} tiles`,
     )
-    applyHit(world, attacker, leap.entity, leap.combatant, effect.damage, skillId)
+    applyHit(world, attacker, leap.entity, leap.combatant, effect.damage, skillId, skillId, effect.status)
     struck.add(leap.entity)
     current = leap.position
   }
@@ -238,7 +344,7 @@ function resolveEffect(
         )
         return
       }
-      applyHit(world, attacker, target as EntityId, combatant, effect.damage, skillId)
+      applyHit(world, attacker, target as EntityId, combatant, effect.damage, skillId, skillId, effect.status)
       return
     }
 
@@ -261,22 +367,32 @@ function resolveEffect(
         const inArc =
           toLength === 0 || facingX * toX + facingY * toY >= cosHalfArc * facingLength * toLength
         if (!inArc) continue
-        applyHit(world, attacker, entity, combatant, effect.damage, skillId)
+        applyHit(world, attacker, entity, combatant, effect.damage, skillId, skillId, effect.status)
       }
       return
     }
 
-    case 'self-burst':
+    case 'self-burst': {
+      // Re-expressed as an area-burst on the caster; the status rider is
+      // attached only when present so the transient spec mirrors the recipe.
+      const asBurst: AreaBurstSpec = {
+        type: 'area-burst',
+        radiusTiles: effect.radiusTiles,
+        damage: effect.damage,
+      }
+      if (effect.status !== undefined) asBurst.status = effect.status
       resolveBurstAt(
         world,
         attacker,
         factionId,
         casterPosition.x,
         casterPosition.y,
-        { type: 'area-burst', radiusTiles: effect.radiusTiles, damage: effect.damage },
+        asBurst,
+        skillId,
         skillId,
       )
       return
+    }
 
     case 'area-burst': {
       // Standalone brick: the burst centers on the aim point. No shipped
@@ -285,7 +401,7 @@ function resolveEffect(
         world.trace(() => `${skillId}: ${attacker.name} fizzles — area-burst has no aim point`)
         return
       }
-      resolveBurstAt(world, attacker, factionId, aimX, aimY, effect, skillId)
+      resolveBurstAt(world, attacker, factionId, aimX, aimY, effect, skillId, skillId)
       return
     }
 
@@ -299,7 +415,7 @@ function resolveEffect(
       }
       const entity = world.spawn()
       world.add(entity, Position, { x: casterPosition.x, y: casterPosition.y })
-      world.add(entity, Projectile, {
+      const projectile: Projectile = {
         skillId,
         caster,
         casterName: attacker.name,
@@ -312,7 +428,11 @@ function resolveEffect(
         remainingTiles: effect.maxRangeTiles,
         damage: effect.damage,
         onImpact: effect.onImpact ?? null,
-      })
+      }
+      // Attached only when present: a status-free skill's projectiles must
+      // serialize exactly as they did before DoTs existed (hash stability).
+      if (effect.status !== undefined) projectile.status = effect.status
+      world.add(entity, Projectile, projectile)
       world.trace(
         () =>
           `${skillId}: ${attacker.name} looses a projectile (${entity}) toward ` +
@@ -461,7 +581,16 @@ export const projectileSystem: System = {
             `${projectile.skillId}: projectile (${entity}) impacts ` +
             `${struck.combatant.monsterId} (${struck.entity})`,
         )
-        applyHit(world, attacker, struck.entity, struck.combatant, projectile.damage, projectile.skillId)
+        applyHit(
+          world,
+          attacker,
+          struck.entity,
+          struck.combatant,
+          projectile.damage,
+          projectile.skillId,
+          projectile.skillId,
+          projectile.status,
+        )
         if (projectile.onImpact !== null) {
           // Impact point = the struck target's position (task 0260 ruling), so
           // the burst always includes the struck target at distance 0.
@@ -473,6 +602,7 @@ export const projectileSystem: System = {
             struck.position.y,
             projectile.onImpact,
             `${projectile.skillId} burst`,
+            projectile.skillId,
           )
         }
         world.destroy(entity)
@@ -486,6 +616,57 @@ export const projectileSystem: System = {
         world.trace(() => `${projectile.skillId}: projectile (${entity}) despawns at max range, unhit`)
         world.destroy(entity)
       }
+    }
+  },
+}
+
+/**
+ * Tick every active status effect (decision 0036).
+ *
+ * Intended registration: after projectileSystem, before deathSystem — so a
+ * DoT applied this tick (by a resolving cast or a projectile impact) deals
+ * its first tick this same tick, mirroring the projectile "first step on the
+ * launch tick" convention, and deathSystem then reaps anything a tick killed
+ * within the same tick.
+ *
+ * The recompute trap, avoided by construction: this system never calls
+ * computeDamage, never consults armor, and never draws rng — the amounts
+ * were fixed and mitigated once at application (see applyDot) and are only
+ * replayed here, keeping the whole executor rng-silent.
+ *
+ * Per tick, ascending entity id (query order, decision 0016), entries in
+ * application order: apply the entry's per-tick amount clamped to remaining
+ * life (a corpse awaiting reaping takes 0), credit the caster's damageDealt
+ * iff the caster entity still exists and lives — the Projectile snapshot
+ * precedent: the damage is the caster's fixed hit either way, only the
+ * credit needs a living caster — then decrement, drop expired entries, and
+ * remove an emptied StatusEffects component entirely: absence is the clean
+ * state, so an entity that was once bled hashes exactly like one never bled.
+ */
+export const statusTickSystem: System = {
+  name: 'status-tick',
+  update(world) {
+    for (const [entity, effects, combatant] of world.query(StatusEffects, Combatant)) {
+      for (const entry of effects.entries) {
+        const amount = entry.remainingTicks === 1 ? entry.finalTickAmount : entry.tickAmount
+        const applied = Math.min(amount, Math.max(0, combatant.life))
+        combatant.life = quantize(combatant.life - applied)
+        if (entry.caster !== null) {
+          const casterCombatant = world.get(entry.caster as EntityId, Combatant)
+          if (casterCombatant !== undefined && casterCombatant.life > 0) {
+            casterCombatant.damageDealt = quantize(casterCombatant.damageDealt + applied)
+          }
+        }
+        world.trace(
+          () =>
+            `${entry.skillId}: ${entry.casterName}'s dot ticks ${combatant.monsterId} ` +
+            `(${entity}) for ${applied} ${entry.damageType} (${entry.remainingTicks - 1} ` +
+            `ticks left); ${combatant.monsterId} at ${combatant.life}/${combatant.maxLife}`,
+        )
+        entry.remainingTicks -= 1
+      }
+      effects.entries = effects.entries.filter((entry) => entry.remainingTicks > 0)
+      if (effects.entries.length === 0) world.remove(entity, StatusEffects)
     }
   },
 }

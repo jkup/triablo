@@ -141,9 +141,32 @@ construction.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Every delivery spec (onImpact bursts included) gained an
+  optional `status: { kind: 'dot', damage, durationSeconds }` rider;
+  `makeSkillRecipe` converts the duration to ticks once (2 s → 60) and keeps
+  absent riders absent, so status-free recipes serialize byte-identically.
+  New `StatusEffects` component holds application-time-snapshotted entries
+  (per-tick amounts, remaining ticks, caster id/name, skill id); `applyHit`
+  applies/refreshes riders on every hit path (melee, sweep, bursts,
+  projectile impact via a new absent-when-unused `Projectile.status` field,
+  chain first-strike and leaps) — only when the target survives the direct
+  hit. New `statusTickSystem` (after projectileSystem, before deathSystem)
+  replays the pre-split amounts rng-silently, clamps to remaining life,
+  credits a caster that still exists and lives, and removes the emptied
+  component (no hash scar). Split rule: first n−1 ticks at
+  floor(totalQuanta/n), final tick absorbs the remainder — 44 over 60 ticks
+  = 59 × 0.7333 + 0.7353 = exactly 44; life/damageDealt re-quantized to the
+  1/10000 grid each step. Content schema mirrors the shape
+  (`DotStatusSchema`, field names identical); core-sync gained the mirror
+  assignability assertion plus the status-snippet parse test. All recorded
+  as decision 0036.
+- **Replays re-blessed:** none — `git diff --stat packages/sim/replays/` is
+  empty, all 5 golden replays pass unchanged (acceptance criterion).
+- **Scope deviations:** none. The hand-written status-snippet schema test
+  lives in `core-sync.test.ts` under its conditional in-scope clause (the
+  mirror assertion needed the new field covered); `data.test.ts` was not
+  touched.
+- **Follow-ups worth a new task:** content task to ship the first bleed
+  skill/affix using `status`; qa task to register `statusTickSystem` in a
+  scenario and pin a replay over it; a future decision when non-damage
+  status kinds (slow/stun) or DoT resistances arrive.
