@@ -38,8 +38,9 @@ roster.
 - Any change under `packages/core` (0480's `generateDungeon` and
   `buildDungeon` are consumed, not edited), `packages/sim`, or
   `packages/client`. Scenarios arrive in 0500.
-- A difficulty/level field on recipes. 0440's open question 1 leaves that
-  to the owner; ship without one and say so in the decision entry.
+- *Superseded by decision 0037:* the owner ruled on 0440's open question 1
+  — recipes DO carry an optional `level` field (see Requirements). Any
+  *behavior* keyed off it is still out of scope: v1 generation ignores it.
 - More templates or recipes (plan task G is future content breadth), knob
   tuning, or changing 0470's template schema.
 
@@ -54,6 +55,12 @@ roster.
   not tune): `roomCount: { min: 4, max: 7 }`,
   `corridorLength: { min: 1, max: 4 }`, `spawnFill: 0.75`,
   `monsters: [{ monster: <id>, weight }]` (non-empty, positive weights).
+  Plus `level`: an **optional positive integer, reserved and unused**
+  (decision 0037). Schema-validate it when present; `generateDungeon` must
+  ignore it in v1 — assert that ignoring in a test (two recipes differing
+  only in `level` generate identical dungeons at the same seed). It exists
+  so phase-3 item-power scaling is additive rather than a migration across
+  every recipe file.
 - **Reference checks in `checkReferences`:** every `templates` entry
   resolves to a room template and every `monsters` entry to a monster —
   same style as the existing monster→lootTable checks, each failure a
@@ -82,9 +89,9 @@ roster.
   fail, request the owner's `gate-change` label in the PR body with the
   exact diff quoted. Expected, not a bug.
 - The decision entry records: explicit-template-list rationale (cite 0003),
-  the knob defaults as shipped, the fixed-validation-seed convention, and
-  that recipes deliberately carry no difficulty scalar yet (cite 0440's
-  open question 1 as the owner hook).
+  the knob defaults as shipped (cite 0037, which ratified them), the
+  fixed-validation-seed convention, and that `level` is reserved-and-ignored
+  per decision 0037 — not absent, and not yet wired to anything.
 
 ## Acceptance criteria
 

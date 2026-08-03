@@ -19,6 +19,11 @@ a decision entry for the owner to veto, and the PR body must flag the feel
 change explicitly. This task file's replay section is the guard-satisfying
 explanation for the one re-blessed replay.
 
+**Owner ruling (2026-08-03):** the feel change is pre-approved — land it as
+specified and let the playtest loop judge the numbers. Do not stop to ask;
+still write the decision entry and still flag the change in the PR body, so
+the veto path stays open after play.
+
 ## Files in scope
 
 - `packages/content/data/skills/rend.json` (the `status` block — nothing
