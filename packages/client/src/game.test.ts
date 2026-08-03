@@ -1,7 +1,17 @@
 import { loadContent } from '@triablo/content'
 import { readRawBundleFromDisk } from '@triablo/content/node'
-import { buildDungeon, CastPlan, CastState, Combatant, Faction, PlayerControlled, Position, tileOf } from '@triablo/core'
-import type { EntityId, World } from '@triablo/core'
+import {
+  buildDungeon,
+  CastPlan,
+  CastState,
+  Combatant,
+  Faction,
+  PlayerControlled,
+  Position,
+  StatusEffects,
+  tileOf,
+} from '@triablo/core'
+import type { EntityId, StatusEffectEntry, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
 import { createGame, DUNGEON_ID, gameStatus, MONSTER_FACTION, PLAYER_FACTION, PLAYER_STATS } from './game'
@@ -41,6 +51,49 @@ function avatarOf(world: World): [EntityId, Combatant, Position] | undefined {
   return row === undefined ? undefined : [row[0], row[2], row[3]]
 }
 
+/**
+ * The authored bone-mage: the one monster in the Charnel Vaults that both
+ * stands still (moveSpeed 0) and spawns ~18 tiles from the entrance, far
+ * outside the 10-tile aggro radius (decision 0029). Nothing in the world
+ * approaches it, swings at it, or is swung at by it while the avatar takes no
+ * orders — so its life only changes for the reason a test makes it change.
+ */
+function boneMageOf(world: World): [EntityId, Combatant] | undefined {
+  const row = world.query(Combatant).find(([, combatant]) => combatant.monsterId === 'bone-mage')
+  return row === undefined ? undefined : [row[0], row[1]]
+}
+
+/**
+ * A hand-computed DoT, in decision 0036's exact-split form: total 3.0000
+ * spread over 10 ticks. In quanta of 1/STAT_SCALE (decision 0005) that is
+ * 30000 quanta / 10 = 3000 per tick, and the last tick absorbs the remainder
+ * 30000 − 9 × 3000 = 3000 — so the schedule is nine ticks of 0.3000 plus a
+ * final 0.3000, summing to exactly 3.0000. (The *uneven* split is pinned by
+ * core's own tests; these numbers divide evenly on purpose.)
+ *
+ * `caster: null` — the entry has no creditable caster, so ticking moves the
+ * target's life and nothing else, keeping the assertions about the loop.
+ */
+const TEST_DOT_TICKS = 10
+const TEST_DOT_TOTAL_QUANTA = 30_000
+function testDot(): StatusEffectEntry {
+  return {
+    kind: 'dot',
+    skillId: 'test-bleed',
+    caster: null,
+    casterName: 'test',
+    damageType: 'physical',
+    tickAmount: 0.3,
+    finalTickAmount: 0.3,
+    remainingTicks: TEST_DOT_TICKS,
+  }
+}
+
+/** Life lost, in quanta — exact integer arithmetic, no float dust. */
+function quantaLost(before: number, after: number): number {
+  return Math.round((before - after) * 10_000)
+}
+
 describe('createGame', () => {
   it('assembles the authored dungeon, its monsters, and one commanded avatar', () => {
     const game = createGame(registry, 1)
@@ -63,7 +116,11 @@ describe('createGame', () => {
     expect(combatant?.moveSpeed).toBe(PLAYER_STATS.moveSpeed)
 
     // The crawl scenario's system order (0340) minus its bot, plus the skill
-    // executor systems in their documented slot.
+    // executor systems in their documented slot. This order is contractual,
+    // not incidental: 'status-tick' sits after 'projectile-flight' and before
+    // 'death' because decision 0036 records exactly that (a DoT's first tick
+    // lands on the tick it was applied; a lethal tick is reaped the same
+    // tick). Moving it is a decision, not a refactor.
     expect(world.systemNames).toEqual([
       'move-order',
       'approach',
@@ -71,6 +128,7 @@ describe('createGame', () => {
       'skill-cast',
       'skill-resolve',
       'projectile-flight',
+      'status-tick',
       'death',
     ])
 
@@ -216,5 +274,73 @@ describe('createGame', () => {
     // fired, so the stomp is the only damage the avatar dealt.
     const combatant = world.get(player, Combatant)
     expect(combatant?.damageDealt).toBe(lifeBefore - mage.life)
+  })
+
+  it('a DoT attached to a monster ticks to completion in the playable world', () => {
+    const game = createGame(registry, 1)
+    const { world } = game
+
+    // No shipped skill carries a status rider yet (task 0540 gives rend its
+    // bleed), so a cast-driven test would pass vacuously. Attach the entry
+    // directly and test the only thing this registration owns: that the
+    // client's loop ticks it. Without `statusTickSystem` registered, the
+    // component would sit on the monster untouched forever and its life would
+    // never fall — that is the bug this test exists to catch.
+    const mageRow = boneMageOf(world)
+    expect(mageRow).toBeDefined()
+    if (mageRow === undefined) return
+    const [mageEntity, mage] = mageRow
+    world.add(mageEntity, StatusEffects, { entries: [testDot()] })
+
+    const lifeBefore = mage.life
+    expect(lifeBefore).toBeGreaterThan(3) // the schedule must not kill it: no death-reaping confound
+
+    for (let tick = 1; tick <= TEST_DOT_TICKS; tick++) {
+      world.step()
+      // 3000 quanta (0.3000) per tick, cumulative — the hand-computed schedule.
+      expect(quantaLost(lifeBefore, mage.life)).toBe(tick * 3000)
+      // Present until the last tick drops it; the emptied component is removed
+      // entirely (decision 0036: absence is the clean state).
+      const effects = world.get(mageEntity, StatusEffects)
+      if (tick < TEST_DOT_TICKS) {
+        expect(effects?.entries[0]?.remainingTicks).toBe(TEST_DOT_TICKS - tick)
+      } else {
+        expect(effects).toBeUndefined()
+      }
+    }
+
+    expect(quantaLost(lifeBefore, mage.life)).toBe(TEST_DOT_TOTAL_QUANTA)
+    expect(mage.life).toBeGreaterThan(0)
+
+    // Nothing else moved: ticking a status neither reaped a live monster nor
+    // touched the avatar's damage credit (the entry has no caster).
+    expect(livingMonsters(world)).toHaveLength(authoredSpawns.length)
+    expect(world.get(game.player, Combatant)?.damageDealt).toBe(0)
+  })
+
+  it('is deterministic with a status ticking: same seed, same world hash', () => {
+    const build = (): { world: World; mage: Combatant; lifeBefore: number; entity: EntityId } => {
+      const { world } = createGame(registry, 7)
+      const mageRow = boneMageOf(world)
+      if (mageRow === undefined) throw new Error('the authored bone-mage is missing')
+      const [entity, mage] = mageRow
+      world.add(entity, StatusEffects, { entries: [testDot()] })
+      return { world, mage, lifeBefore: mage.life, entity }
+    }
+
+    const first = build()
+    const second = build()
+    first.world.run(60) // 2 s: the 10-tick DoT runs out well inside the window
+    second.world.run(60)
+
+    // Ticking statuses draws no rng and depends on no iteration-order hazard:
+    // two identically seeded worlds that both bled hash the same.
+    expect(first.world.hash()).toBe(second.world.hash())
+
+    // Non-vacuous: the status really ran in both, to completion.
+    expect(quantaLost(first.lifeBefore, first.mage.life)).toBe(TEST_DOT_TOTAL_QUANTA)
+    expect(quantaLost(second.lifeBefore, second.mage.life)).toBe(TEST_DOT_TOTAL_QUANTA)
+    expect(first.world.get(first.entity, StatusEffects)).toBeUndefined()
+    expect(second.world.get(second.entity, StatusEffects)).toBeUndefined()
   })
 })
