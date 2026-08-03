@@ -1,0 +1,7 @@
+{
+  "scenario": "status-dot",
+  "seed": 1,
+  "ticks": 120,
+  "hash": "c1ea4ed4f854f64a",
+  "note": "Golden replay of the DoT seam under the gate (task 0520): three bleed lanes run the full executor loop — cast, wind-up, resolve, rider application, sixty ticks of bleeding, expiry, death. The scenario's ledger component records every lane's life at every tick, so this hash pins the whole schedule, not just the final numbers: 44 over 60 ticks split as 59 x 0.7333 + a final 0.7353 (decision 0036's exact-quanta rule), the killing DoT tick reaped by deathSystem in the same tick with the caster credited the clamped remainder, and a bleed that keeps its schedule after its caster dies while the credit stops. A mismatch means the split rule, the credit rule (caster must exist AND live), the expiry cleanup (StatusEffects removed entirely), or the system ordering (statusTickSystem after projectileSystem, before deathSystem) changed — or the wind-up conversion (decision 0020) or computeDamage did. Every recipe here is a scenario-local literal and every dummy has armor 0, so no content edit can move this file."
+}

@@ -13,6 +13,7 @@ import {
 } from './common'
 import { DungeonSchema } from './dungeon'
 import { SkillEffectSchema } from './effects'
+import { RoomTemplateSchema } from './room-template'
 
 /**
  * The content schemas.
@@ -173,6 +174,7 @@ export const CONTENT_TYPES = {
   monsters: { dir: 'monsters', schema: MonsterSchema, label: 'monster' },
   skills: { dir: 'skills', schema: SkillSchema, label: 'skill' },
   dungeons: { dir: 'dungeons', schema: DungeonSchema, label: 'dungeon' },
+  roomTemplates: { dir: 'room-templates', schema: RoomTemplateSchema, label: 'room template' },
 } as const
 
 export type ContentTypeKey = keyof typeof CONTENT_TYPES
@@ -182,3 +184,4 @@ export const CONTENT_TYPE_KEYS = Object.keys(CONTENT_TYPES) as ContentTypeKey[]
 export * from './common'
 export * from './dungeon'
 export * from './effects'
+export * from './room-template'

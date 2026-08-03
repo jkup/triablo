@@ -27,11 +27,24 @@ describe('authored content', () => {
     expect(registry.items.size).toBeGreaterThan(0)
     expect(registry.monsters.size).toBeGreaterThan(0)
     expect(registry.dungeons.size).toBeGreaterThan(0)
+    expect(registry.roomTemplates.size).toBeGreaterThan(0)
   })
 
   it('gives every entry an id matching its map key', () => {
     for (const [id, item] of registry.items) expect(item.id).toBe(id)
     for (const [id, monster] of registry.monsters) expect(monster.id).toBe(id)
+    for (const [id, template] of registry.roomTemplates) expect(template.id).toBe(id)
+  })
+
+  /**
+   * The generator (task 0480) picks rooms from this pool, so a pool with one
+   * room in it is a dungeon that repeats itself. Four is the starter set;
+   * the floor is here so a future edit cannot shrink the pool unnoticed.
+   * Geometry (whole floor, slots on floor, ports) is proved for every
+   * template by `checkReferences` in the first test above.
+   */
+  it('ships at least four room templates for the generator to draw from', () => {
+    expect(registry.roomTemplates.size).toBeGreaterThanOrEqual(4)
   })
 
   it('gives every loot table at least one reachable entry', () => {
