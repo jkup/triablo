@@ -289,6 +289,53 @@ Eight numbered sections, in this order. Each cites the files it read.
   owner-reviewable or is a measurement of what is already authored.
 - **Follow-ups worth a new task:** The ordered cut in section 7.
 
+- **Post-review corrections (PR #67, first integrator pass).** Four fixes
+  applied to the plan on the same branch. Kept visible rather than silently
+  overwritten, because implementing tasks are cut from this document verbatim
+  and the retracted numbers have already been quoted onward:
+
+  1. **§4's storage ruling was wrong and its hash claim was false.** The
+     original ruling stored `critChance`/`critDamage` as two new fields on the
+     `Combatant` component and asserted "the save/hash round trip is
+     unaffected". It is affected: `World.hash()` is
+     `hashString(stableStringify(this.snapshot()))` (`ecs.ts:549-551`),
+     `snapshot()` stores component values verbatim (`ecs.ts:390-405`), and
+     `stableStringify` writes every key. Reproduced locally on a
+     Combatant-shaped component: `65ceab1f59f20a4d` without the fields,
+     `9402b3db3575e536` with `critChance: 0, critDamage: 1`. Five of the six
+     golden replays (`content-seam`, `duel`, `dungeon-crawl`, `skill-strike`,
+     `status-dot`; not `harness-selftest`) spawn `Combatant`s, so T1's own
+     acceptance criterion was unachievable on the recommended path and the
+     tempting fix would have been a re-bless — exactly what §4 exists to
+     prevent. **Re-ruled to the hash-neutral option**; §4 now rules against
+     component-widening explicitly and says why.
+  2. **The "~1417×" headline was wrong** and is withdrawn. The multiplier
+     ratio is **23.60**; the crit-*bonus* ratio is **1369.05**; 1428.57 is a
+     units-mismatched reading of the two. §4 now names the framing and shows
+     the arithmetic.
+  3. **The pool-depth count was wrong.** "Seven of nine slots have exactly
+     three eligible prefixes, and six have exactly three suffixes" is
+     withdrawn; recounted from the JSON at item level 50, it is **nine of nine
+     prefixes and seven of nine suffixes** (chest and ring carry four
+     suffixes). This feeds owner question 6, so the wrong number would have
+     produced a wrong ruling.
+  4. **The DoT-crit interaction was misframed and misplaced.** Decision 0036's
+     Consequences already reads "Non-damage statuses, **DoT resistances/crit**,
+     stacking, and cleansing are foreclosed until superseding entries" — so
+     0036 *did* anticipate live crit and closed it. The status quo is crit-0
+     and rng-silent, and the original "assumed meanwhile" was itself a
+     departure needing a superseding entry. Moved out of owner question 8
+     (now withdrawn) and into **T1's acceptance sketch as a hard constraint**,
+     because T1's files-in-scope names `skills/systems.ts:191-202` and an
+     implementer following it literally would overturn 0036 without noticing.
+
+  Also corrected, non-blocking: `Rng.chance` short-circuits at `p >= 1` as
+  well as `p <= 0`, so the draw-count bound is stated for `0 < critChance < 1`;
+  the `availableKinds` citation is `loot-smoke.ts:93-107`, not `88-104`; and
+  the count of `computeDamage` call sites is **three**, not the four the task
+  file's own Notes section states — flagged explicitly so the next planner does
+  not copy the wrong number forward.
+
 ---
 
 # The plan
@@ -341,10 +388,14 @@ Two live mechanisms make this a *when*, not an *if*:
 
 - **Decision 0014's rare budget.** A rare carries 3–6 affixes at 3/3. Six
   independent rolls, each bounded by nothing. Worse, measured against the
-  live pool at item level 50: **seven of nine slots have exactly three
-  eligible prefixes**, and six have exactly three suffixes. A 6-affix rare's
-  *affix identity* is therefore already deterministic on most slots — it is
-  the entire slot pool at once. Adding one affix to a slot does not dilute
+  live pool at item level 50: **nine of nine slots have exactly three
+  eligible prefixes**, and **seven of nine have exactly three suffixes**
+  (chest and ring have four). *(Corrected after review — the first draft said
+  seven and six. The true numbers are worse for the argument's target, not
+  better: prefix identity is deterministic on **every** slot.)* A 6-affix
+  rare's *affix identity* is therefore already fully determined on the prefix
+  side everywhere and on the suffix side almost everywhere — it is the entire
+  slot pool at once. Adding one affix to a slot does not dilute
   the top end, it *raises* it, permanently, for every future 6-affix rare on
   that slot.
 - **Decision 0015's tier-unlock side effect.** "Higher item level raises an
@@ -402,6 +453,11 @@ call sites are `combat/systems.ts:295`, `skills/systems.ts:126`, and
 `skills/systems.ts:191`, and **all three pass `critChance: 0`,
 `critDamage: 1`, `resistances: {}` as hardcoded literals**.
 
+**There are three call sites, not four.** This task file's own Notes section
+says "all four call sites"; the grep says three (`skills/systems.ts` has two,
+`combat/systems.ts` has one). Stated explicitly so the next planner does not
+copy the wrong number forward into a task file.
+
 | Stat | Status | What it takes to make it matter |
 |---|---|---|
 | `max-life` | **live** | — folded to `Combatant.maxLife`/`life`. |
@@ -412,7 +468,7 @@ call sites are `combat/systems.ts:295`, `skills/systems.ts:126`, and
 | `vitality` | **live** via 0031 → `max-life` | Nothing. `vital` rolls it. |
 | `dexterity` | **inert** via 0031 → `crit-chance` (dead target) | Whatever crit-chance takes. An attribute affix that looks live and is not. |
 | `intelligence` | **inert** via 0031 → `crit-damage` (dead target) | Whatever crit-damage takes. |
-| `crit-chance` | **inert — cheap to wire** | Two `Combatant` fields + the §4 conversion + 3 call sites. No new system, no new tick cost. One caveat: the first nonzero value consumes an rng draw per hit (§4). |
+| `crit-chance` | **inert — cheap to wire** | The §4 conversion helper + 3 call sites. No new system, no new tick cost, and — per §4's corrected ruling — **no new component field**. One caveat: the first value in `(0, 1)` consumes an rng draw per hit (§4). |
 | `crit-damage` | **inert — cheap to wire** | Same task as crit-chance. |
 | `resist-fire` `-cold` `-lightning` `-poison` `-shadow` | **inert — cheap to wire, but no defender carries them** | A `resistances` record on `Combatant`, a `StatKey → DamageType` mapping, and threading into `defender.resistances` at 3 call sites. Blocker to name: `MonsterSchema.stats` (`schemas/index.ts:123-132`) has exactly the six fields `makeCombatant` reads — **no monster can have a resistance without a schema change**, and schema changes require editing the guard-protected `ARCHITECTURE.md` (its own line 107-109). Gear-only resistance avoids that entirely. |
 | `attack-speed` | **inert — needs a ruling, not a system** | `Combatant.attackIntervalTicks` comes straight from authored seconds via `secondsToTicks` (`components.ts:114`). Wiring needs an integer-tick rounding rule under decision 0001 (1.2 s = 36 ticks; ÷1.28 = 28.125 → 28), which is a decision entry, and it moves any replay containing an entity with nonzero attack-speed. |
@@ -473,7 +529,7 @@ ranges.
   level)* — take the top `perKindCap` prefixes and suffixes by cost and
   assert their sum is under a per-slot ceiling. This is a pure computation
   over the pool, the same shape `availableKinds` in
-  `loot-smoke.ts:88-104` already does for counts, so it stays static too. It
+  `loot-smoke.ts:93-107` already does for counts, so it stays static too. It
   needs a per-slot ceiling number, which is owner-shaped (§6).
 - **Attribute hole:** must evaluate attribute mods through
   `ATTRIBUTE_DERIVATIONS` or `lithe` becomes a legal way to exceed the
@@ -574,9 +630,23 @@ Worked example 2 — `of-ruin` tier 1
 `critDamage = 1 + 24/100 = 1.24` → a crit deals 124% of the hit.
 *Without the conversion:* `Math.max(1, 24) = 24` — **every crit deals 24×.**
 
-Combined magnitude of the un-converted bug on one main-hand weapon: intended
-average multiplier `1 + 0.07 × 0.24 = 1.0168` (+1.68% DPS); actual `×24`.
-**A factor of ~1417.**
+Combined magnitude of the un-converted bug on one main-hand weapon. Intended:
+`Rng.chance(0.07)` crits 7% of the time for ×1.24, so the expected multiplier
+is `1 + 0.07 × 0.24 = 1.0168` — **+1.68% damage**. Un-converted: crit chance
+clamps to 1 (always) and the multiplier is 24, so the expected multiplier is
+**24**. The two honest framings, with the arithmetic:
+
+- **Damage per hit — the headline: ×23.60.** `24 / 1.0168 = 23.6035`. A hit
+  lands 23.6 times harder than intended. This is the number to quote.
+- **The crit *bonus* alone: ×1369.05.** `(24 − 1) / (1.0168 − 1) = 23 / 0.0168
+  = 1369.0476`. The bonus the affix pair was supposed to contribute is
+  overshot by three orders of magnitude.
+
+*(Corrected after review. The first draft claimed "a factor of ~1417", which
+is neither ratio — it is `24 / 0.0168 = 1428.57`, a units mismatch that
+divides a full multiplier by a bonus, and even that was mis-stated. The
+retracted figure is recorded here because it was quoted onward before the
+correction.)*
 
 Attribute path needs no second rule: decision 0031's rates are already in
 percent points (`stats.ts:53-56`), so a 9-dexterity `lithe` roll yields
@@ -584,25 +654,52 @@ percent points (`stats.ts:53-56`), so a 9-dexterity `lithe` roll yields
 
 ### Where the conversion lives
 
-**Ruling: convert once at spawn, in `makeCombatant`
-(`packages/core/src/combat/components.ts:88-117`), and store engine units on
-the `Combatant` component as two new fields `critChance` (probability) and
-`critDamage` (multiplier).** The `computeDamage` call sites then read
-`combatant.critChance` / `combatant.critDamage` with no arithmetic at all.
+*(Re-ruled after review. The first draft ruled the opposite way — store two
+new fields on the `Combatant` component — and asserted that the save/hash
+round trip was unaffected. That assertion was false and is retracted; see
+"Why widening `Combatant` is off the table" below. The corrected ruling is the
+alternative the first draft named but did not take.)*
 
-The argument: this file already owns exactly this pattern — line 114 converts
-authored seconds to `attackIntervalTicks` once, at spawn, and the header
-says every spawn path goes through `computeStats` exactly once. It is the
-single boundary between content units and engine units. The rejected
-alternative — converting at each `computeDamage` call site — puts the same
-÷100 in three places (`combat/systems.ts:299-300`,
-`skills/systems.ts:130-131`, `skills/systems.ts:195-196`), which is exactly
-how a project ends up with two conventions and a halved crit rate nobody can
-locate. A middle option, an exported `toDamageAttacker(stats)` helper beside
-`makeCombatant`, is acceptable if the implementer prefers not to widen the
-component; the non-negotiable part is **one function, on the content-units
-side of the boundary, named in a comment that cites this spec.** The two new
-fields are plain numbers, so the save/hash round trip is unaffected.
+**Ruling: one exported pure function, `toDamageAttacker(...)`, beside
+`makeCombatant` in `packages/core/src/combat/components.ts`, called at each
+`computeDamage` site to build the `DamageAttacker` record. It performs the
+arithmetic and stores nothing.** The `Combatant` component does not grow.
+
+The argument for one function is unchanged and still holds: the same ÷100
+open-coded at three sites (`combat/systems.ts:299-300`,
+`skills/systems.ts:130-131`, `skills/systems.ts:195-196`) is exactly how a
+project ends up with two conventions and a halved crit rate nobody can locate.
+What changes is *where the result lives*: nowhere. The function is the single
+named boundary between content units (percent points) and engine units
+(probability, multiplier), and a comment on it must cite this spec.
+
+**Why widening `Combatant` is off the table.** `World.hash()` is
+`hashString(stableStringify(this.snapshot()))` (`packages/core/src/ecs.ts:549-551`);
+`snapshot()` stores each component's value verbatim
+(`ecs.ts:390-405`); `stableStringify` writes every key
+(`packages/core/src/hash.ts:22-80`). Adding two keys to `Combatant` therefore
+changes the serialized form of **every** combatant, at tick 0, before any
+system runs. Reproduced on a Combatant-shaped component: hash
+`65ceab1f59f20a4d` without the fields, `9402b3db3575e536` with
+`critChance: 0, critDamage: 1` — a state change from a field that holds its
+own default. Five of the six golden replays spawn `Combatant`s
+(`content-seam`, `duel`, `dungeon-crawl`, `skill-strike`, `status-dot`; not
+`harness-selftest`), so the component-widening path makes T1's acceptance
+criterion — all six replays byte-unchanged — **unachievable**, and the
+tempting fix is a re-bless, which is the precise failure this section exists
+to prevent.
+
+**Where crit values live when gear finally supplies them.** They do not need
+to live anywhere until an entity has nonzero crit, which is no entity today.
+When equipment lands, the carrier must be a **separate component present only
+on entities that actually carry crit** — the same "absence is the clean state"
+convention decision 0036 already uses for `StatusEffects`. `snapshot()` skips
+empty stores entirely (`ecs.ts:398`), so a component that is *defined but
+never added* leaves the hash bit-identical (verified: `65ceab1f59f20a4d`
+unchanged). Adding it to an entity does move that entity's hash (verified:
+`db9fd5e1c006a08e`) — correctly, because that entity's behavior genuinely
+changed. That cost belongs to the equipping task, not to T1. Do not widen
+`Combatant` to hold defaults for entities that have no gear.
 
 ### Base values and the proof that replays do not move
 
@@ -614,8 +711,8 @@ A combatant with no gear passes a base block with no `crit-chance` or
 - `crit-damage` 0 → `critDamage = 1 + 0/100 = 1`
 
 These are bit-identical to the literals at `combat/systems.ts:299-300` and
-`skills/systems.ts:130-131, 195-196`. Three-part proof that every existing
-replay hash holds:
+`skills/systems.ts:130-131, 195-196`. Four-part proof that every existing
+replay hash holds — the fourth part is what the corrected ruling buys:
 
 1. The numeric inputs to `computeDamage` are identical (0 and 1).
 2. `Rng.chance(0)` returns `false` *before* calling `this.next()`
@@ -623,13 +720,26 @@ replay hash holds:
    unchanged — the property `combat/systems.ts:276-279` already documents.
 3. `isCrit` is `false`, so `afterCrit === afterSkill` exactly; no float path
    changes.
+4. **No component gains a key**, so `snapshot()` — which serializes component
+   values verbatim (`ecs.ts:390-405`) — emits byte-identical output. This is
+   the part the first draft got wrong; a conversion that stores its result on
+   `Combatant` fails here even when parts 1–3 hold.
 
-**The corollary must be stated in the implementing task, not discovered in
-its PR:** the *first* entity with a nonzero `crit-chance` consumes one rng
-draw per hit, which moves every replay containing that entity. No entity has
-one today (monsters carry no crit — `MonsterSchema.stats` has no such field;
-the 0030 avatar has "no attributes anywhere"). So the wiring task is
-replay-neutral and the *equipping* task is not. Budget that cost there.
+**Two corollaries that must be stated in the implementing task, not discovered
+in its PR:**
+
+- The *first* entity with a crit chance in `(0, 1)` consumes one rng draw per
+  hit, which moves every replay containing that entity. No entity has one
+  today (monsters carry no crit — `MonsterSchema.stats` has no such field; the
+  0030 avatar has "no attributes anywhere"). So the wiring task is
+  replay-neutral and the *equipping* task is not. Budget that cost there.
+- **The draw count is not monotonic.** `Rng.chance` short-circuits at
+  `p >= 1` as well as at `p <= 0` (`rng.ts:115-119`), so a build reaching 100
+  crit points silently stops consuming a draw per hit again. Zero draws below
+  1 point, one draw in between, zero draws at 100 and above. Any test or
+  invariant about draw counts must be stated for the open interval, and a
+  100%-crit build is a hash-visible cliff worth a comment where the conversion
+  lives.
 
 ### `Math.max(1, critDamage)` and the 0005 clamp
 
@@ -655,7 +765,7 @@ In `packages/core/src/combat/components.test.ts`, a
 
 Each asserting the exact number with a comment naming the affix file and this
 spec. A future agent who "simplifies" the conversion then fails a named test
-instead of silently halving (or 1417×-ing) everyone's crit.
+instead of silently halving — or ×23.6-ing — everyone's crit.
 
 ## 5. Verifiability: is a balance sim a prerequisite?
 
@@ -670,7 +780,7 @@ is in `packages/content/data/affixes/*.json`. It lands as a
 same shape as the affix-slot check already there. Its per-slot worst-case
 extension is also static: enumerating the top-`perKindCap` eligible affixes
 per (slot, item level) is a pure computation over the pool — the same shape
-`availableKinds` (`loot-smoke.ts:88-104`) already performs for counts. A
+`availableKinds` (`loot-smoke.ts:93-107`) already performs for counts. A
 distributional sanity check over `rollItem` output at fixed seeds is
 *possible* as a unit test but is not needed for enforcement; the ceiling is
 already provable from the ranges.
@@ -728,9 +838,10 @@ invariant because it looks checked.
    as their own stat.** The plan assumes *through* the derivation.
 6. **Authoring-time versus roll-time enforcement.** The plan assumes
    authoring-time (Model A/C asymmetry, §3).
-7. **The pool-depth question pillar 2 raises:** seven of nine slots have
-   exactly three eligible prefixes, so top-end rares are near-identical.
-   Should the per-slot floor rise to make 6-affix rares *choose*?
+7. **The pool-depth question pillar 2 raises:** **nine of nine** slots have
+   exactly three eligible prefixes and seven of nine have exactly three
+   suffixes, so top-end rares are near-identical. Should the per-slot floor
+   rise to make 6-affix rares *choose*?
 8. **Whether the balance harness runs inside `npm run verify`.**
 
 ### The implementer chooses (encoding, not feel)
@@ -742,8 +853,9 @@ invariant because it looks checked.
   versus a closed-form function, versus a dense per-level table).
 - Whether the validation lands in `checkReferences` or as a `loot-smoke`
   invariant, or both.
-- Which module owns the crit conversion (§4 recommends `makeCombatant`; the
-  helper-function variant is the implementer's to take, with a comment).
+- The exact signature and name of §4's conversion helper. **Not** the choice
+  of whether to store its result on `Combatant` — §4 rules that out on
+  hash grounds, and that is a determinism constraint, not an encoding taste.
 - All test names, fixture shapes, and `ContentIssue` message wording.
 - The interpolation's rounding, as long as it lands on decision 0005's
   quantum.
@@ -756,26 +868,51 @@ writing is 0041; every task checks before committing (task 0450's protocol).
 **T1. Crit stats reach `computeDamage` (the unit conversion).**
 *Role: systems. Depends on: this plan merged — startable immediately.*
 Files in scope, complete:
-`packages/core/src/combat/components.ts` (two `Combatant` fields
-`critChance`/`critDamage`; convert in `makeCombatant` per §4; document the
-units on the fields as `attackIntervalTicks` is documented),
+`packages/core/src/combat/components.ts` (the exported `toDamageAttacker`
+helper beside `makeCombatant`, per §4 — **it converts and returns; it does
+not add fields to the `Combatant` component**, which §4 rules out on hash
+grounds),
 `packages/core/src/combat/components.test.ts` (the §4 pin tests),
-`packages/core/src/combat/systems.ts` (`attackSystem` reads the fields
-instead of the literals at 299-300),
+`packages/core/src/combat/systems.ts` (`attackSystem` builds its attacker
+through the helper instead of the literals at 299-300),
 `packages/core/src/combat/systems.test.ts`,
-`packages/core/src/skills/systems.ts` (`AttackerSnapshot` at line 79 gains
-the two fields; `attackerFrom` at 86 fills them; both call sites at 126-137
-and 191-202),
+`packages/core/src/skills/systems.ts` (the direct-hit call site at 126-137
+routes through the helper; `AttackerSnapshot` at line 79 and `attackerFrom`
+at 86 carry whatever the helper needs),
 `packages/core/src/skills/systems.test.ts`,
 `docs/decisions/00XX-crit-unit-conversion.md` (new).
+
+**Two hard constraints, both of which an implementer following the file list
+literally would otherwise violate:**
+
+1. **Do not widen `Combatant`.** Adding `critChance`/`critDamage` fields
+   changes the serialized form of every combatant and breaks the
+   byte-unchanged criterion below (§4, "Why widening `Combatant` is off the
+   table" — with the reproduced hashes). If crit values need a home later,
+   that is a separate component added only to entities that have crit, and it
+   is the equipping task's cost.
+2. **Leave `applyDot`'s crit literals alone** (`skills/systems.ts:191-202`).
+   Decision 0036's Consequences already forecloses the question: "Non-damage
+   statuses, **DoT resistances/crit**, stacking, and cleansing are foreclosed
+   until superseding entries." The rider's second `computeDamage` call stays
+   `critChance: 0, critDamage: 1` and stays rng-silent, with a comment citing
+   0036. Giving riders crit — whether by rolling again or by inheriting the
+   direct hit's result — supersedes 0036 and is **not** part of T1. *(This
+   constraint was owner question 8 in the first draft; moved here after review,
+   because the file list names `191-202` and the original framing wrongly
+   implied 0036 had not considered it.)*
+
 Acceptance sketch: a gearless combatant yields `critChance 0`,
-`critDamage 1`; all six golden replays byte-unchanged with the three-part
-proof from §4 recorded in the Outcome; a test proves `computeDamage` consumes
-zero rng draws at critChance 0 and exactly one per hit above it; the two
-named affix pin tests pass. **Everything an implementer needs is in §4** —
-they do not need to re-read `stats.ts` or the affix files.
-Mints: the crit unit-conversion decision (formulas, location, the ×0
-ruling, the rng-draw corollary).
+`critDamage 1`; **all six golden replays byte-unchanged**, with the four-part
+proof from §4 recorded in the Outcome (including part 4: no component gained a
+key); a test proves `computeDamage` consumes zero rng draws at `critChance 0`
+and exactly one per hit for `0 < critChance < 1` — **not** "above 0", since
+`Rng.chance` short-circuits at `p >= 1` too; a test proves the DoT rider still
+draws no rng; the two named affix pin tests pass. **Everything an implementer
+needs is in §4** — they do not need to re-read `stats.ts` or the affix files.
+Mints: the crit unit-conversion decision (formulas, the no-storage ruling and
+its hash reasoning, the ×0 ruling, both rng-draw corollaries, and the explicit
+statement that 0036 still governs DoT riders).
 Size ≈ 0190.
 
 **T2. Item mods as a pure function.** *Role: systems. Depends on: T1.*
@@ -904,8 +1041,9 @@ ruling.
    *Blocked:* whether T3's checker walks `ATTRIBUTE_DERIVATIONS`. *Assumed
    meanwhile:* yes, it walks them — otherwise the ceiling has a hole exactly
    the size of an attribute affix.
-6. **Should the per-slot affix pool floor rise above 3/3?** Seven of nine
-   slots have exactly three eligible prefixes at item level 50, so a 6-affix
+6. **Should the per-slot affix pool floor rise above 3/3?** **All nine** slots
+   have exactly three eligible prefixes at item level 50 (and seven of nine
+   have exactly three suffixes; chest and ring have four), so a 6-affix
    rare is *the whole pool* and two top-end rares of the same slot differ
    only in tier and roll — which reads against pillar 2's "interesting
    choices". *Blocked:* a content task that is not in this cut. *Assumed
@@ -914,12 +1052,19 @@ ruling.
    *Blocked:* T8's shape and its `package.json` footprint (guard-protected).
    *Assumed meanwhile:* beside it — `npm run sim -- balance`, its report
    pasted into task Outcomes as task 0370 did with `loot-smoke`.
-8. **Should a DoT rider roll its own crit?** `applyDot`
-   (`skills/systems.ts:191-202`) calls `computeDamage` a *second* time for
-   the same strike; once crit is live that is a second independent crit roll
-   on one hit, and it consumes a second rng draw. Decision 0036 fixed the
-   total at application with "crit-0" and did not anticipate live crit.
-   *Blocked:* T1's acceptance criteria. *Assumed meanwhile:* the rider
-   inherits the direct hit's crit result rather than rolling again — one
-   strike, one crit — but this is a mechanics ruling, not an encoding
-   choice, so it wants a yes.
+8. ~~**Should a DoT rider roll its own crit?**~~ **Withdrawn after review —
+   this was not an open question.** The code observation was right (`applyHit`
+   calls `applyDot` at `skills/systems.ts:155`, which runs a second
+   `computeDamage` at `191-202`), but decision 0036's Consequences already
+   rules on it: "Non-damage statuses, **DoT resistances/crit**, stacking, and
+   cleansing are foreclosed until superseding entries." So 0036 *did*
+   anticipate live crit and closed it, the status quo is crit-0 and
+   rng-silent, and the first draft's "assumed meanwhile" (riders inherit the
+   direct hit's crit) was itself a departure requiring a superseding entry
+   rather than a safe interim default. Re-homed as a **hard constraint in T1**
+   (§7), because T1's file list names `191-202` and an implementer following
+   it literally would have overturned 0036 without noticing. If the owner
+   *does* want riders to crit, that is a new task with a superseding decision,
+   not a line item here.
+
+**Net: seven live questions (1–7); question 8 withdrawn.**
