@@ -9,6 +9,7 @@ import {
   fillRect,
   parseHexColor,
   rasterizeScene,
+  strokeArc,
   textWidth,
 } from './raster'
 import type { Scene } from './scene'
@@ -106,6 +107,70 @@ describe('drawText', () => {
     expect(textWidth('7')).toBe(3)
     expect(textWidth('42')).toBe(7)
   })
+
+  it('magnifies each glyph pixel into a block at scale > 1', () => {
+    const raster = createRaster(20, 20)
+    drawText(raster, 0, 0, '1', RED, 2)
+    // Row 4 of the '1' glyph is fully lit, so at scale 2 it occupies rows
+    // 8..9 and columns 0..5 — a 2x2 block per lit font pixel.
+    expect(pixelAt(raster, 0, 8)).toEqual([...RED])
+    expect(pixelAt(raster, 5, 9)).toEqual([...RED])
+    expect(pixelAt(raster, 6, 8)).toEqual([...BACKGROUND])
+    expect(pixelAt(raster, 0, 10)).toEqual([...BACKGROUND])
+    expect(textWidth('42', 2)).toBe(14)
+  })
+})
+
+describe('strokeArc', () => {
+  it('strokes a ring: on the radius, not inside it', () => {
+    const raster = createRaster(40, 40)
+    strokeArc(raster, 20, 20, 10, 0, 360, 1, RED)
+
+    expect(pixelAt(raster, 30, 20)).toEqual([...RED]) // east
+    expect(pixelAt(raster, 10, 20)).toEqual([...RED]) // west
+    expect(pixelAt(raster, 20, 10)).toEqual([...RED]) // north
+    expect(pixelAt(raster, 20, 30)).toEqual([...RED]) // south
+    expect(pixelAt(raster, 20, 20)).toEqual([...BACKGROUND]) // hollow
+    expect(pixelAt(raster, 20, 24)).toEqual([...BACKGROUND])
+  })
+
+  it('sweeps only the requested arc, measured with +y down', () => {
+    const raster = createRaster(40, 40)
+    // -90 -> 90 is the eastern half: north through east through south.
+    strokeArc(raster, 20, 20, 10, -90, 90, 1, RED)
+
+    expect(pixelAt(raster, 30, 20)).toEqual([...RED]) // east: inside
+    expect(pixelAt(raster, 10, 20)).toEqual([...BACKGROUND]) // west: outside
+  })
+
+  it('thickens the stroke symmetrically around the radius', () => {
+    const thin = createRaster(40, 40)
+    const thick = createRaster(40, 40)
+    strokeArc(thin, 20, 20, 10, 0, 360, 1, RED)
+    strokeArc(thick, 20, 20, 10, 0, 360, 3, RED)
+
+    const litPixels = (raster: { width: number; data: Uint8ClampedArray }): number => {
+      let count = 0
+      for (let y = 0; y < 40; y++) {
+        for (let x = 0; x < 40; x++) {
+          if (pixelAt(raster, x, y)[0] === 255) count++
+        }
+      }
+      return count
+    }
+
+    expect(pixelAt(thick, 29, 20)).toEqual([...RED])
+    expect(pixelAt(thick, 31, 20)).toEqual([...RED])
+    expect(pixelAt(thin, 31, 20)).toEqual([...BACKGROUND])
+    expect(litPixels(thick)).toBeGreaterThan(litPixels(thin))
+  })
+
+  it('clips at the raster bounds instead of wrapping or throwing', () => {
+    const raster = createRaster(8, 8)
+    expect(() => strokeArc(raster, 0, 0, 6, 0, 360, 2, RED)).not.toThrow()
+    expect(pixelAt(raster, 6, 0)).toEqual([...RED])
+    expect(pixelAt(raster, 7, 7)).toEqual([...BACKGROUND])
+  })
 })
 
 describe('rasterizeScene', () => {
@@ -179,5 +244,38 @@ describe('rasterizeScene', () => {
     expect(pixelAt(raster, 33, 9)).toEqual([65, 60, 74]) // wall: #413c4a
     expect(pixelAt(raster, 32, 26)).toEqual([255, 0, 0]) // sprite atop the tiles
     expect(pixelAt(raster, 0, 0)).toEqual([...BACKGROUND]) // void
+  })
+
+  it('draws the attack-feedback layer over the sprites', () => {
+    const fighting: Scene = {
+      ...scene,
+      effects: [
+        // A telegraph ring wider than the sprite, and a damage amount above it.
+        {
+          kind: 'stroke',
+          x: 32,
+          y: 32,
+          radius: 16,
+          startDegrees: 0,
+          endDegrees: 360,
+          thickness: 2,
+          color: '#00ff00',
+        },
+        { kind: 'number', x: 32, y: 4, text: '17', color: '#0000ff', scale: 2 },
+      ],
+    }
+    const raster = rasterizeScene(fighting)
+
+    expect(pixelAt(raster, 48, 32)).toEqual([0, 255, 0]) // ring at radius 16
+    expect(pixelAt(raster, 32, 32)).toEqual([255, 0, 0]) // sprite body untouched
+
+    // The amount is centered on x and drawn in its own color.
+    let amountPixels = 0
+    for (let x = 0; x < 64; x++) {
+      for (let y = 4; y < 14; y++) {
+        if (pixelAt(raster, x, y)[2] === 255) amountPixels++
+      }
+    }
+    expect(amountPixels).toBeGreaterThan(0)
   })
 })

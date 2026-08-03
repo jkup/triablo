@@ -11,6 +11,7 @@ export {
   buildScene,
   cameraFor,
   colorFor,
+  EFFECT_COLORS,
   interpolateScene,
   PIXELS_PER_UNIT,
   screenToWorld,
@@ -18,7 +19,28 @@ export {
   VIEWPORT,
   worldToScreen,
 } from './scene'
-export type { Camera, Scene, SceneSprite, SceneTile, Viewport } from './scene'
+export type {
+  Camera,
+  Scene,
+  SceneEffect,
+  SceneInput,
+  SceneNumber,
+  SceneSprite,
+  SceneStroke,
+  SceneTile,
+  Viewport,
+} from './scene'
+
+export {
+  captureEffectFrame,
+  DAMAGE_NUMBER_TICKS,
+  deriveImpacts,
+  deriveTelegraphs,
+  HIT_FLASH_TICKS,
+  MAX_IMPACTS,
+  pushEffectFrame,
+} from './effects'
+export type { CombatantSample, EffectFrame, Impact, Telegraph } from './effects'
 
 export {
   createGame,
@@ -50,6 +72,7 @@ export {
   GLYPH_WIDTH,
   parseHexColor,
   rasterizeScene,
+  strokeArc,
   textWidth,
 } from './raster'
 export type { Raster, Rgb } from './raster'

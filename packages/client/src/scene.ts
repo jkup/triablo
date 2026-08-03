@@ -1,6 +1,9 @@
 import { Combatant, DungeonMap, Grid, hashString, PlayerControlled, Position } from '@triablo/core'
 import type { GridJSON, Tile, WorldSnapshot } from '@triablo/core'
 
+import { deriveImpacts, deriveTelegraphs, DAMAGE_NUMBER_TICKS, HIT_FLASH_TICKS } from './effects'
+import type { EffectFrame } from './effects'
+
 /**
  * The renderer's front half: a pure function from a `WorldSnapshot` to a
  * display list ("scene"). The back halves — the canvas 2D drawer in the
@@ -76,6 +79,70 @@ export const TILE_COLORS = {
   exit: '#3c2b33',
 } as const
 
+/**
+ * The attack-feedback palette (docs/decisions/0040). Two temperatures, so a
+ * glance answers pillar 1's question — is this mine or is it about to hit me:
+ * warm brass for what you are winding up and the damage you deal, blood red
+ * for a hostile wind-up and the damage you take. Both are strokes and glyphs,
+ * never fills, so the combatants stay the loudest pixels (decision 0034's
+ * posture).
+ */
+export const EFFECT_COLORS = {
+  /** A player-controlled caster's wind-up. */
+  telegraph: '#c9a227',
+  /** Any other caster's wind-up: something is about to land on you. */
+  threat: '#b8443a',
+  /** Hit flash and damage amount on anything that is not the player. */
+  impact: '#f2e6cc',
+  /** Hit flash and damage amount on the player: the damage you took. */
+  playerImpact: '#d94f43',
+} as const
+
+/** Stroke width, in pixels, of telegraph arcs/rings and hit flashes. */
+const TELEGRAPH_THICKNESS = 2
+const FLASH_THICKNESS = 2
+/** Gap between a sprite's edge and its hit-flash ring, in pixels. */
+const FLASH_GAP = 3
+/** How far above a struck entity a damage amount starts, in pixels. */
+const DAMAGE_NUMBER_LIFT = 28
+/** How fast a damage amount floats upward, in pixels per tick. */
+const DAMAGE_NUMBER_RISE = 0.5
+/** Glyph magnification for damage amounts: twice an entity label's size. */
+const DAMAGE_NUMBER_SCALE = 2
+
+/**
+ * One transient combat visual, in pixels: a circular stroke (telegraph arc,
+ * telegraph ring, or hit flash) or a floating amount. Both back ends draw the
+ * whole layer with one arc primitive and one text primitive.
+ */
+export interface SceneStroke {
+  readonly kind: 'stroke'
+  readonly x: number
+  readonly y: number
+  readonly radius: number
+  /** Sweep start, in degrees, measured as `atan2(dy, dx)` with +y down. */
+  readonly startDegrees: number
+  /** Sweep end; `start` 0 to `end` 360 is a full ring. */
+  readonly endDegrees: number
+  readonly thickness: number
+  /** Stroke color as `#rrggbb`. */
+  readonly color: string
+}
+
+/** A floating damage amount. Digits only — the raster font has no other glyphs. */
+export interface SceneNumber {
+  readonly kind: 'number'
+  /** Center of the text, horizontally; the back ends center it themselves. */
+  readonly x: number
+  readonly y: number
+  readonly text: string
+  readonly color: string
+  /** Glyph magnification: damage reads louder than the entity labels. */
+  readonly scale: number
+}
+
+export type SceneEffect = SceneStroke | SceneNumber
+
 export interface Scene {
   readonly width: number
   readonly height: number
@@ -89,6 +156,34 @@ export interface Scene {
    */
   readonly tiles?: readonly SceneTile[]
   readonly sprites: readonly SceneSprite[]
+  /**
+   * Attack feedback, drawn over the sprites in array order: telegraphs first,
+   * then hit flashes, then damage amounts (docs/decisions/0040). Present only
+   * when something is winding up or was recently hit; absent — never an empty
+   * array — otherwise, exactly like {@link Scene.tiles}, so a snapshot with no
+   * combat builds a scene structurally identical to one built before this
+   * layer existed (the render-regression golden pins that shape).
+   */
+  readonly effects?: readonly SceneEffect[]
+}
+
+/**
+ * Optional inputs to {@link buildScene} beyond the snapshot itself.
+ *
+ * `frames` is the effect window (see effects.ts): recent frames in ascending
+ * tick order, the last of which must describe the snapshot being built.
+ * Anything else is ignored — a stale or scrambled window renders no impacts
+ * rather than lying about when a hit landed.
+ */
+export interface SceneInput {
+  /** Recent {@link EffectFrame}s, oldest first, ending at this snapshot's tick. */
+  readonly frames?: readonly EffectFrame[]
+  /**
+   * Camera override, replacing {@link cameraFor}'s rule. The shot harness uses
+   * it to focus a station in a scenario far wider than the viewport; the
+   * browser never passes it (decision 0040).
+   */
+  readonly camera?: Camera
 }
 
 interface EntityView {
@@ -270,8 +365,18 @@ export function cameraFor(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT
  * grid in entity-id order — a debug layout the camera does not transform —
  * so that position-less simulations still render every entity visibly. Life
  * bars come from core `Combatant` only.
+ *
+ * With an effect window in `input`, the scene also carries the attack-feedback
+ * layer (docs/decisions/0040): wind-up telegraphs read from `CastState` in
+ * this snapshot, plus hit flashes and floating amounts derived from life
+ * losses across the window. Without one, telegraphs still render — they are a
+ * pure read of the current snapshot — and impacts simply do not exist.
  */
-export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPORT): Scene {
+export function buildScene(
+  snapshot: WorldSnapshot,
+  viewport: Viewport = VIEWPORT,
+  input: SceneInput = {},
+): Scene {
   const views = new Map<number, EntityView>()
   for (const entity of snapshot.entities) {
     views.set(entity, { entity, position: null, lifeFrac: null, colorSeed: '' })
@@ -321,7 +426,7 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     if (map === null) map = parsed
   }
 
-  const camera = cameraFor(snapshot, viewport)
+  const camera = input.camera ?? cameraFor(snapshot, viewport)
 
   // Tile (x, y) is the unit square centered on world point (x, y) — decision
   // 0028's ±0.5 draw-time offset — pushed through the SAME worldToScreen the
@@ -388,10 +493,88 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
     })
   }
 
-  // `tiles` is added only when it exists: an ever-present `tiles: []` would
-  // change the Scene shape for dungeon-less snapshots (the golden's fixture).
-  const scene: Scene = { width: viewport.width, height: viewport.height, tick: snapshot.tick, sprites }
-  return tiles === undefined ? scene : { ...scene, tiles }
+  // ------------------------------------------------- attack feedback (0040)
+  //
+  // Everything here is post-camera pixels, built in draw order: telegraphs
+  // (under the eye, over the floor), then hit flashes hugging their sprites,
+  // then the damage amounts on top. Lifetimes are counted in TICKS from the
+  // tick a hit landed — never in milliseconds, which would make the same tick
+  // render differently depending on when it was looked at.
+  const effects: SceneEffect[] = []
+  if (camera !== null) {
+    for (const telegraph of deriveTelegraphs(snapshot)) {
+      const center = worldToScreen(camera, telegraph)
+      effects.push({
+        kind: 'stroke',
+        x: center.x,
+        y: center.y,
+        radius: telegraph.radiusTiles * PIXELS_PER_UNIT,
+        startDegrees: telegraph.startDegrees,
+        endDegrees: telegraph.endDegrees,
+        thickness: TELEGRAPH_THICKNESS,
+        color: telegraph.friendly ? EFFECT_COLORS.telegraph : EFFECT_COLORS.threat,
+      })
+    }
+  }
+
+  const frames = input.frames ?? []
+  const current = frames[frames.length - 1]
+  if (camera !== null && current !== undefined && current.tick === snapshot.tick) {
+    const players = new Set<number>()
+    for (const [entity] of snapshot.components[PlayerControlled.id] ?? []) players.add(entity)
+    const spriteByEntity = new Map(sprites.map((sprite) => [sprite.entity, sprite]))
+    const impacts = deriveImpacts(frames)
+
+    // The flash marks the entity, so it rides the sprite's current position; an
+    // entity killed by the hit has no sprite left to mark and only leaves a
+    // number behind.
+    for (const impact of impacts) {
+      const sprite = spriteByEntity.get(impact.entity)
+      if (sprite === undefined) continue
+      if (impact.lastAmount < 1 || snapshot.tick - impact.tick >= HIT_FLASH_TICKS) continue
+      effects.push({
+        kind: 'stroke',
+        x: sprite.x,
+        y: sprite.y,
+        radius: sprite.radius + FLASH_GAP,
+        startDegrees: 0,
+        endDegrees: 360,
+        thickness: FLASH_THICKNESS,
+        color: players.has(impact.entity) ? EFFECT_COLORS.playerImpact : EFFECT_COLORS.impact,
+      })
+    }
+
+    // The number marks the blow, so it stays where the blow landed and floats
+    // up from there — the victim may walk away from its own bruise.
+    for (const impact of impacts) {
+      const age = snapshot.tick - impact.tick
+      if (age >= DAMAGE_NUMBER_TICKS) continue
+      let anchor: { x: number; y: number } | null = null
+      if (impact.x !== null && impact.y !== null) {
+        anchor = worldToScreen(camera, { x: impact.x, y: impact.y })
+      } else {
+        const sprite = spriteByEntity.get(impact.entity)
+        if (sprite !== undefined) anchor = { x: sprite.x, y: sprite.y }
+      }
+      if (anchor === null) continue
+      effects.push({
+        kind: 'number',
+        x: anchor.x,
+        y: anchor.y - DAMAGE_NUMBER_LIFT - age * DAMAGE_NUMBER_RISE,
+        text: String(impact.amount),
+        color: players.has(impact.entity) ? EFFECT_COLORS.playerImpact : EFFECT_COLORS.impact,
+        scale: DAMAGE_NUMBER_SCALE,
+      })
+    }
+  }
+
+  // `tiles` and `effects` are added only when they exist: an ever-present
+  // `tiles: []` / `effects: []` would change the Scene shape for snapshots
+  // without a dungeon or without combat (the golden's fixture is both).
+  let scene: Scene = { width: viewport.width, height: viewport.height, tick: snapshot.tick, sprites }
+  if (tiles !== undefined) scene = { ...scene, tiles }
+  if (effects.length > 0) scene = { ...scene, effects }
+  return scene
 }
 
 /**
@@ -409,6 +592,14 @@ export function buildScene(snapshot: WorldSnapshot, viewport: Viewport = VIEWPOR
  * origins is exactly camera smoothing. Tiles are matched by array index —
  * valid because an unchanged map yields identical row-major order and length
  * every tick; if the layer changed shape between ticks it snaps to `current`.
+ *
+ * The attack-feedback layer **snaps to `current`** (docs/decisions/0040).
+ * Effects are tick-quantized transients whose count and identity change
+ * whenever a cast starts, a hit lands, or an amount expires, so the
+ * index-matching that makes tile lerping sound does not hold for them; and
+ * unlike the floor, a 2 px stroke or a glyph lagging the camera by less than
+ * one tick is invisible. Lifetimes therefore advance in whole ticks, which is
+ * exactly what keeps a shot at tick N identical to the browser at tick N.
  */
 export function interpolateScene(previous: Scene, current: Scene, alpha: number): Scene {
   if (alpha >= 1) return current

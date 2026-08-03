@@ -1,4 +1,4 @@
-import type { Scene, SceneSprite } from './scene'
+import type { Scene, SceneEffect, SceneSprite } from './scene'
 
 /**
  * A tiny software rasterizer: scene in, RGBA pixels out.
@@ -91,6 +91,63 @@ export function fillCircle(
   }
 }
 
+function normalizeDegrees(degrees: number): number {
+  return ((degrees % 360) + 360) % 360
+}
+
+/**
+ * Stroke a circular arc: every pixel whose distance from the center lies
+ * within `thickness` of `radius` and whose bearing falls inside the sweep.
+ *
+ * `startDegrees` → `endDegrees` sweeps the way `atan2(dy, dx)` measures, with
+ * +y down (the same convention canvas 2D uses), so a scene's angles mean the
+ * same thing in both back ends. A sweep of 360° or more is a full ring — the
+ * one primitive behind telegraph arcs, burst rings, and hit flashes.
+ *
+ * Determinism caveat: the per-pixel bearing uses `Math.atan2`, whose last ulp
+ * is engine-dependent (core's arc hit test carries the same caveat for
+ * `Math.cos`). Only a pixel sitting exactly on the sweep's angular boundary
+ * could differ, and only across JS engines; on one engine this is exact.
+ */
+export function strokeArc(
+  raster: Raster,
+  centerX: number,
+  centerY: number,
+  radius: number,
+  startDegrees: number,
+  endDegrees: number,
+  thickness: number,
+  color: Rgb,
+): void {
+  const cx = Math.round(centerX)
+  const cy = Math.round(centerY)
+  const r = Math.max(1, Math.round(radius))
+  const half = Math.max(1, thickness) / 2
+  const inner = r - half
+  const outer = r + half
+
+  const sweep = endDegrees - startDegrees
+  const full = Math.abs(sweep) >= 360
+  const start = normalizeDegrees(sweep < 0 ? endDegrees : startDegrees)
+  const span = Math.abs(sweep)
+
+  const bound = Math.ceil(outer)
+  for (let py = cy - bound; py <= cy + bound; py++) {
+    for (let px = cx - bound; px <= cx + bound; px++) {
+      const dx = px - cx
+      const dy = py - cy
+      const distance = Math.sqrt(dx * dx + dy * dy)
+      if (distance < inner || distance > outer) continue
+      if (!full) {
+        if (dx === 0 && dy === 0) continue
+        const bearing = normalizeDegrees((Math.atan2(dy, dx) * 180) / Math.PI)
+        if (normalizeDegrees(bearing - start) > span) continue
+      }
+      setPixel(raster, px, py, color)
+    }
+  }
+}
+
 /**
  * A 3x5 pixel digit font. Labels are entity ids, so digits are the whole
  * alphabet. Each glyph is 5 rows of 3 bits, most significant bit leftmost.
@@ -112,13 +169,27 @@ export const GLYPH_WIDTH = 3
 export const GLYPH_HEIGHT = 5
 const GLYPH_SPACING = 1
 
-export function textWidth(text: string): number {
+/** Width in pixels of `text` drawn at `scale` (integer glyph magnification). */
+export function textWidth(text: string, scale = 1): number {
   if (text.length === 0) return 0
-  return text.length * (GLYPH_WIDTH + GLYPH_SPACING) - GLYPH_SPACING
+  return (text.length * (GLYPH_WIDTH + GLYPH_SPACING) - GLYPH_SPACING) * scale
 }
 
-/** Draw digit text with its top-left corner at (x, y). Unknown chars are skipped. */
-export function drawText(raster: Raster, x: number, y: number, text: string, color: Rgb): void {
+/**
+ * Draw digit text with its top-left corner at (x, y). Unknown chars are
+ * skipped. `scale` magnifies each glyph pixel into a scale×scale block — the
+ * font has one size, so this is how a damage amount reads louder than an
+ * entity label without a second font.
+ */
+export function drawText(
+  raster: Raster,
+  x: number,
+  y: number,
+  text: string,
+  color: Rgb,
+  scale = 1,
+): void {
+  const step = Math.max(1, Math.round(scale))
   let penX = Math.round(x)
   const penY = Math.round(y)
   for (const char of text) {
@@ -128,12 +199,16 @@ export function drawText(raster: Raster, x: number, y: number, text: string, col
         const bits = glyph[row] as number
         for (let col = 0; col < GLYPH_WIDTH; col++) {
           if ((bits >> (GLYPH_WIDTH - 1 - col)) & 1) {
-            setPixel(raster, penX + col, penY + row, color)
+            for (let dy = 0; dy < step; dy++) {
+              for (let dx = 0; dx < step; dx++) {
+                setPixel(raster, penX + col * step + dx, penY + row * step + dy, color)
+              }
+            }
           }
         }
       }
     }
-    penX += GLYPH_WIDTH + GLYPH_SPACING
+    penX += (GLYPH_WIDTH + GLYPH_SPACING) * step
   }
 }
 
@@ -157,6 +232,32 @@ function drawSprite(raster: Raster, sprite: SceneSprite): void {
   )
 }
 
+/** Draw one attack-feedback effect: a circular stroke or a floating amount. */
+function drawEffect(raster: Raster, effect: SceneEffect): void {
+  const color = parseHexColor(effect.color)
+  if (effect.kind === 'stroke') {
+    strokeArc(
+      raster,
+      effect.x,
+      effect.y,
+      effect.radius,
+      effect.startDegrees,
+      effect.endDegrees,
+      effect.thickness,
+      color,
+    )
+    return
+  }
+  drawText(
+    raster,
+    effect.x - textWidth(effect.text, effect.scale) / 2,
+    effect.y,
+    effect.text,
+    color,
+    effect.scale,
+  )
+}
+
 /** Render a scene to pixels. Pure: same scene, same bytes. */
 export function rasterizeScene(scene: Scene): Raster {
   const raster = createRaster(scene.width, scene.height)
@@ -166,6 +267,11 @@ export function rasterizeScene(scene: Scene): Raster {
   }
   for (const sprite of scene.sprites) {
     drawSprite(raster, sprite)
+  }
+  // Attack feedback last, in scene order (telegraphs, flashes, amounts): the
+  // reason it exists is to be read over the fight it describes.
+  for (const effect of scene.effects ?? []) {
+    drawEffect(raster, effect)
   }
   return raster
 }

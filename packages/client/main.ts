@@ -2,12 +2,13 @@ import { ContentRegistry } from '@triablo/content'
 import type { ContentBundle } from '@triablo/content'
 import type { WorldSnapshot } from '@triablo/core'
 
-import type { Point, Scene } from './src/index'
+import type { EffectFrame, Point, Scene } from './src/index'
 import {
   applyCast,
   applyMoveOrder,
   buildScene,
   cameraFor,
+  captureEffectFrame,
   clickToMoveOrder,
   createGame,
   createTickAccumulator,
@@ -15,6 +16,7 @@ import {
   interpolateScene,
   keyToCast,
   PLAYER_FACTION,
+  pushEffectFrame,
   screenToWorld,
   VIEWPORT,
 } from './src/index'
@@ -64,6 +66,32 @@ function drawScene(context: CanvasRenderingContext2D, scene: Scene): void {
     context.font = '9px ui-monospace, monospace'
     context.fillText(sprite.label, sprite.x, sprite.y + sprite.radius + 3)
   }
+
+  // Attack feedback last, in scene order — mirrors rasterizeScene exactly.
+  // Canvas measures arc angles the same way the rasterizer does (atan2, +y
+  // down), so the scene's degrees mean one thing in both back ends.
+  for (const effect of scene.effects ?? []) {
+    if (effect.kind === 'stroke') {
+      context.strokeStyle = effect.color
+      context.lineWidth = effect.thickness
+      context.beginPath()
+      context.arc(
+        effect.x,
+        effect.y,
+        effect.radius,
+        (effect.startDegrees * Math.PI) / 180,
+        (effect.endDegrees * Math.PI) / 180,
+      )
+      context.stroke()
+      continue
+    }
+    context.fillStyle = effect.color
+    context.textAlign = 'center'
+    context.textBaseline = 'top'
+    // The rasterizer's font is 5 px tall at scale 1; match its apparent size.
+    context.font = `bold ${5 * effect.scale + 2}px ui-monospace, monospace`
+    context.fillText(effect.text, effect.x, effect.y)
+  }
 }
 
 async function main(): Promise<void> {
@@ -89,7 +117,13 @@ async function main(): Promise<void> {
   const { world, player } = game
 
   let snapshot: WorldSnapshot = world.snapshot()
-  let previous = buildScene(snapshot, VIEWPORT)
+  // The effect window (docs/decisions/0040): a bounded, ordered list of
+  // value-copied frames, one per tick, that impact derivation diffs. It has
+  // to be captured here, tick by tick — component values in a snapshot are
+  // live references the simulation mutates in place, so a kept snapshot is
+  // not a memory of anything.
+  let frames: readonly EffectFrame[] = [captureEffectFrame(snapshot)]
+  let previous = buildScene(snapshot, VIEWPORT, { frames })
   let current = previous
   let cursor: Point = { x: VIEWPORT.width / 2, y: VIEWPORT.height / 2 }
   const accumulator = createTickAccumulator()
@@ -126,7 +160,8 @@ async function main(): Promise<void> {
       previous = current
       world.step()
       snapshot = world.snapshot()
-      current = buildScene(snapshot, VIEWPORT)
+      frames = pushEffectFrame(frames, captureEffectFrame(snapshot))
+      current = buildScene(snapshot, VIEWPORT, { frames })
     }
 
     drawScene(context, interpolateScene(previous, current, alpha))

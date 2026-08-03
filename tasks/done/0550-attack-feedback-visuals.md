@@ -163,9 +163,97 @@ Worked numbers below were executed against `main` while writing this task.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
 - **What changed:**
-- **Replays re-blessed:**
+  - `packages/client/src/effects.ts` (new) is the deterministic source.
+    `deriveTelegraphs(snapshot)` is a pure current-snapshot read of
+    `CastState.winding`, with geometry taken from the embedded recipe
+    (decision 0018), never from a skill id. `deriveImpacts(window)` diffs
+    `Combatant.life` across an **effect window**: an ordered, bounded array of
+    `EffectFrame`s (`{tick, entity → life, x, y}`), one per tick, passed
+    *into* `buildScene` as an argument. Purity survives because the window is
+    an input, not renderer state — same window + snapshot → byte-identical
+    pixels in browser and shot.
+  - **The trap that shaped the design:** `World.snapshot()` returns *live*
+    component references and combat mutates them in place
+    (`target.combatant.life -= applied`), so keeping yesterday's snapshot
+    remembers nothing — every diff would be zero. `captureEffectFrame` copies
+    the numbers out at the tick they describe. `effects.test.ts` pins this.
+  - `scene.ts`: `Scene.effects?` (optional, absent-when-empty per 0034),
+    `SceneStroke`/`SceneNumber`, `EFFECT_COLORS` next to `TILE_COLORS`,
+    `SceneInput { frames?, camera? }`. `interpolateScene` snaps the layer to
+    `current` (documented in its doc comment).
+  - `raster.ts`: new `strokeArc` primitive (arcs, rings, and flashes are one
+    primitive) and `drawText`'s optional `scale` — damage amounts render at 2x
+    so they are readable; entity labels are untouched at scale 1.
+  - `main.ts` keeps the frame window across ticks and mirrors the layer in
+    canvas 2D. `scripts/shot.ts` runs to `tick − 24`, then steps the window
+    one tick at a time capturing frames, so a shot at tick N carries the same
+    effects the browser would show; it also gained `--focus <entity>` (see
+    deviations) and prints `effects=N`. The summary hash is still
+    `world.hash()` at the target tick.
+  - Decision **0040** records the window design, tick lifetimes (flash 4,
+    number 24), the summed-per-entity stacking rule, integer rounding (digits
+    only — no minus, no dot), the 8-impact cap, the palette, and the
+    interpolation and camera-override rulings.
+- **Gate:** `npm run verify` green — `Test Files 31 passed (31)`, `Tests 475
+  passed (475)`, coverage 93.45% statements; smoke 7 scenarios × 20 seeds ok;
+  `replays: 5` all ok.
+- **The golden held.** `git diff main -- packages/client/src/render-regression.test.ts`
+  is empty: the fixture has no `DungeonMap`, no `CastState`, and is built
+  without a window, so `effects` stays absent and `PINNED_SCENE` /
+  `PINNED_RASTER_HASH` / `PINNED_PNG_HASH` all pass byte-identical.
+- **Shots (read, not assumed):**
+  - `shot dungeon-crawl seed=1 tick=172 entities=11 sprites=10 effects=4
+    hash=88af5e7f260c4ed6 800x600` — hash matches `sim -- run dungeon-crawl
+    --seed 1 --ticks 172`. Visible: avatar 10 and zombie 2 adjacent in the
+    small west room; the avatar wears a **blood-red** flash ring with a red
+    **"4"** above it (the damage it took), the zombie a **bone** flash ring
+    with a bone **"17"** above it, its life bar dropped to ~61% green. Both
+    numbers sit clear of the life bars at 2x glyph size.
+  - `shot skill-strike seed=1 tick=45 ... effects=9 hash=ef5152e7632d1afe` —
+    default framing shows the fireball station's still-floating **"13"** and
+    **"5"** (hits from tick 38, 7 ticks old, flashes already expired).
+    With `--focus 1`: a **red 180° arc**, radius 36 px, hugging the caster's
+    **east** half — open toward the aim point (2, 0), endpoints at due north
+    and due south. Red because the skill-strike caster is not
+    `PlayerControlled`; the player's own wind-ups draw brass.
+  - `shot skill-strike seed=1 tick=52 ... effects=8 hash=79db205c00919041`
+    (`--focus 1`): cleave's impact frame — bone flash rings on grave-hulk 6
+    and zombie 7, **"4"** above 6 and **"6"** above 7 (which overlaps sprite
+    6, see follow-ups). Matches the trace exactly.
+  - `shot skill-strike seed=1 tick=80 ... effects=1 hash=032c39d3af725991`
+    (`--focus 1`): the ground-stomp wind-up as a **48 px ring** centered on
+    the caster, enclosing all three dummies. Nothing else on screen.
+  - `shot skill-strike seed=1 tick=87 ... effects=6 hash=eddfa8a3b211ef91`
+    (`--focus 1`) — hash matches `sim -- run --ticks 87`. Three flash rings
+    and **"12"**, **"8"**, **"12"** on entities 8, 6, 7; the caster (1) is
+    unringed, as the trace says it must be.
+  - Determinism spot-check: the same shot run twice is byte-identical (`cmp`).
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty — the shot harness steps the same ticks in the same order, and sim
+  never reads the client.
 - **Scope deviations:**
+  1. **`--focus <entity>` added to `scripts/shot.ts` (plus an optional
+     `camera` in `SceneInput`).** The acceptance criteria assume the melee
+     station is visible at skill-strike ticks 45/52/80/87, but it is not, and
+     was not before this task: the scenario spans x∈[0, 166] with no
+     `PlayerControlled` entity, so the decision-0019 bounding-box camera
+     centers near x = 83 and frames the fireball station. Verified on `main`
+     before writing any code. Rather than change the camera *rule* (0033/0019,
+     out of scope and wrong for the browser), the harness may override the
+     camera. Both framings are shot above; the default-framing PNGs are also
+     in `shots/` and do show damage numbers at ticks 45 and 52.
+  2. **`scripts/shot.ts` is guard-protected** — the PR's `guard` job fails
+     until a human applies `gate-change`. Flagged in the PR body and in one
+     PR comment; not split out, because the diff-window capture *is* the
+     harness change this task requires.
 - **Follow-ups worth a new task:**
+  - Attacker attribution: a life diff cannot say who dealt a hit or through
+    what, so a DoT tick reads as a small hit and basic-attack swings get no
+    attacker-side garnish. Doing better needs a core-side hit-event ring
+    buffer — a systems task (decision 0040 names it as the revisit trigger).
+  - Damage numbers can land on a neighboring sprite when entities stack
+    within a tile (visible at skill-strike tick 52/87). A deterministic
+    spread, or a glyph shadow, would fix it.
+  - Monster wind-ups already telegraph in `threat` red, but no monster in
+    content casts yet; the first monster skill will make that path visible.
