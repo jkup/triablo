@@ -7,6 +7,7 @@ import { dungeonCrawl } from './dungeon-crawl'
 import { harnessSelftest } from './harness-selftest'
 import { lootSmoke } from './loot-smoke'
 import { skillStrike } from './skill-strike'
+import { statusDot } from './status-dot'
 
 /**
  * Every scenario, by name.
@@ -24,6 +25,7 @@ export const SCENARIOS: Readonly<Record<string, Scenario>> = {
   [harnessSelftest.name]: harnessSelftest,
   [lootSmoke.name]: lootSmoke,
   [skillStrike.name]: skillStrike,
+  [statusDot.name]: statusDot,
 }
 
 export const SCENARIO_NAMES: readonly string[] = Object.keys(SCENARIOS).sort()
