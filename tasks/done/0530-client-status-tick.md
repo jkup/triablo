@@ -97,9 +97,44 @@ change is behavior-invisible until content flips the switch.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/client/src/game.ts` registers
+  `statusTickSystem` between `projectileSystem` and `deathSystem` (one
+  import + one `addSystem` line), and the doc comment above the roster now
+  reads `... → projectile-flight → status-tick → death` and cites decision
+  0036 for why that slot is the slot (first tick lands on the application
+  tick; a lethal tick is reaped the same tick). `game.test.ts` gained
+  `'status-tick'` in the exact-order assertion (with a comment saying the
+  order is contractual, not incidental) plus two tests:
+  - *"a DoT attached to a monster ticks to completion in the playable
+    world"* — attaches a `StatusEffects` entry directly to the authored
+    bone-mage (stationary, 18 tiles from the entrance, well outside the
+    10-tile aggro radius, so nothing else touches its life) and steps the
+    real loop ten times. Hand-computed schedule, decision 0036's exact
+    split: total 3.0000 = 30000 quanta over 10 ticks → 3000 per tick,
+    remainder 30000 − 9 × 3000 = 3000, i.e. nine ticks of 0.3000 plus a
+    final 0.3000. The test asserts cumulative loss in integer quanta after
+    every tick, `remainingTicks` counting down, and the component *gone*
+    after the tenth tick (0036: absence is the clean state). No cast is
+    involved — rend has no rider until 0540, so a cast-driven test would
+    pass vacuously.
+  - *"is deterministic with a status ticking: same seed, same world hash"* —
+    two seed-7 builds, same attached entry, 60 ticks each, identical
+    `world.hash()`, plus non-vacuity assertions that both actually bled the
+    full 3.0000 and dropped the component.
+  Revert check: deleting the `world.addSystem(statusTickSystem)` line turns
+  3 of the 6 `game.test.ts` tests red — the order assertion, and both new
+  tests failing with "expected +0 to be 3000" (life never falls, component
+  persists), which is exactly the bug the tests exist to catch.
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty; the client's system list is not read by any sim scenario, and the
+  render-regression golden is untouched (this change draws nothing).
+- **Scope deviations:** none. Only the two in-scope files changed. No
+  decision minted — 0036 already records the ordering this implements.
+- **Follow-ups worth a new task:** the `shot` harness can only render *sim
+  scenarios*; there is no way to screenshot the client's own `createGame`
+  world. Verifying this change in pixels needed a throwaway local script
+  (built the playable world, attached a DoT, focused the camera on the
+  bone-mage: at tick 0 a full green life bar, at tick 30 a half-empty one,
+  status gone, byte-identical PNGs across repeated runs). A
+  `npm run shot -- playable` mode would make that a first-class check
+  instead of a one-off — worth a small client/tooling task.
