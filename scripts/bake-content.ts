@@ -37,6 +37,7 @@ function main(): void {
     monsters: [...registry.monsters.values()],
     skills: [...registry.skills.values()],
     dungeons: [...registry.dungeons.values()],
+    roomTemplates: [...registry.roomTemplates.values()],
   }
 
   mkdirSync(dirname(OUTPUT), { recursive: true })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { RawBundle, RawEntry } from '@triablo/content'
-import { emptyRawBundle, loadContent, parseBundle } from '@triablo/content'
+import { emptyRawBundle, loadContent, parseBundle, RoomTemplateSchema } from '@triablo/content'
 
 const entry = (basename: string, data: unknown): RawEntry => ({
   file: `${basename}.json`,
@@ -51,6 +51,13 @@ const validDungeon = (id: string, spawns: { monster: string; x: number; y: numbe
     { id: 'entry', offset: { x: 0, y: 0 }, tiles: ['#####', '#E...', '#####'], spawns },
     { id: 'end', offset: { x: 5, y: 0 }, tiles: ['#####', '...X#', '#####'] },
   ],
+})
+
+/** A 3x3 cell: floor cross, ports on both side edges, one slot in the middle. */
+const validRoomTemplate = (id: string) => ({
+  id,
+  tiles: ['#.#', '...', '#.#'],
+  spawnSlots: [{ x: 1, y: 1 }],
 })
 
 const bundleWith = (overrides: Partial<RawBundle>): RawBundle => ({
@@ -344,25 +351,149 @@ describe('dungeon validation', () => {
   })
 })
 
+describe('room template schema', () => {
+  /** Formats issues as "path: message" so assertions can name the failing field. */
+  const issuesOf = (candidate: unknown): string[] => {
+    const result = RoomTemplateSchema.safeParse(candidate)
+    if (result.success) return []
+    return result.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`)
+  }
+
+  it('accepts the fixture the rejection cases are built from', () => {
+    expect(issuesOf(validRoomTemplate('cell'))).toEqual([])
+  })
+
+  it('rejects ragged tile rows, naming the row', () => {
+    const issues = issuesOf({ ...validRoomTemplate('cell'), tiles: ['#.#', '....', '#.#'] })
+    expect(issues.some((issue) => /^tiles\.1: ragged tile rows/.test(issue))).toBe(true)
+  })
+
+  it("rejects the dungeon-level 'E' and 'X' tiles a room may not carry", () => {
+    // Decision 0024's legend minus the singletons: a reusable room cannot own
+    // the one entrance or the one exit, so the characters are not in the
+    // template legend at all.
+    for (const marker of ['E', 'X']) {
+      const issues = issuesOf({ ...validRoomTemplate('cell'), tiles: ['#.#', `.${marker}.`, '#.#'] })
+      expect(issues.some((issue) => /^tiles\.1: .*may only contain/.test(issue))).toBe(true)
+    }
+  })
+
+  it('rejects a row wider than the size cap, naming the tiles field', () => {
+    const wide = '.'.repeat(12)
+    const issues = issuesOf({ ...validRoomTemplate('cell'), tiles: [wide, wide, wide] })
+    expect(issues).toContain('tiles.0: room width must be between 3 and 11 tiles, got 12')
+  })
+
+  it('rejects rooms below the minimum and above the maximum height', () => {
+    expect(issuesOf({ ...validRoomTemplate('cell'), tiles: ['#.#', '...'] })[0]).toMatch(/^tiles:/)
+    const tallRows = Array.from({ length: 10 }, () => '...')
+    expect(issuesOf({ ...validRoomTemplate('cell'), tiles: tallRows })[0]).toMatch(/^tiles:/)
+  })
+
+  it('rejects a monster id smuggled into a spawn slot', () => {
+    // Positions only: what spawns is the recipe's call, not the room's.
+    const issues = issuesOf({
+      ...validRoomTemplate('cell'),
+      spawnSlots: [{ x: 1, y: 1, monster: 'skeleton-warrior' }],
+    })
+    expect(issues.some((issue) => /^spawnSlots\.0/.test(issue))).toBe(true)
+  })
+})
+
+describe('room template geometry checks', () => {
+  const templateIssues = (id: string, template: unknown) =>
+    loadContent(bundleWith({ roomTemplates: [entry(id, template)] })).issues
+
+  it('accepts a well-formed template', () => {
+    expect(templateIssues('cell', validRoomTemplate('cell'))).toEqual([])
+  })
+
+  it('catches a room split into two floor pockets', () => {
+    // Decision 0025's room-graph check cannot see a wall *inside* a room; the
+    // flood fill can, and a partitioned room would strand a spawn once the
+    // generator placed it.
+    const issues = templateIssues('split', {
+      ...validRoomTemplate('split'),
+      tiles: ['..#..', '..#..', '..#..'],
+      spawnSlots: [],
+    })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.file).toBe('room-templates/split.json')
+    expect(issues[0]?.message).toMatch(
+      /tiles: floor is split into unreachable pockets — only 6 of 12 floor tiles are reachable from \(0, 0\)/,
+    )
+  })
+
+  it('catches a spawn slot on a wall tile', () => {
+    const issues = templateIssues('cell', {
+      ...validRoomTemplate('cell'),
+      spawnSlots: [{ x: 0, y: 0 }],
+    })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.file).toBe('room-templates/cell.json')
+    expect(issues[0]?.message).toBe("spawnSlots.0: (0, 0) is a wall '#', not a floor tile")
+  })
+
+  it('catches a spawn slot outside the room', () => {
+    const issues = templateIssues('cell', {
+      ...validRoomTemplate('cell'),
+      spawnSlots: [{ x: 9, y: 1 }],
+    })
+
+    expect(issues[0]?.message).toBe('spawnSlots.0: (9, 1) is outside the 3x3 room')
+  })
+
+  it('catches a room with no east-edge port for a corridor to reach', () => {
+    const issues = templateIssues('blind', {
+      ...validRoomTemplate('blind'),
+      tiles: ['..#', '..#', '..#'],
+      spawnSlots: [],
+    })
+
+    expect(issues).toHaveLength(1)
+    expect(issues[0]?.file).toBe('room-templates/blind.json')
+    expect(issues[0]?.message).toMatch(/no floor tile on the east edge \(column 2\)/)
+  })
+
+  it('reports both missing ports for a room with no floor at all', () => {
+    const issues = templateIssues('solid', {
+      ...validRoomTemplate('solid'),
+      tiles: ['###', '###', '###'],
+      spawnSlots: [],
+    })
+
+    expect(issues.map((issue) => issue.message)).toEqual([
+      expect.stringMatching(/no floor tile on the west edge \(column 0\)/),
+      expect.stringMatching(/no floor tile on the east edge \(column 2\)/),
+    ])
+  })
+})
+
 describe('ContentRegistry', () => {
   const { registry } = loadContent(
     bundleWith({
       items: [entry('sword', validItem('sword'))],
       lootTables: [entry('table', validLootTable('table', 'sword'))],
+      roomTemplates: [entry('cell', validRoomTemplate('cell'))],
     }),
   )
 
   it('indexes entries by id', () => {
     expect(registry.item('sword').name).toBe('Test Item')
+    expect(registry.roomTemplate('cell').tiles).toEqual(['#.#', '...', '#.#'])
   })
 
   it('throws a named error for an unknown id', () => {
     expect(() => registry.item('nope')).toThrow(/Unknown item id "nope"/)
+    expect(() => registry.roomTemplate('nope')).toThrow(/Unknown room template id "nope"/)
   })
 
   it('reports counts per content type', () => {
     expect(registry.counts.items).toBe(1)
     expect(registry.counts.monsters).toBe(0)
-    expect(registry.totalEntries).toBe(2)
+    expect(registry.counts.roomTemplates).toBe(1)
+    expect(registry.totalEntries).toBe(3)
   })
 })

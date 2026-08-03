@@ -133,9 +133,65 @@ the consumers and they build on the schema this task lands.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:**
+- **What changed:** A new `roomTemplates` content type, exactly the 0440
+  section-1 shape.
+  - `packages/content/src/schemas/room-template.ts` (new):
+    `RoomTemplateSchema` — `id`, `tiles` (`#`/`.` only, ragged rows rejected,
+    width 3–11, height 3–9 via array bounds), `spawnSlots: [{x, y}]`
+    defaulting to `[]`. Exported size constants
+    `ROOM_TEMPLATE_MIN_SIZE/MAX_WIDTH/MAX_HEIGHT` are decision 0037's
+    ratified numbers, recorded not tuned. The header doc comment says which
+    parts of decisions 0024/0025/0026 went where.
+  - `schemas/index.ts`: `roomTemplates` added to `CONTENT_TYPES`
+    (`dir: 'room-templates'`, label `room template`), module re-exported.
+  - `registry.ts`: `emptyRawBundle`/`emptyContentBundle` keys,
+    `ContentRegistry.roomTemplates` + `roomTemplate(id)` + `counts`, and a
+    `checkRoomTemplate` helper called from `checkReferences` (grouped in one
+    block, so 0490's diff stays clean). Ground truth is core's
+    `Grid.fromAscii` + `floodFill`: floor fully connected, every slot an
+    in-bounds floor tile, west-edge and east-edge ports present. No second
+    tile parser; no try/catch around `fromAscii` because the schema is
+    exactly its precondition (stated in the comment).
+  - Four starter templates: `ossuary` (9x7, central bone-stack island),
+    `pillared-hall` (11x5, pillar row), `votive-shrine` (7x5, altar block),
+    `sunken-crypt` (11x9 — the size cap — sarcophagus blocks). All four carry
+    interior walls, so the flood-fill check does real work: sealing
+    `ossuary`'s midline in a throwaway edit produced
+    `tiles: floor is split into unreachable pockets — only 14 of 28 floor
+    tiles are reachable from (1, 1)` plus a slot-on-wall issue, and reverting
+    it returned `content:validate` to 0.
+  - Tests: `registry.test.ts` gains a schema block (ragged rows, `E` and `X`
+    characters, a 12-wide row, out-of-range heights, a monster id smuggled
+    into a slot — each with the failing path named) and a geometry block (a
+    partitioned room, a slot on a wall, a slot out of bounds, a room with no
+    east port, an all-wall room — each asserting the exact `ContentIssue`
+    text and `room-templates/<id>.json` file, plus a clean fixture producing
+    none). `data.test.ts` asserts the shipped set is non-empty, id-keyed, and
+    at least four.
+  - `scripts/bake-content.ts`: the one guarded line (see below).
+  - `docs/decisions/0041-room-template-shape-and-ports.md`.
+- **Replays re-blessed:** None. `git diff --stat origin/main -- packages/sim
+  packages/core` is empty; all 5 replays `ok`; `content-seam --seed 1`
+  still hashes `2e858b7ba2bc7958`. Templates are inert until 0480 consumes
+  them. `verify` green: 30 test files / 455 tests, coverage 93.27% lines /
+  87.25% branches; `content ok — 53 entries` with `roomTemplates 4` and
+  every other count unchanged; `baked 53 entries` (49 on `main`).
 - **Scope deviations:**
-- **Follow-ups worth a new task:**
+  - **Guard, expected:** `scripts/bake-content.ts` gains
+    `roomTemplates: [...registry.roomTemplates.values()],` — the compile
+    error its `ContentBundle` annotation exists to produce. `scripts/` is
+    guard-protected, so the PR's `guard` job fails until the owner applies
+    `gate-change`. Not split out: splitting leaves typecheck red on both
+    sides.
+  - **No `name` field on a template**, following 0440 section 1 verbatim
+    (it gives templates `id`/`tiles`/`spawnSlots` and reserves `name` for the
+    recipe). Templates are never shown to the player, so the id carries the
+    tone. Recorded in decision 0041 so 0490 does not rebuild it differently.
+  - Width bounds live in a `superRefine` (path `tiles.0`) rather than as an
+    array constraint, since width is a property of the rows; height uses
+    `.min()/.max()` on the array (path `tiles`).
+- **Follow-ups worth a new task:** None new — 0440's cut stands. 0480
+  (`generateDungeon`) and 0490 (`dungeon-recipes`) are unblocked and build on
+  this schema unchanged. Note for 0490: `checkReferences`'s template block is
+  a single call site (`checkRoomTemplate`), so a recipe block slots in beside
+  it without touching it.

@@ -1,8 +1,17 @@
 import type { z } from 'zod'
 
-import { buildDungeon } from '@triablo/core'
+import { buildDungeon, Grid } from '@triablo/core'
 
-import type { Affix, ContentTypeKey, Dungeon, ItemBase, LootTable, Monster, Skill } from './schemas'
+import type {
+  Affix,
+  ContentTypeKey,
+  Dungeon,
+  ItemBase,
+  LootTable,
+  Monster,
+  RoomTemplate,
+  Skill,
+} from './schemas'
 import { CONTENT_TYPES, CONTENT_TYPE_KEYS } from './schemas'
 
 /**
@@ -41,11 +50,27 @@ export interface ContentIssue {
  * array appearing at runtime.
  */
 export function emptyRawBundle(): RawBundle {
-  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [], dungeons: [] }
+  return {
+    items: [],
+    affixes: [],
+    lootTables: [],
+    monsters: [],
+    skills: [],
+    dungeons: [],
+    roomTemplates: [],
+  }
 }
 
 function emptyContentBundle(): ContentBundle {
-  return { items: [], affixes: [], lootTables: [], monsters: [], skills: [], dungeons: [] }
+  return {
+    items: [],
+    affixes: [],
+    lootTables: [],
+    monsters: [],
+    skills: [],
+    dungeons: [],
+    roomTemplates: [],
+  }
 }
 
 /**
@@ -98,6 +123,7 @@ export class ContentRegistry {
   readonly monsters: ReadonlyMap<string, Monster>
   readonly skills: ReadonlyMap<string, Skill>
   readonly dungeons: ReadonlyMap<string, Dungeon>
+  readonly roomTemplates: ReadonlyMap<string, RoomTemplate>
 
   constructor(bundle: ContentBundle) {
     this.items = index(bundle.items)
@@ -106,6 +132,7 @@ export class ContentRegistry {
     this.monsters = index(bundle.monsters)
     this.skills = index(bundle.skills)
     this.dungeons = index(bundle.dungeons)
+    this.roomTemplates = index(bundle.roomTemplates)
   }
 
   get counts(): Record<ContentTypeKey, number> {
@@ -116,6 +143,7 @@ export class ContentRegistry {
       monsters: this.monsters.size,
       skills: this.skills.size,
       dungeons: this.dungeons.size,
+      roomTemplates: this.roomTemplates.size,
     }
   }
 
@@ -141,6 +169,9 @@ export class ContentRegistry {
   }
   dungeon(id: string): Dungeon {
     return required(this.dungeons, id, 'dungeon')
+  }
+  roomTemplate(id: string): RoomTemplate {
+    return required(this.roomTemplates, id, 'room template')
   }
 }
 
@@ -226,6 +257,10 @@ export function checkReferences(registry: ContentRegistry): ContentIssue[] {
     }
   }
 
+  for (const template of registry.roomTemplates.values()) {
+    issues.push(...checkRoomTemplate(template))
+  }
+
   for (const affix of registry.affixes.values()) {
     const slotsWithNoItem = affix.slots.filter(
       (slot) => ![...registry.items.values()].some((item) => item.slot === slot),
@@ -236,6 +271,86 @@ export function checkReferences(registry: ContentRegistry): ContentIssue[] {
         message: `slots: no item base exists for slot "${slot}", so this affix can never roll`,
       })
     }
+  }
+
+  return issues
+}
+
+/**
+ * Ground-truth geometry checks for one room template.
+ *
+ * A hand-authored dungeon is validated by running the real `buildDungeon`
+ * (above). A room template has no offsets and no `E`/`X`, so it cannot be
+ * built — but its tiles are the `#`/`.` subset `Grid.fromAscii` accepts, so
+ * the real grid primitives can still answer the three questions a generator
+ * needs answered before it places the room (decision 0041):
+ *
+ * 1. Is the room internally whole? A room split into two floor pockets by an
+ *    authored wall line passes decision 0025's room-graph check — the
+ *    builder can only see room-to-room adjacency — and then strands a
+ *    monster or an exit. `floodFill` sees it.
+ * 2. Does every spawn slot name a floor tile? A slot on a wall becomes a
+ *    monster in the rock at generation time.
+ * 3. Are there ports? The chain generator (task 0480) stitches corridors
+ *    west-to-east, so a template with no floor tile on its west or east edge
+ *    can never be linked into a chain.
+ *
+ * Preconditions come from `RoomTemplateSchema`: non-empty equal-length rows
+ * over `#`/`.`, which is exactly what `Grid.fromAscii` requires. Only
+ * schema-valid templates reach `checkReferences`.
+ */
+function checkRoomTemplate(template: RoomTemplate): ContentIssue[] {
+  const issues: ContentIssue[] = []
+  const file = `room-templates/${template.id}.json`
+  const grid = Grid.fromAscii(template.tiles)
+
+  const floor: { x: number; y: number }[] = []
+  for (let y = 0; y < grid.height; y++) {
+    for (let x = 0; x < grid.width; x++) {
+      if (grid.isWalkable({ x, y })) floor.push({ x, y })
+    }
+  }
+
+  // An all-wall room has nothing to flood-fill; the port checks below report
+  // it (twice, once per missing edge), which is the clearer diagnosis anyway.
+  const first = floor[0]
+  if (first !== undefined) {
+    const reached = grid.floodFill(first).length
+    if (reached !== floor.length) {
+      issues.push({
+        file,
+        message: `tiles: floor is split into unreachable pockets — only ${reached} of ${floor.length} floor tiles are reachable from (${first.x}, ${first.y})`,
+      })
+    }
+  }
+
+  template.spawnSlots.forEach((slot, position) => {
+    if (!grid.inBounds(slot)) {
+      issues.push({
+        file,
+        message: `spawnSlots.${position}: (${slot.x}, ${slot.y}) is outside the ${grid.width}x${grid.height} room`,
+      })
+    } else if (!grid.isWalkable(slot)) {
+      issues.push({
+        file,
+        message: `spawnSlots.${position}: (${slot.x}, ${slot.y}) is a wall '#', not a floor tile`,
+      })
+    }
+  })
+
+  const hasWestPort = floor.some((tile) => tile.x === 0)
+  const hasEastPort = floor.some((tile) => tile.x === grid.width - 1)
+  if (!hasWestPort) {
+    issues.push({
+      file,
+      message: `tiles: no floor tile on the west edge (column 0), so a corridor can never be stitched to this room from the west`,
+    })
+  }
+  if (!hasEastPort) {
+    issues.push({
+      file,
+      message: `tiles: no floor tile on the east edge (column ${grid.width - 1}), so a corridor can never be stitched to this room from the east`,
+    })
   }
 
   return issues
