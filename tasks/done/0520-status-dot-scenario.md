@@ -125,9 +125,96 @@ guard-satisfying explanation for the new replay file.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** a new pinned scenario `status-dot`
+  (`packages/sim/src/scenarios/status-dot.ts`), one alphabetical line in
+  `packages/sim/src/scenarios/index.ts`, and the new golden replay
+  `packages/sim/replays/status-dot.seed1.json` (seed 1, 120 ticks, hash
+  `c1ea4ed4f854f64a`). Nothing outside `packages/sim/` was touched; no core,
+  content, or client file, and no existing scenario or replay.
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
+  Cadence: cast tick 10 + a 0.2 s wind-up (6 ticks, decision 0020's seconds ×
+  30) → every rider applies and takes its first DoT tick at tick 16; the 60th
+  tick is tick 75; `defaultTicks` 120 leaves 45 ticks of margin in which
+  nothing may happen. Three lanes 40 tiles apart, the only effect a melee-hit
+  of reach 2 aimed at a named target, every dummy armor 0 / resist 0 so
+  `computeDamage`'s mitigation factor is exactly 1.
+
+  Because `runScenario` only checks invariants every 25 ticks, the scenario
+  registers a sixth, scenario-local system (`bleed-ledger`) after
+  `deathSystem`; it records each lane's life at the end of *every* tick into a
+  `BleedLedger` component and the invariants judge that recording. The ledger
+  is a component, so the golden replay hash pins the entire per-tick schedule,
+  not just the final numbers.
+
+- **Derivation (from decision 0036, before running anything) — and what the
+  run did:** every number below was computed from the decision's rules and
+  written into the scenario first; the run then reproduced all of them
+  exactly. `assertDerivation()` in the scenario re-states the arithmetic and
+  throws at setup if a constant is edited away from it.
+
+  - Direct hit 10 × 1.0 = **10**; DoT total 10 × 4.4 = **44** over
+    `durationSeconds` 2 = **60 ticks**. Split: floor(440000/60) = **7333
+    quanta (0.7333)** for 59 ticks (= 43.2647), final tick 440000 − 59×7333 =
+    **7353 quanta (0.7353)**, summing to exactly 44.0000.
+  - Lane 1 (maxLife 100): 90 at tick 16 before the first DoT tick, 89.2667
+    after it, −0.7333 every tick through tick 74 (46.7353), −0.7353 on tick
+    75 → **exactly 46.0000**. `StatusEffects` present on ticks 16–74 (59
+    ticks) and removed entirely on tick 75 when the entry list empties.
+    Caster `damageDealt` **54.0000**. Run: matched, every value.
+  - Lane 2 (maxLife 12): direct leaves 2.0000; bleed 0.7333 / 1.4666 / 2.1999
+    crosses it on DoT tick ceil(20000/7333) = 3, i.e. **tick 18**, where the
+    third tick is clamped to the remaining 0.5334 and `deathSystem` reaps the
+    target in that same tick. Caster credited **12.0000** = 10 direct +
+    2.0000 bleed (clamped — never the full 0.7333 tick, never the 44 total).
+    Run: died at tick 18, credit 12. Matched.
+  - Lane 3 (maxLife 100, caster life 20, killed by a scripted executioner
+    casting at tick 30 → resolving at **tick 36**): the target's schedule is
+    identical to lane 1's, delta 0.7333 on every tick either side of the
+    caster's death, ending on 46.0000. The caster's `damageDealt` read at the
+    moment it died is **24.6660** = 10 direct + 20 credited ticks (16–35);
+    tick 36's DoT tick still damaged the target but credited nobody, because
+    the caster was at 0 life when `statusTickSystem` ran. Run: matched —
+    0036's existence+life gate is on *credit*, not on damage.
+
+  No disagreement between decision 0036 and the implementation was found:
+  every derived value was reproduced by the run to the quantum. Seed 7
+  produces byte-identical *life* numbers (only the state hash differs, since
+  the snapshot carries the rng words) — the executor is rng-silent as 0036
+  claims.
+
+- **Probe (done in the working tree, then reverted):** two one-quantum
+  tamperings, each confirming the assertions have tension.
+  1. Lane 1's expected final life shifted by +1 quantum → `FAILED: invariant
+     "lane1-bleeds-out-to-exactly-46" violated at tick 75: lane1-full-bleed
+     ended at 46 life, expected exactly 46.0001 …`.
+  2. The derived schedule function shifted by +1 quantum → `FAILED: invariant
+     "life-schedule-matches-decision-0036" violated at tick 25:
+     lane1-full-bleed: at tick 16 the target is at 89.2667 life, expected
+     exactly 89.2668. That is DoT tick 1 of 60 …` — i.e. the per-tick
+     schedule is asserted at every tick, not just at the end.
+  Both edits were reverted; the committed file is byte-identical to the one
+  that produced the recorded hash (`npm run replay:check` re-verified after).
+
+- **Replays re-blessed:** none. One replay **added**
+  (`packages/sim/replays/status-dot.seed1.json`); all five existing replays
+  are byte-identical and `replay:check` reports all six ok. `npm run verify`
+  is green: 30 test files / 444 tests, smoke 8 scenarios × 20 seeds (including
+  `status-dot`), 6 replays ok.
+
+- **Scope deviations:** none. No decision entry was minted — this task pins
+  decisions 0036/0020/0005/0003, it does not settle anything new. The only
+  judgment call inside the task's discretion was the wind-up (0.2 s = 6 ticks)
+  and the tick schedule, both stated in the file's comments as the task
+  required.
+
 - **Follow-ups worth a new task:**
+  - Coverage note for whoever lands next: aggregate branch coverage moved
+    87.16% → 85.89% against the 85% ratchet. That is expected — an invariant
+    file is mostly failure branches that must not fire (`skill-strike` is at
+    72.6% branches, `dungeon-crawl` at 59.5%, `status-dot` at 71.5%) — but the
+    headroom is now under a point, so a future scenario-heavy PR may need the
+    ratchet re-examined by the human owner rather than quietly lowered.
+  - Not covered here and worth their own scenario when the rules exist:
+    refresh-vs-stack under two casters, riders on burst/projectile/chain
+    deliveries, and DoT interaction with resistances (0036 forecloses the last
+    until a superseding entry).
