@@ -5,6 +5,19 @@
 - **Priority:** 3
 - **Depends on:** 0470-room-templates-content-type.md, 0480-generate-dungeon.md
 
+> ### Amended 2026-08-04 — the reserved `level` field now has a ruled meaning
+>
+> When this file was written, decision 0037 had reserved an optional `level`
+> field on `DungeonRecipeSchema` without saying what it would eventually mean.
+> **Decision 0046 (owner, 2026-08-04) says: it means the difficulty tier —
+> monster density and monster stat scaling at a fixed monster level band — and
+> explicitly NOT monster level.** Nothing about this task's size or shape
+> changes: the field still lands **reserved and unused**, and v1 generation
+> still ignores it. What changes is that the schema doc comment and the
+> decision entry must now say what it means instead of leaving it open. The
+> amendments are marked inline as *Amended*; the original text is kept rather
+> than silently overwritten.
+
 ## Goal
 
 Third cut of the 0440 procgen plan (its sections 1 and 6.C). Room templates
@@ -41,6 +54,12 @@ roster.
 - *Superseded by decision 0037:* the owner ruled on 0440's open question 1
   — recipes DO carry an optional `level` field (see Requirements). Any
   *behavior* keyed off it is still out of scope: v1 generation ignores it.
+- *Added 2026-08-04, per decision 0046:* **any difficulty behaviour.** Scaling
+  monster density or monster stats from the tier, deriving an item level from
+  it, or touching `populateDungeon`'s `monsterFor` closure
+  (`packages/core/src/world/populate.ts:43-48`) is a **later task**, and it is
+  blocked on this one plus `tasks/open/0420-loot-drop-on-death.md`. You land
+  the field and its documented meaning; you wire nothing to it.
 - More templates or recipes (plan task G is future content breadth), knob
   tuning, or changing 0470's template schema.
 
@@ -61,6 +80,18 @@ roster.
   only in `level` generate identical dungeons at the same seed). It exists
   so phase-3 item-power scaling is additive rather than a migration across
   every recipe file.
+- *Amended 2026-08-04 — what `level` means, per decision 0046.* The field's
+  doc comment must say, in the schema file, that it is the **difficulty tier**:
+  *"more spawns, more life, more damage"* at a **fixed monster level band**,
+  and **not** a monster level. Decision 0046 rejected monster level as the
+  difficulty axis because decision 0004 scales armor mitigation by attacker
+  level (14 armor mitigates 58.3% at attacker level 1 and 2.0% at level 70), so
+  raising monster levels would collapse armor's share of a full gear set's
+  defensive value from 52.6% to 14.6% and make max-life the only defensive stat
+  that matters. Name it in the comment so the next reader cannot re-derive the
+  wrong meaning: **a recipe's `level` never reaches `Combatant.level`.** The
+  field stays reserved and unused in v1 exactly as above — this is a comment
+  and a decision-entry change, not a behaviour change.
 - **Reference checks in `checkReferences`:** every `templates` entry
   resolves to a room template and every `monsters` entry to a monster —
   same style as the existing monster→lootTable checks, each failure a
@@ -82,7 +113,9 @@ roster.
   four 0470 templates, `monsters` drawn from the existing undead files
   (`packages/content/data/monsters/` — zombie, skeleton-warrior,
   skeleton-archer, grave-hulk, bone-mage all exist; pick 2–4 with sane
-  weights). It must pass its own fixed-seed proof.
+  weights). It must pass its own fixed-seed proof. *Amended: if you set
+  `level` on it at all, set it to 1 — tier 1 is the baseline, and a later
+  difficulty task will require tier 1 to be the identity so no replay moves.*
 - **The guarded one-liner:** adding `dungeonRecipes` to `CONTENT_TYPES`
   breaks `scripts/bake-content.ts`'s typed bundle literal exactly as 0470's
   key did. Same protocol: include the one-line fix, expect the guard job to
@@ -92,6 +125,8 @@ roster.
   the knob defaults as shipped (cite 0037, which ratified them), the
   fixed-validation-seed convention, and that `level` is reserved-and-ignored
   per decision 0037 — not absent, and not yet wired to anything.
+  *Amended 2026-08-04: it must also record that `level` means the **difficulty
+  tier** per **decision 0046**, and not monster level.*
 
 ## Acceptance criteria
 
@@ -112,8 +147,13 @@ roster.
 - [ ] `registry.test.ts`: the same fixture recipe validated twice produces
       identical issues (or none) — the fixed-seed proof is deterministic
       across runs in one process.
+- [ ] *(added 2026-08-04)* The test proving `level` is ignored names the
+      field's meaning — e.g. `'two recipes differing only in difficulty tier
+      generate identical dungeons (decision 0046: the tier is reserved and
+      unused in v1)'` — so the next reader learns the meaning from the test
+      name, not by guessing.
 - [ ] A new `docs/decisions/` entry as specified (check the highest number
-      on `main` first).
+      on `main` first — it is **0048** as of 2026-08-04).
 
 ## Notes for the implementer
 
@@ -121,13 +161,17 @@ roster.
   landed decision entries — the knob names here must match 0480's
   `GenerateDungeonInput` field-for-field, or the registry-side assembly
   becomes a translation layer nobody recorded.
+- *Added 2026-08-04:* read **decision 0046** too. It is short, and it is the
+  only place the `level` field's meaning is written down.
 - `registry.ts` already imports `buildDungeon` from `@triablo/core`;
   importing `generateDungeon` and `Rng` follows the same sanctioned
   content→core direction. Keep the generation proof after the reference
   checks and skip it when references failed — half-resolved input must not
   reach the generator.
 - 0470 touched the same registry/schema files; this lands second by
-  dependency, but rebase onto `main` before the PR anyway.
+  dependency, but rebase onto `main` before the PR anyway. *Added: open task
+  0690 also adds a rule to `checkReferences` in `packages/content/src/registry.ts`
+  — different loop, same function; expect a trivial merge.*
 
 ---
 
