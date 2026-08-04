@@ -5,6 +5,27 @@
 - **Priority:** 1 (lower runs first)
 - **Depends on:** none
 
+> ### Amended 2026-08-04 — the calibration constants are now owner-supplied
+>
+> This file was written before the owner ruled on character progression, so
+> three of its four calibration constants were explicitly stand-ins. Decisions
+> **0045**, **0046** and **0047** landed on 2026-08-04 and supply them. Each
+> amendment below is marked inline as *Amended*; superseded text is kept
+> (quoted or struck) rather than silently overwritten, so a reader can see what
+> moved and why. The amendments:
+>
+> 1. **`BUDGET_CALIBRATION`'s four constants are now real numbers** from
+>    decisions 0045 and 0047 — see "What the module must make explicit".
+> 2. **The decision entry no longer says these are assumptions standing in for
+>    character progression** — that landing has happened. See the amended
+>    acceptance criterion.
+> 3. **Decision 0046 settles the armor-ceiling question** that task 0650 §7
+>    raised as owner question 6: the "strictly rising for every priced pair"
+>    criterion **stands, armor included** — see "Armor ceilings still rise".
+>
+> Nothing else changed: role, priority, files in scope, out of scope, the
+> exported contract, and every other requirement are as originally written.
+
 ## Goal
 
 Phase 3's first roadmap bullet is "Affix system with tiers and power budgets".
@@ -25,8 +46,8 @@ This is task 0570's T3 under decision 0044's Model A ruling.
 - `packages/core/src/loot/budget.ts` (new)
 - `packages/core/src/loot/budget.test.ts` (new)
 - `packages/core/src/index.ts` — re-exports only
-- `docs/decisions/` — one new numbered entry (highest on `main` is **0044**;
-  check before you commit)
+- `docs/decisions/` — one new numbered entry (*amended 2026-08-04: the highest
+  on `main` is now **0048**, not 0044; check before you commit*)
 
 ## Out of scope
 
@@ -45,6 +66,10 @@ This is task 0570's T3 under decision 0044's Model A ruling.
   (rejected for now by decision 0044 §1).
 - A balance-sim harness. Decision 0044 §5: Model A does not require one, and
   if one is ever built it runs beside the gate as `npm run sim -- balance`.
+- *Added 2026-08-04:* **character progression itself.** Tasks 0660–0680 ship
+  the level cap, the XP curve and the award system. You consume decision 0045's
+  ruling (levels grant no power, so the ungeared reference is fixed); you do
+  not implement or tune anything about levels.
 
 ## What decisions 0043 and 0044 already settled — do not re-decide these
 
@@ -58,6 +83,9 @@ Read both before writing a line.
 | Per-slot pool floor stays 3 prefixes / 3 suffixes | 0044 §4 | Raising it is a phase-4 content task. Not yours. |
 | The power curve is **long and shallow** — levels early, then gear forever | 0043 | Ceilings must keep rising to the end of the legal item-level range, and no single slot may be transformative. |
 | **The measured ×2.6 is NOT the target** | 0043 | Do **not** calibrate "so no shipped affix moves". See below. |
+| *(added 2026-08-04)* A character level grants **no combat power**; cap 70; the ungeared statline is decision 0030's avatar **at every level** | 0045 | `referenceUngeared` is a fixed, measured block — not an assumption, and it does not move with level. |
+| *(added 2026-08-04)* Difficulty is **density and monster stats at a fixed level band**, not monster level | 0046 | The attacker level a ratio is measured against does not drift with difficulty, and armor does not decay into irrelevance. See "Armor ceilings still rise". |
+| *(added 2026-08-04)* `targetFullSetRatio` ×10 EHP / ×7 offence **at attacker level 70**; `maxSingleSlotShare` 3× the equal share; `endgameItemLevel` 100 | 0047 | The three numbers this task was missing. Consume them verbatim. |
 
 ## The calibration rule — this is the part that is easy to get wrong
 
@@ -70,6 +98,18 @@ Consequences say re-costing some shipped affixes "is expected and cheap".
 So: **expect this task's output to declare some currently-shipped affixes over
 budget.** That is a success condition, not a failure. Report them; task 0610
 moves them.
+
+> *Amended 2026-08-04 — one nuance decision 0047 adds.* The owner's target
+> (×10 EHP, ×7 offence at attacker level 70) sits **above** the shipped pool's
+> measured floor (×3.3650 EHP, ×2.5556 offence at the same attacker level —
+> 0047's Context), i.e. roughly `10 / 3.3650 = ×2.97` and
+> `7 / 2.5556 = ×2.74` of headroom. Ceilings derived from a target that
+> generous may legitimately ratify most authored rolls, so an over-budget
+> report that is short — or empty — is now a **plausible** outcome rather than
+> a surprising one. The acceptance criterion below already demands an argument
+> in that case; this headroom is that argument, and 0047's Consequences say the
+> follow-up is content work ("Extending affix tiers from item level 40 to 100
+> is therefore expected content work, not scope creep"), not re-costing.
 
 Two measurements made while writing this task file, both reproducible:
 
@@ -97,38 +137,103 @@ Two measurements made while writing this task file, both reproducible:
    | 100 | 202.8 | 348.6 | **×1.7189** |
 
    Same item, same character sheet, different measuring stick. Quote the
-   endgame column.
+   endgame column. *Amended 2026-08-04: decision 0047 fixes the measuring stick
+   at **attacker level 70**, and requires it to be carried as a field of the
+   ratio — see below.*
 
 ### What the module must make explicit
 
-There is **no owner-supplied numeric target** for the endgame ratio: 0043
-fixed the *shape* (long, shallow, endgame-calibrated) and 0044 fixed the
-*mechanism*, and neither names a number. There is also **no character
-progression in the repo** — no XP, no level-up, no max level, no ungeared
-endgame statline; the roadmap puts "Character progression, skill tree, respec"
-later in phase 3.
+> *Amended 2026-08-04.* The paragraph this section opened with is kept below
+> because it explains why `BUDGET_CALIBRATION` exists as a single block — but
+> its premise no longer holds:
+>
+> > ~~There is **no owner-supplied numeric target** for the endgame ratio: 0043
+> > fixed the *shape* (long, shallow, endgame-calibrated) and 0044 fixed the
+> > *mechanism*, and neither names a number. There is also **no character
+> > progression in the repo** — no XP, no level-up, no max level, no ungeared
+> > endgame statline; the roadmap puts "Character progression, skill tree,
+> > respec" later in phase 3.~~
+>
+> Decision **0047** names every number, and decisions **0045**/**0048** put
+> progression into phase 3 (tasks 0660–0680). The block below is therefore
+> **derived and cited**, not assumed. Its values are still owner-reviewable —
+> 0047 calls them "a **first calibration**, revised by playtest" — so the
+> single-block design and the "retuning is editing that block" rule stand
+> unchanged.
 
 Therefore the module must carry **exactly one exported calibration block** —
 name it something like `BUDGET_CALIBRATION` — holding every number the owner
 would want to argue with, and nothing else in the file may hard-code a target.
-At minimum it declares:
+It declares, with these values:
 
-- `endgameItemLevel` — 100, cited to `LevelSchema`.
-- `referenceUngeared` — the ungeared statline the ratios are measured against,
-  with a comment stating plainly that it is an assumption standing in for
-  progression that does not exist yet, and naming decision 0030's avatar as
-  its only precedent.
-- `targetFullSetRatio` — the fully-geared-vs-ungeared multiplier at
-  `endgameItemLevel`, per axis (at least offense and effective HP). This is
-  0043's "endgame ratio". Mark it **owner-reviewable default** in the comment
-  and in the decision entry.
-- `maxSingleSlotShare` — the ceiling on any one slot's share of the gear-granted
-  gain, encoding 0043's "a single drop should be a meaningful but incremental
-  step".
+- **`endgameItemLevel` = 100.** Decision 0047, which also notes this is already
+  `LevelSchema`'s cap, so no `gate-change` is needed. It is deliberately **30
+  levels above the character cap of 70** (decision 0045) — item level and
+  character level are different scales, and that gap is the headroom "harder
+  dungeons drop better loot" needs. Do not cap it at 70.
+- **`referenceUngeared` = decision 0030's slice avatar, verbatim:**
+  `{ life: 200, armor: 14, damage: 18, damageType: 'physical',
+  attackIntervalSeconds: 1.2, moveSpeed: 2.4 }`.
+  *Amended:* the comment no longer says this is an assumption standing in for
+  progression. Decision 0045 rules that levels grant no combat power and that
+  **the reference ungeared statline at any level is this block** — identical at
+  level 1 and at level 70. Cite 0045 and 0030 in the comment, and state that
+  gear is the sole power source, which is what makes calibrating against a
+  fixed reference legitimate.
+- **`targetFullSetRatio` = ×10 effective HP and ×7 offence**, both **measured
+  against attacker level 70** (decision 0047).
+  **The measuring-stick level is part of the constant**: the block must carry
+  it as a named field (e.g. `measuredAgainstAttackerLevel: 70`) beside the
+  ratios, never in a comment only. 0047 is explicit that "a ratio without its
+  level is meaningless" — measurement 2 above is the demonstration, where one
+  chest is ×2.59 against a level-5 attacker and ×1.72 against a level-100 one.
+  Any future axis added to this block carries its own measuring stick the same
+  way.
+- **`maxSingleSlotShare` = 3 × the equal share** (decision 0047). With nine
+  equipment slots authored today (`packages/content/data/items/*.json`: 11
+  bases across chest, amulet, ring, head, main-hand, legs, off-hand, hands,
+  feet) the equal share is `1/9 = 11.11%` and the ceiling is `3/9 = 33.33%` of
+  the gear-granted gain. 0047 ratifies today's chest at 31.4% under this and
+  states the intent: "Slot asymmetry is intended: forcing every slot equal
+  makes them interchangeable, against DESIGN.md pillar 2." Encode it as the
+  multiple (3×) applied to the equal share, not as a bare `0.3333`, so it
+  follows the slot count if a tenth slot is ever authored.
 
 Every ceiling in the file is *derived* from that block by arithmetic you show
 in the decision entry. Retuning must be editing that block, never hunting
 constants.
+
+### Armor ceilings still rise (decision 0046) — *added 2026-08-04*
+
+Task 0650 §7 flagged as **owner question 6** that this task's monotonic
+criterion might need an exception for `armor/flat`: if difficulty were monster
+level, armor budgets would have to scale with attacker level to keep pace, and
+if difficulty were a fixed band, armor's *displayed* mitigation would saturate
+and the ceilings might have to flatten.
+
+**Decision 0046 answers it: difficulty is density and monster stats at a fixed
+level band, not monster level, and decision 0004 stands unchanged.** Its
+Consequences rule the saturation point explicitly: the displayed mitigation
+percentage saturating (450 armor reads as 90%, 950 as 95%) "is a presentation
+and feel concern, **not** a power ceiling: at a fixed attacker level the
+effective-HP factor is `(armor + 50) / 50`, linear and unbounded."
+
+So:
+
+- **The `max(…, 100) > max(…, 60) > max(…, 40)` criterion stands for every
+  priced pair, `armor/flat` included.** No exception is granted here.
+- 0046 leaves you exactly one related judgement — "Whether `armor/flat` budget
+  ceilings should flatten in response is therefore a **feel** ruling for
+  whoever authors them (task 0600)". If you want armor's curve to rise *more
+  slowly* than another stat's, that is yours to choose, it must stay strictly
+  rising, and it must be recorded in the decision entry citing 0046.
+- **Do not import the "armor must scale linearly with item level" requirement**
+  from task 0650 §1(a). It was conditional on difficulty being monster level,
+  which 0046 rejected. (If you ever need the number behind it: preserving the
+  shipped set's armor multiplier against an attacker of level `L` costs
+  `44.19 + 21.5625 × L` total armor — 475 at L=20, 1554 at L=70. The `22 × L`
+  shorthand 0650 §1(a) also prints is ~7% low at item level 20 — 440 against
+  475 — and should not be quoted.)
 
 ## Contract
 
@@ -169,7 +274,8 @@ are `combat/stats.ts`.
 - **Long (decision 0043).** For every priced pair, the ceiling at item level
   100 is strictly greater than at 60, which is strictly greater than at 40.
   Today's pool fails this trivially — nothing unlocks above 40 — which is the
-  point.
+  point. *Amended 2026-08-04: this holds for `armor/flat` too — see "Armor
+  ceilings still rise".*
 - **Quantum.** Every returned number lands on decision 0005's quantum,
   `1 / STAT_SCALE` with `STAT_SCALE = 10_000` (`combat/stats.ts:101`). The
   interpolation's rounding is yours as long as it lands there.
@@ -182,7 +288,8 @@ are `combat/stats.ts`.
     consuming a draw (`rng.ts:115-119`), a hash-visible cliff. Worth a comment.
   - `ARMOR_K = 10` (`damage.ts:95`) — armor's worth is attacker-level-relative,
     so a flat armor ceiling generous at level 5 is negligible at 100. The
-    table above is the demonstration.
+    table above is the demonstration. *Amended: measure it at attacker level
+    **70**, the level decision 0047 pins the ratio to.*
   - `increased` values are authored as fractions (0.03 = +3%), so those
     curves are in fractions, not points. Do not mix them with `flat`.
 - **Mode separation.** `flat` and `increased` get separate curves. Decision
@@ -245,7 +352,8 @@ The attribute crossovers that make decision 0044 §3 load-bearing:
       with a message naming the value.
 - [ ] Test: for every priced pair, `max(…, 100) > max(…, 60) > max(…, 40)`
       and the curve is non-decreasing across `1..100` — the decision-0043
-      "long" criterion.
+      "long" criterion. *Amended 2026-08-04: no pair is exempt; decision 0046
+      removed the `armor/flat` exception task 0650 §7 anticipated.*
 - [ ] Test: every value returned across `1..100` for every priced pair equals
       `Math.round(v * STAT_SCALE) / STAT_SCALE`.
 - [ ] Test: `budgetedContributions([{ stat: 'dexterity', mode: 'flat', min: 5, max: 9 }])`
@@ -258,26 +366,43 @@ The attribute crossovers that make decision 0044 §3 load-bearing:
       ceiling is the one that actually bounds a decision-0014 rare.
 - [ ] Test: the resist ceilings never exceed `RESIST_CAP`, and the crit-chance
       ceiling never reaches 100 points, each citing the mechanical anchor.
+- [ ] *(added 2026-08-04)* Test: `BUDGET_CALIBRATION` pins decision 0047's
+      constants — `endgameItemLevel` 100, `targetFullSetRatio` ×10 effective HP
+      and ×7 offence, its measuring-stick field equal to **70**, and
+      `maxSingleSlotShare` equal to 3 × the equal share — each with a comment
+      citing 0047. A reviewer must see all four numbers by reading one test.
+- [ ] *(added 2026-08-04)* Test: `referenceUngeared` deep-equals decision
+      0030's avatar block (`life: 200, armor: 14, damage: 18,
+      damageType: 'physical', attackIntervalSeconds: 1.2, moveSpeed: 2.4`),
+      with a comment citing 0045 for why it does not vary with level.
 - [ ] **The Outcome lists, affix by affix and tier by tier, every shipped
       `(affix, tier, mod)` whose `max` exceeds `maxAtItemLevel` at that tier's
       `itemLevel`**, with the authored value, the ceiling, and the ratio. If
       the list is empty, say so and explain how a curve calibrated to an
       endgame ratio happened to ratify every authored number — that would be
       surprising and needs an argument. This list is task 0610's work order,
-      so it must be complete.
+      so it must be complete. *Amended 2026-08-04: with 0047's target ~3×
+      above the shipped floor, a short or empty list is plausible; the
+      required argument is the headroom arithmetic in "The calibration rule".*
 - [ ] A new `docs/decisions/` entry recording: the curve shape and anchors,
       the calibration block and the arithmetic deriving ceilings from it, the
       `more` default-deny, the attribute-derivation ruling, the priced-vs-denied
-      policy for `strength`/`resist-shadow`, the mechanical anchors used, and
-      an explicit note that `referenceUngeared` and `targetFullSetRatio` are
-      assumptions standing in for character progression and are superseded
-      when it lands.
+      policy for `strength`/`resist-shadow`, and the mechanical anchors used.
+      *Amended 2026-08-04:* it **must cite decisions 0045 and 0047 as the
+      source of `referenceUngeared` and `targetFullSetRatio`**, and it must
+      **not** repeat the original wording that they "are assumptions standing
+      in for character progression and are superseded when it lands" — that
+      landing has happened. Record instead, in 0047's own words, that these are
+      "a first calibration, revised by playtest", plus any armor-curve feel
+      ruling you made under decision 0046.
 
 ## Notes for the implementer
 
 - Read `tasks/done/0570-power-budgets-scouting.md` §2 (what the repo already
   constrains) and §3 Model A, then decisions 0043 and 0044. Then decisions
-  0004, 0005, 0014, 0015, 0031.
+  0004, 0005, 0014, 0015, 0031. *Amended 2026-08-04: then decisions **0045,
+  0046 and 0047** — they supply the calibration block, and all three are
+  short.*
 - **How to produce the over-budget report without violating layering:** write
   a throwaway script at the repo root (e.g. `scratch-budget-audit.ts`) that
   `fs.readdirSync`s `packages/content/data/affixes/`, imports your module,
@@ -296,7 +421,7 @@ The attribute crossovers that make decision 0044 §3 load-bearing:
   on an inert stat is still honest and still worth having — it is a cap on
   what an author may write, not a claim about worth. What is *not* honest is
   leaving them with no entry at all.
-- Tasks `0420-loot-drop-on-death.md` and `0590` also add a line to
+- Tasks `0420-loot-drop-on-death.md`, `0590` and now `0660` also add a line to
   `packages/core/src/index.ts`. Expect a one-line merge conflict; keep both
   exports. Rebase onto `main` before opening the PR.
 
