@@ -429,10 +429,199 @@ The attribute crossovers that make decision 0044 §3 load-bearing:
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** `packages/core/src/loot/budget.ts` (new) exports
+  `BUDGET_CALIBRATION`, `BUDGET_DENIALS`, `maxAtItemLevel`,
+  `maxPerSlotAtItemLevel` and `budgetedContributions`;
+  `packages/core/src/loot/budget.test.ts` (new, 27 tests);
+  `packages/core/src/index.ts` gained a re-export block;
+  `docs/decisions/0050-affix-budget-curve-shape-and-anchors.md` (new). No
+  consumer — that is the intended end state, as `generateDungeon` landed in
+  task 0480.
 
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Over-budget shipped affixes (task 0610's work order):**
+  **The derivation, end to end.** One shared growth curve,
+  `g(l) = (l + 10) / 110`, affine in item level with both anchors derived:
+  `g(100) = 1` is decision 0047's `endgameItemLevel`, and `g(1) = 1/10` is
+  `1 / targetFullSetRatio.effectiveHp` (the curve's dynamic range is the
+  target's). Then `perSlot = share × concentration × fullSetGain` and
+  `perMod = perSlot / perKindAffixCap` (3, decision 0014).
+
+  Axis targets in each stat's own units. The effective-HP axis is a *product*
+  of life and armor, so ×10 cannot apportion itself between them: the measured
+  shipped nine-slot max set supplies the life:armor shape and a solved factor
+  `k = 2.9499` supplies the magnitude. The measurement reproduces decision
+  0047's Context exactly — life 200 → 564, armor 14 → 152 is **×3.3650420**
+  effective HP at attacker level 70, and damage 18 → 46 is **×2.5555…** — so
+  the block is measuring the pool 0047 measured. Scaling those gains by `k`
+  gives life gain 1073.76 and armor gain 407.09, which return **×10.0000** at
+  attacker level 70; a main hand at its per-slot damage ceiling (108 on a base
+  of 18) returns **×7.0000**. Both are pinned by tests that recompute the ratio
+  from the exported ceilings rather than from a hard-coded number.
+
+  Offence axes each carry the whole ×7 in their own units (damage 108 flat,
+  attack-speed +600%, crit-damage 600 points at full crit). Where the engine
+  imposes a roof, the roof is the axis target: `RESIST_CAP` 75, and 100 points
+  for crit-chance. `life-regen` and `move-speed` — which no target measures —
+  scale the measured pool by the conservative factor `k`.
+
+  Judgment calls recorded in decision 0050: the affine shape and its two
+  anchors; the set → slot → mod chain; the spread/concentrated axis split
+  (an axis whose target is a *measured nine-slot sum* — `max-life`, `armor`,
+  `life-regen`, `move-speed` — takes 0047's 3/9 share literally, because the
+  target already is "what nine slots deliver"; an axis whose target is a
+  *whole-character statement* — `damage`, `attack-speed`, `crit-damage`, the
+  resistances — is concentrated at `1/share = 3`, so one slot at ceiling
+  delivers the whole axis target; `crit-chance` is the mechanical exception,
+  spread because concentrating it lands one slot's ceiling on exactly
+  `100 × (3/9) × 3 = 100.0` points, the `Rng.chance` `p >= 1` cliff); pricing
+  `strength` through its derivation and `resist-shadow` as its siblings' twin;
+  denying `attack-speed/flat` for want of a unit; and **no `armor/flat`
+  exception** — decision 0046 withdrew it, so armor rises on the same curve as
+  everything else.
+
+  **Post-review amendment (PR #76, first integrator pass).** Two fixes on the
+  same branch, kept visible rather than silently overwritten:
+  1. **`life-regen` and `move-speed` moved from concentrated to spread.** The
+     first draft justified concentration thematically ("boots *are* the
+     movement slot"); the review pointed out that `move-speed` spans four
+     authored slots and `life-regen` five, so the rationale did not describe
+     them, and that the default loosened 33 pairs 3× on the strength of the
+     single concentration number the owner ratified. The classification is now
+     derivational rather than thematic — see above — which puts both stats on
+     the literal share and leaves the weapon-ish axes concentrated for a
+     reason that follows from how their targets were computed. Effect: one
+     item's `move-speed` ceiling at item level 100 drops from **+106.2%** to
+     **+35.4%** (per mod +35.4% → +11.8%), `life-regen`'s per-mod ceiling from
+     20.65 to 6.88, and the over-budget list grows from 32 rows to 40 — 8 new
+     rows, 2 rows changed (`of-haste`/`of-the-stag` tier 2), 30 untouched.
+  2. **Decision 0050 now cites 0045 and 0047 as the sources of
+     `referenceUngeared` and `targetFullSetRatio`.** The first draft cited 0047
+     ten times and 0045 not at all, so a reader of the entry — which is what
+     the owner actually reviews — could not learn where `life: 200, armor: 14`
+     came from or why holding it fixed across all character levels is
+     legitimate. `budget.ts` and the test always had it; the entry did not.
+
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty and `git diff --stat main -- packages/content packages/sim
+  packages/client` is empty. Nothing consumes this module, and Model A is
+  authoring-time by construction (decision 0044) — a roll-time budget would
+  have changed `rollItem`'s draw order and moved every loot replay. `npm run
+  verify` after merging `main`: 35 test files, 570 tests passed; 8 smoke
+  scenarios × 20 seeds ok; 6 replays ok (27 of those tests and the new
+  decision are this task's; the rest arrived with task 0660). `npm run sim -- run loot-smoke --seed 1 --verbose` rolls the
+  same items as before, and its trace is its own evidence for the report
+  below: at item level 50 the pool still hands out tier-2 and tier-3 affixes,
+  because nothing unlocks above item level 40.
+
+- **Scope deviations:** none. Files in scope only; no content, sim or client
+  file touched; `packages/core/src/loot/roll.ts` untouched. The over-budget
+  audit ran from a throwaway script outside the repo (a scratchpad directory
+  rather than the repo root, so `git status` could never see it); it is
+  deleted and `git status` shows only the four files above.
+
+  One numbering note: this entry was written as 0049 and **renumbered to 0050**
+  after task 0660's PR merged first and took 0049 (the decisions README's
+  "whoever merges second renumbers"). `main` was merged in before opening the
+  PR; the expected one-line `packages/core/src/index.ts` conflict resolved
+  keeping both export blocks.
+
+- **Over-budget shipped affixes (task 0610's work order):** **40 of the 53
+  authored (affix, tier, mod) entries** exceed `maxAtItemLevel` at their own
+  tier's `itemLevel`. The list is complete — it was generated by walking every
+  tier of every file in `packages/content/data/affixes/` through
+  `budgetedContributions` and comparing against the module. `legal from` is
+  the lowest item level at which the authored value is under the ceiling; it
+  is the cheap fix in every row but two, and it matches decision 0047's
+  Consequences ("extending affix tiers from item level 40 to 100 is expected
+  content work").
+
+  *(This table was 32 rows before the post-review amendment above. The 30 rows
+  the integrator verified exactly are unchanged; `of-haste`/`of-the-stag` tier
+  2 changed ceiling, and the 8 `move-speed`/`life-regen` rows marked **new**
+  were added when both axes became spread.)*
+
+  | affix | tier | ilvl | stat/mode | authored | ceiling | ratio | legal from | |
+  |---|---|---|---|---|---|---|---|---|
+  | brutal | 1 | 35 | damage/flat | 20 | 14.7273 | ×1.36 | 52 |
+  | brutal | 2 | 15 | damage/flat | 12 | 8.1818 | ×1.47 | 27 |
+  | brutal | 3 | 1 | damage/flat | 6 | 3.6000 | ×1.67 | 9 |
+  | fell | 1 | 35 | crit-chance/flat | 7 | 4.5455 | ×1.54 | 60 |
+  | fell | 2 | 15 | crit-chance/flat | 4 | 2.5253 | ×1.58 | 30 |
+  | fell | 3 | 1 | crit-chance/flat | 2 | 1.1111 | ×1.80 | 10 |
+  | ironbound | 2 | 1 | armor/flat | 6 | 4.5232 | ×1.33 | 5 |
+  | keen | 1 | 40 | crit-chance/flat | 7 | 5.0505 | ×1.39 | 60 |
+  | keen | 2 | 15 | crit-chance/flat | 4 | 2.5253 | ×1.58 | 30 |
+  | keen | 3 | 1 | crit-chance/flat | 2 | 1.1111 | ×1.80 | 10 |
+  | lithe | 1 | 20 | crit-chance/flat | 4.5 (9 dexterity) | 3.0303 | ×1.49 | 35 |
+  | lithe | 2 | 1 | crit-chance/flat | 2 (4 dexterity) | 1.1111 | ×1.80 | 10 |
+  | of-embers | 1 | 35 | resist-fire/flat | 18 | 10.2273 | ×1.76 | 70 |
+  | of-embers | 2 | 15 | resist-fire/flat | 12 | 5.6818 | ×2.11 | 43 |
+  | of-embers | 3 | 1 | resist-fire/flat | 6 | 2.5000 | ×2.40 | 17 |
+  | of-haste | 1 | 20 | move-speed/increased | 0.09 | 0.0322 | ×2.80 | 74 | **new** |
+  | of-haste | 2 | 1 | move-speed/increased | 0.05 | 0.0118 | ×4.24 | 37 | *changed* |
+  | of-hunger | 1 | 35 | life-regen/flat | 7 | 2.8158 | ×2.49 | **never** | **new** |
+  | of-hunger | 2 | 15 | life-regen/flat | 4 | 1.5643 | ×2.56 | 54 | **new** |
+  | of-hunger | 3 | 1 | life-regen/flat | 2 | 0.6883 | ×2.91 | 22 | **new** |
+  | of-the-bear | 1 | 25 | max-life/flat | 48 | 37.9614 | ×1.26 | 35 |
+  | of-the-bear | 2 | 1 | max-life/flat | 24 | 11.9307 | ×2.01 | 13 |
+  | of-the-plague | 1 | 22 | resist-poison/flat | 15 | 7.2727 | ×2.06 | 56 |
+  | of-the-plague | 2 | 1 | resist-poison/flat | 8 | 2.5000 | ×3.20 | 26 |
+  | of-the-stag | 1 | 20 | move-speed/increased | 0.09 | 0.0322 | ×2.80 | 74 | **new** |
+  | of-the-stag | 2 | 1 | move-speed/increased | 0.05 | 0.0118 | ×4.24 | 37 | *changed* |
+  | of-the-storm | 1 | 22 | resist-lightning/flat | 15 | 7.2727 | ×2.06 | 56 |
+  | of-the-storm | 2 | 1 | resist-lightning/flat | 8 | 2.5000 | ×3.20 | 26 |
+  | of-the-tide | 1 | 22 | resist-cold/flat | 15 | 7.2727 | ×2.06 | 56 |
+  | of-the-tide | 2 | 1 | resist-cold/flat | 8 | 2.5000 | ×3.20 | 26 |
+  | of-vigor | 1 | 35 | life-regen/flat | 7 | 2.8158 | ×2.49 | **never** | **new** |
+  | of-vigor | 2 | 15 | life-regen/flat | 4 | 1.5643 | ×2.56 | 54 | **new** |
+  | of-vigor | 3 | 1 | life-regen/flat | 2 | 0.6883 | ×2.91 | 22 | **new** |
+  | stalwart | 2 | 1 | armor/flat | 6 | 4.5232 | ×1.33 | 5 |
+  | storm-warded | 1 | 22 | resist-lightning/flat | 15 | 7.2727 | ×2.06 | 56 |
+  | storm-warded | 2 | 1 | resist-lightning/flat | 8 | 2.5000 | ×3.20 | 26 |
+  | undying | 1 | 25 | max-life/flat | 48 | 37.9614 | ×1.26 | 35 |
+  | undying | 2 | 1 | max-life/flat | 24 | 11.9307 | ×2.01 | 13 |
+  | vital | 1 | 20 | max-life/flat | 36 (9 vitality) | 32.5383 | ×1.11 | 24 |
+  | vital | 2 | 1 | max-life/flat | 16 (4 vitality) | 11.9307 | ×1.34 | 5 |
+
+  Reading it: the pool is authored as if item level 20–40 were the endgame,
+  which is exactly 0047's "today's shipped pool becomes the mid-game" stated
+  per-affix. The 13 entries that pass include every `of-ruin` and
+  `of-the-wolf` tier, `swift`, `runed`, and the high tiers of
+  `ironbound`/`stalwart` — so the ceilings are not uniformly tighter than the
+  pool. Three clusters are worth a content decision rather than a mechanical
+  edit:
+  - **The five resistance affixes** (11 rows). 15–18 points against a hard
+    `RESIST_CAP` of 75, unlocking at item level 22, is an endgame-sized roll
+    with nowhere to grow — the purest instance of the 60-dead-levels problem.
+  - **The tier-1 unlock levels of `keen`/`fell` and `of-the-bear`/`undying`.**
+    The rolls themselves are fine; they arrive **10–25 item levels too early**
+    — `of-the-bear`/`undying` T1 by 10 (25 → 35), `keen` T1 by 20 (40 → 60),
+    `fell` T1 by 25 (35 → 60). *(An earlier draft of this line said "10–20",
+    which understated `fell`; the table always had the right numbers.)*
+  - **`of-hunger`/`of-vigor` tier 1 are the only two rows legal at no item
+    level**: 7 life-regen against an item-level-100 ceiling of 6.88, 1.7%
+    over. The shipped set grants 21 regen from three sources, so one roll is a
+    third of the whole axis. Trim the roll to 6, or add a fourth regen source
+    — widening the axis raises the measured anchor and the ceiling with it.
+
+  Not part of 0610's affix work order but measured while auditing: **9 of the
+  10 base-item implicit mods** also exceed the per-mod ceiling at their base's
+  `levelRequirement` — 11 bases carry 10 implicit mods between them, since
+  `copper-band` has none — with `battered-plate` worst at ×3.24 (24 armor at
+  level requirement 8, ceiling 7.40). *(An earlier draft said "9 of the 11
+  base items' implicits", which miscounted the denominator.)* Implicits are
+  not affixes and no task owns them yet — see follow-ups.
+
 - **Follow-ups worth a new task:**
+  - **Base-item implicits need their own ruling.** They are `StatModRange`s
+    like affix mods and this module prices them identically, but a base has a
+    `levelRequirement`, not an item level, so "the ceiling at its own level" is
+    an assumption. Either rule that implicits are budgeted at
+    `levelRequirement`, or give them their own share of the slot allowance.
+  - **A `move-speed` feel roof.** Nothing in the engine caps movement speed, so
+    its ceiling is only as sane as its measured anchor (+11.8% per mod and
+    +35.4% per item at item level 100). That is an owner call, not an
+    arithmetic one.
+  - **The per-slot ceiling has no caller.** `maxPerSlotAtItemLevel` is the
+    ceiling that actually bounds a decision-0014 rare; task 0620's worst-case
+    pool check is what makes it load-bearing. Until then only the per-mod
+    ceiling is enforceable.
