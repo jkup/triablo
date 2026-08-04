@@ -205,9 +205,72 @@ both the component value and `hash()` are equal.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** `packages/core/src/progression/` now exists and exports the
+  progression state, attached to nothing and registered nowhere.
+  - `components.ts` — `Progression { level, xp }` via
+    `defineComponent<Progression>('Progression')`, `MAX_CHARACTER_LEVEL = 70`
+    (decision 0045), `makeProgression(level = 1)`, and `assertCharacterLevel`
+    (the shared boundary check; it throws naming the offending value, the
+    `secondsToTicks` precedent).
+  - `levels.ts` — `LEVEL_XP_STEP = 100`, `xpToNextLevel(level)` and
+    `grantXp(progression, xpGained)`. Pure: no ECS, no `Rng`, no clock, no
+    mutation of arguments.
+  - `packages/core/src/index.ts` — six re-exports, one grouped block.
+  - `docs/decisions/0049-progression-state-and-the-xp-curve.md` (0048 was the
+    highest on `main`; re-checked `origin/main` immediately before committing,
+    and no other open PR held 0049).
+- **The rulings** (all recorded in decision 0049):
+  - **`xp` is progress toward the next level, not a lifetime total.** `level` is
+    authoritative; the bar resets on level-up, so `0 <= xp < xpToNextLevel(level)`
+    below the cap and `xp === 0` at it. The rejected encoding (store lifetime
+    XP, derive the level) makes the curve part of the save format — retuning it
+    would silently re-level every saved character. Pinned by two invariant
+    tests, one over all 70 levels and one over a sequence of awards.
+  - **The curve is `xpToNextLevel(L) = 100 × L` for L in 1..69, `null` at 70.**
+    Returning `null` rather than throwing because the cap is a normal state a
+    character sits in for the whole endgame — callers loop
+    (`while (cost !== null && xp >= cost)`) instead of branching on it first.
+  - **One award grants as many levels as it pays for.** The alternative (one
+    level per call, surplus carried) makes the result depend on how an award
+    was chunked, which is a determinism trap; there is a test that 5,507 in one
+    call equals 1,000 + 2,500 + 2,000 + 7 in four.
+  - **Surplus at the cap is discarded** — at 70 there is no next level, so a
+    retained value would have no denominator. Paragon adds its own field.
+  - `grantXp` also *normalizes* an input whose bar already covers a level,
+    which is what makes retuning `LEVEL_XP_STEP` safe for existing saves.
+- **The numbers this task owes, computed headlessly against the shipped module**
+  (`npx tsx` over `@triablo/core`, not by hand):
+  - **Total XP to reach level 70 from level 1: 241,500.**
+  - **Level 5 → 6: 500 XP. Level 69 → 70: 6,900 XP.** Level 1 → 2: 100 XP.
+  - Pacing, for task 0670's calibration: at 25 XP/kill the cap costs 9,660
+    kills and the last level 276 of them; at 50 XP/kill, 4,830 and 138. The
+    crawl clears 8 monsters in 1,466 ticks (~10 kills/min), so the most
+    expensive single level lands near one 20-minute session (DESIGN.md pillar
+    5) and the whole climb near 16 hours at 25 XP/kill — "levels early, then
+    gear forever" (decision 0043).
+  - Shape check: climbing 1 → 11 is 5,500 XP (2.3% of the climb), 61 → 70 is
+    58,500 (24.2%).
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty and `replay:check` reports all six `ok`. The component is defined and
+  never attached, which the hard requirement measured as hash-neutral; the test
+  `is hash-neutral while defined but never attached to an entity` asserts the
+  equality of two computed hashes (no literal pinned), and its sibling asserts
+  the hash *does* move once attached — the cost task 0680 budgets for.
+  `npm run sim -- run dungeon-crawl --seed 1 --verbose` still ends at state
+  hash `f7dc3d682f986a80`, 8/8 kills, `avatarDamageDealt` 362, exit (20, 15),
+  and the trace contains zero lines mentioning progression, xp or level.
+- **Scope deviations:** none. `git diff --stat main -- packages/sim
+  packages/client packages/content` is empty, as is
+  `git diff main -- packages/core/src/combat/`. No entity carries
+  `Progression`, no `System` was written, no stat table exists, and nothing
+  here feeds `computeStats` or `computeDamage` (decision 0045).
+  One symbol beyond the task file's sketch is exported: `assertCharacterLevel`,
+  the shared 1..70 boundary check that `makeProgression`, `xpToNextLevel` and
+  `grantXp` all call — exported rather than private so task 0690's
+  `levelRequirement` rule and task 0670 validate against one referent instead
+  of re-deriving the cap.
+- **Follow-ups worth a new task:** none new. Tasks 0670 (award, and it now has
+  241,500 to calibrate its per-kill value against), 0680 (attach + the one
+  re-bless) and 0690 (`levelRequirement`) are already cut. If a paragon-style
+  system is ever wanted, decision 0049 records that it adds its own field
+  rather than reinterpreting `Progression.xp`.
