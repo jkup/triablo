@@ -299,6 +299,22 @@ describe('mechanical anchors', () => {
     expect(maxPerSlotAtItemLevel('crit-chance', 'flat', 100)).toBeCloseTo(33.3333, 3)
   })
 
+  it('keeps a spread axis at the literal slot share: one item is +35.4% move speed', () => {
+    // The number a reader needs to sanity-check the spread/concentrated
+    // ruling (decision 0050). `move-speed`'s axis target is a *measured
+    // nine-slot sum* (0.36 across the shipped set, scaled by k), so the
+    // 3/9 share applies literally: one item may carry +35.4% at item level
+    // 100 and one mod +11.8%. Were it concentrated like `damage`, one item
+    // could carry +106.2% — which is what the first draft of this module did
+    // and what the PR #76 review flagged.
+    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.354, 4)
+    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.118, 4)
+    // ...and `life-regen`, the other measured nine-slot sum, is spread too:
+    // its per-mod ceiling of 6.88 sits just under the authored 7, because the
+    // whole shipped set grants 21 regen from three sources.
+    expect(maxAtItemLevel('life-regen', 'flat', 100)).toBeCloseTo(6.8831, 4)
+  })
+
   it('keeps `increased` curves in fractions, not points', () => {
     // `increased` values are authored as fractions (0.03 = +3%), so those
     // curves are fractions and are never comparable with a `flat` curve —

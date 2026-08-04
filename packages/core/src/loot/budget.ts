@@ -160,24 +160,33 @@ export const BUDGET_CALIBRATION = {
   itemLevel1Fraction: 1 / TARGET_FULL_SET_RATIO.effectiveHp,
 
   /**
-   * `maxSingleSlotShare` was measured on the effective-HP axis — decision
-   * 0047 ratifies "today's chest at 31.4%", an effective-HP number — and it
-   * applies literally only to an axis every slot contributes to. These are
-   * those axes: every piece of armor carries life and armor.
+   * Which axes take `maxSingleSlotShare` literally. **The test is how the
+   * axis target below was derived, not what the stat feels like.**
    *
-   * `crit-chance` is here for a mechanical reason rather than a thematic one:
-   * concentrating it would put one slot's ceiling exactly on the 100-point
-   * `clamp01`/`Rng.chance` cliff, so it stays spread.
+   * An axis whose target is a *measured nine-slot sum* — everything priced
+   * out of `measuredShippedSetGain × k` — is **spread**: the target already
+   * is "what nine slots deliver", so dividing it by the nine-slot share is
+   * the consistent arithmetic, and multiplying by a concentration on top
+   * would double-count. `max-life` and `armor` are also the exact axis
+   * decision 0047 ratified its share against ("today's chest sits at 31.4%",
+   * an effective-HP number).
+   *
+   * `crit-chance` is here for a mechanical reason rather than a derivational
+   * one: its target is a whole-character roof, but concentrating it would put
+   * one slot's ceiling on exactly 100 points — `100 × (3/9) × 3 = 100.0`,
+   * precisely the `clamp01`/`Rng.chance` `p >= 1` cliff — so it stays spread.
    */
-  spreadAxisStats: ['max-life', 'armor', 'crit-chance'],
+  spreadAxisStats: ['max-life', 'armor', 'life-regen', 'move-speed', 'crit-chance'],
 
   /**
-   * Every other axis is concentrated: a weapon *is* the damage slot, boots
-   * *are* the movement slot, one ring answers a resistance. Their axis gain
-   * carries this multiple — exactly `1 / share`, so one slot at its ceiling
-   * delivers the whole axis target and no more. Decision 0047's "slot
-   * asymmetry is intended: forcing every slot equal makes them
-   * interchangeable" is the licence; decision 0050 records the ruling.
+   * An axis whose target is a *whole-character statement* — the ×7 in damage
+   * units, `RESIST_CAP`, the crit-damage points that reach ×7 at full crit —
+   * is **concentrated**: that target describes what a character may reach,
+   * not what each of nine slots contributes, so the consistent reading is
+   * that one slot at its ceiling delivers the whole axis target and no more.
+   * The multiple is exactly `1 / share`. Decision 0047's "slot asymmetry is
+   * intended: forcing every slot equal makes them interchangeable" is the
+   * licence; decision 0050 records the ruling and its known error direction.
    */
   concentratedAxisMultiple: 9 / 3,
 
@@ -327,7 +336,8 @@ price('max-life', 'flat', MEASURED['max-life/flat'] * DEFENSIVE_SCALE)
 price('armor', 'flat', MEASURED['armor/flat'] * DEFENSIVE_SCALE)
 
 // --- Sustain and utility: no target measures them, so the measured shipped
-// shape scales by the conservative family factor. ---
+// shape scales by the conservative family factor. Both are measured nine-slot
+// sums, so both are spread axes — see `spreadAxisStats`. ---
 price('life-regen', 'flat', MEASURED['life-regen/flat'] * DEFENSIVE_SCALE)
 price('move-speed', 'increased', MEASURED['move-speed/increased'] * DEFENSIVE_SCALE)
 // A flat move-speed mod is the fraction's equivalent on the reference
