@@ -79,6 +79,15 @@ export {
   statusTickSystem,
 } from './skills/systems'
 
+export {
+  BUDGET_CALIBRATION,
+  BUDGET_DENIALS,
+  budgetedContributions,
+  maxAtItemLevel,
+  maxPerSlotAtItemLevel,
+} from './loot/budget'
+export type { BudgetDenial, BudgetPairKey, BudgetedContribution } from './loot/budget'
+
 export { RARITY_AFFIX_RULES, rollItem } from './loot/roll'
 export type {
   AffixKind,
