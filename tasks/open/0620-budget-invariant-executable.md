@@ -3,7 +3,36 @@
 - **Role:** systems
 - **Phase:** 3
 - **Priority:** 2 (lower runs first)
-- **Depends on:** 0600-affix-budget-curves.md, 0610-recost-affix-pool.md
+- **Depends on:** 0700-recalibrate-budget-ceilings.md, 0710-recost-and-extend-affix-ladder.md
+
+> ### Amended 2026-08-05 — the ceilings and the pool both moved under this task
+>
+> This file was written against tasks 0600 and 0610. Decisions **0052** and
+> **0053** landed afterwards and re-cut both:
+>
+> 1. **Dependencies changed** (header above). Task **0700** recalibrates the
+>    ceilings 0600 shipped; task **0710** supersedes 0610 and both re-costs the
+>    pool *and* extends every tier ladder to item level 100. This task still
+>    wires, decides nothing about magnitudes, and must still **stop and report**
+>    rather than fix anything if the shipped pool fails the new check.
+> 2. **One requirement is added: `loot-smoke` must roll at item level 100.**
+>    `ITEM_LEVELS` in `packages/sim/src/scenarios/loot-smoke.ts:30` is
+>    `[1, 5, 10, 50]`, chosen when 50 was "above every gate currently
+>    authored". After task 0710 the pool has gates at 50, 60, 70, 80, 90 and
+>    100, so six rungs per affix would never be rolled and your `power-budget`
+>    invariant would never see them. Add **100** to `ITEM_LEVELS` (keep the
+>    existing entries), update the array's doc comment, and note in the Outcome
+>    that `loot-volume`'s expected count rises accordingly
+>    (`bases × ITEM_LEVELS.length × rarities`, `loot-smoke.ts:407`). The file is
+>    already in scope; the smoke seed count and `MAX_WIP_SCENARIOS` are not.
+> 3. **The per-slot breakpoint set grows from 7 distinct gates to 13**, which
+>    is still small — the "do not iterate 1..100" requirement below is
+>    unchanged and still the right shape.
+>
+> Nothing else moved: the `checkReferences` rule, the message contract, the
+> `null`-means-denied ruling and the task-0370 weight convention are as
+> written. Cite decisions **0052/0053** rather than 0047 where the calibration
+> is mentioned.
 
 ## Goal
 

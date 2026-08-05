@@ -5,6 +5,26 @@
 - **Priority:** 3
 - **Depends on:** 0660-progression-component-and-xp-curve.md
 
+> ### Amended 2026-08-05 — cite the live decisions, not the superseded ones
+>
+> Both decisions this file cites were superseded on 2026-08-05. The substance
+> is carried forward verbatim, so **no requirement, file or acceptance
+> criterion changes** — but the `ContentIssue` message and the doc comment this
+> task writes are read by content authors, and they must not point at a
+> superseded entry:
+>
+> - **0045 → 0051.** The character level cap is still **70**, and
+>   `levelRequirement` is still the named access gate. What changed is that a
+>   level now also grants +6 max-life; irrelevant to this rule, still worth
+>   citing correctly.
+> - **0047 → 0052.** `endgameItemLevel` is still **100**, so the "do not cap
+>   item level at 70" trap below stands exactly as written. 0052 carries
+>   `targetFullSetRatio`, `maxSingleSlotShare` and `endgameItemLevel` forward
+>   unchanged and only moves the measuring stick and the reference statline.
+>
+> The cap constant to import is still `MAX_CHARACTER_LEVEL` from
+> `@triablo/core`; one constant, one owner.
+
 ## Goal
 
 Decision 0045 rules that a character level is an **access gate** — "item

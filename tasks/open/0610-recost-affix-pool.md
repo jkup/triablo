@@ -5,6 +5,29 @@
 - **Priority:** 2 (lower runs first)
 - **Depends on:** 0600-affix-budget-curves.md
 
+> ### SUPERSEDED 2026-08-05 — do not work this file
+>
+> Two owner rulings landed after this file was written, and between them they
+> invalidate both its work order and its shape:
+>
+> - **Decision 0052** moves the budget calibration's measuring stick from
+>   attacker level 70 to 5 and its reference statline to the level-70 ungeared
+>   one (614 life), which shrinks the four `k`-derived ceilings to 60.6% of the
+>   values this task was written against. Task 0600's 40-row Outcome table —
+>   this file's stated work order — is stale; recomputed, it is 42 rows, four
+>   of them legal at **no** item level.
+> - **Decision 0053** extends every affix's tier ladder to item level 100. That
+>   edits the same 22 JSON files this task edits, and 0053's own Consequences
+>   say doing the two jobs separately "means editing every affix twice" —
+>   worse here than it sounds, because tier 1 is the *strongest* tier, so
+>   adding rungs renumbers every existing tier as well.
+>
+> Both jobs are now **`tasks/open/0710-recost-and-extend-affix-ladder.md`**,
+> which carries this file's audit instrument, its attribute and stacking traps,
+> and the recalibrated ceiling table. Task **0700** recalibrates the ceilings
+> first. Nothing below this banner is current; the file is kept in place for
+> provenance and so its number is not reused.
+
 ## Goal
 
 Task 0600 lands the ceiling curves; decision 0043 says they are calibrated to
