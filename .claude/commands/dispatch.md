@@ -17,6 +17,14 @@ your own hands this session — everything goes through workers.
    them serially instead), and prefer at most one `systems` task per batch —
    merges are serialized by the up-to-date rule, and core PRs are the
    expensive ones to rebase.
+   Also check each task file against `docs/decisions/` for **staleness**: a
+   task written before a decision it cites was superseded will be completed
+   faithfully and wrongly, and the gate will stay green while it happens.
+   Dependencies-in-`done` does not catch this. Drop and report a stale task
+   the same way you drop an unsatisfied dependency.
+   Give every parallel agent a **uniquely-named scratchpad subdirectory** —
+   they share one path, and two agents writing `scratchpad/review.md` have
+   already clobbered each other mid-edit and posted the wrong review to a PR.
 3. Spawn one worker per task **in a single message** (so they run
    concurrently), each with `isolation: "worktree"`, using the agent type
    matching the role: `systems-dev`, `content-author`, `qa-author`, or
