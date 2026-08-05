@@ -162,9 +162,40 @@ Pure functions: no ECS, no `Rng`, no clock, no mutation of arguments.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** New `packages/core/src/progression/grants.ts` exports
+  `LEVEL_MAX_LIFE_GRANT = 6`, `maxLifeGrantForLevel(level) = 6 × (level - 1)`,
+  and `levelStatMods(level): readonly StatMod[]` — pure functions, no ECS, no
+  `Rng`, no clock, no mutation. `levelStatMods` returns `[]` at level 1 (the
+  ruling: the identity is structural, not arithmetic, so every unlevelled spawn
+  path sees literally the list it saw before this module existed) and a single
+  `{ stat: 'max-life', mode: 'flat', value: 6 × (level - 1) }` above it. Both
+  reuse task 0660's `assertCharacterLevel`, so `MAX_CHARACTER_LEVEL` keeps one
+  owner. 15 tests in `grants.test.ts` (100% coverage of the module) pin the 614
+  anchor through `makeCombatant`, the level-1 identity as a whole-`Combatant`
+  deep-equal, the 1..70 second-axis guard, the throw messages, gear additivity
+  (714) and `increased` scaling the sum (921). `progression/components.ts` got
+  the doc correction 0051 requires (its header claimed, citing 0045, that a
+  level grants no combat power and that the module "feeds neither `computeStats`
+  nor `computeDamage`"); no code in that file moved. `index.ts` gained one
+  re-export line. New `docs/decisions/0056-the-level-life-grant-is-a-stat-mod.md`.
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty, as are `git diff --stat main -- packages/sim packages/client
+  packages/content` and `git diff main -- packages/core/src/combat/`.
+  `replay:check` reports all six ok. Proof the grant is applied by nobody: a
+  repo-wide grep for `levelStatMods|maxLifeGrantForLevel|LEVEL_MAX_LIFE_GRANT`
+  hits only `grants.ts`, `grants.test.ts` and the one `index.ts` export line,
+  and `sim run dungeon-crawl --seed 1 --verbose` still ends at
+  `avatarLife 59/200` with state hash `f7dc3d682f986a80` — the level-5 avatar's
+  max life is untouched. Task 0730 pays the re-bless.
+- **Scope deviations:** none in code. Two doc-comment edits inside the
+  in-scope `components.ts` rather than one: the module header (required) and
+  `MAX_CHARACTER_LEVEL`'s doc, which cited only the now-superseded 0045 for the
+  cap — it now says 0045 as carried forward by 0051. Verify: 36 test files,
+  586 tests, lint clean, all six replays ok.
+- **Follow-ups worth a new task:** (1) `progression/levels.ts`'s header still
+  argues the XP curve shape from 0045's "a level grants **no combat power**";
+  the conclusion survives 0051 (+6 life is not a spike worth a wall) but the
+  premise sentence is now false and that file was out of scope here. (2)
+  Decision 0049's Status is still plain `accepted` while its "No level grants
+  any stat" clause is dead — 0051 partially supersedes it, and only the owner
+  should decide whether to flip that line for a partial supersession.

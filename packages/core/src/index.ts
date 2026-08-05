@@ -39,6 +39,7 @@ export { MoveOrder, PlayerControlled } from './player/components'
 export { moveOrderSystem, tileOf } from './player/systems'
 
 export { assertCharacterLevel, makeProgression, MAX_CHARACTER_LEVEL, Progression } from './progression/components'
+export { LEVEL_MAX_LIFE_GRANT, levelStatMods, maxLifeGrantForLevel } from './progression/grants'
 export { grantXp, LEVEL_XP_STEP, xpToNextLevel } from './progression/levels'
 
 export { ATTRIBUTE_DERIVATIONS, ATTRIBUTE_KEYS, computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
