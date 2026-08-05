@@ -2,8 +2,9 @@
 
 - **Date:** 2026-08-05
 - **Decided by:** agent (task 0700)
-- **Status:** accepted (partially supersedes 0050 — its anchor constants only;
-  0050's curve shape, share split and denials stand and are carried forward)
+- **Status:** partially superseded by 0063 (the `move-speed/increased` anchor
+  0.118 → 0.0715, now a designed 0.09 per mod; every other axis, the solved `k`
+  and this entry's partial supersession of 0050 stand)
 
 ## Context
 

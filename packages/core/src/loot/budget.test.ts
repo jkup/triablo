@@ -283,6 +283,12 @@ describe('curve shape', () => {
     // Derived, not invented: the curve's dynamic range is the target's — gear
     // spans ×10 over the ungeared reference (decision 0047), so a ceiling
     // spans ×10 over the item-level range.
+    // Decisions 0058 and 0062 both rule this **stays 1/10 globally**: the
+    // thin-early-gear complaint is per-axis, not global, and raising the
+    // fraction would inflate armor and life and flatten the ladder decision
+    // 0053 exists to build. Raising it is the tempting alternative fix for a
+    // thin axis, and it is denied in writing — so it is asserted exactly.
+    expect(BUDGET_CALIBRATION.itemLevel1Fraction).toBe(1 / 10)
     expect(BUDGET_CALIBRATION.itemLevel1Fraction).toBeCloseTo(1 / 10, 12)
     for (const [stat, mode] of pricedPairs) {
       const at1 = maxAtItemLevel(stat, mode, 1) as number
@@ -291,9 +297,15 @@ describe('curve shape', () => {
       // decision 0005's 1/10000 before they are returned, so the exact
       // statement is that the item-level-1 ceiling *is* the quantized tenth of
       // the endgame ceiling. That holds for every priced pair with no slack at
-      // all, including `move-speed/increased`, whose 0.0072 is a rounded
-      // 0.00715 and which a ratio-with-tolerance form could only accommodate
-      // by widening the window for pairs that never needed one.
+      // all, including the pairs whose item-level-1 ceiling is a *rounded*
+      // tenth rather than a literal one — the widest today are
+      // `crit-chance/increased` and `dexterity/increased`, whose 0.0667 sits
+      // 0.045% above a literal tenth of 0.06667 — and which a
+      // ratio-with-tolerance form could only accommodate by widening the
+      // window for pairs that never needed one. (`move-speed/increased` used
+      // to be the example at 0.0072 for a rounded 0.00715; under decision
+      // 0062's designed anchor its 0.009 is an exact tenth of 0.09 and it
+      // drifts by nothing at all.)
       expect(at1, `${stat}/${mode}`).toBe(
         Math.round(at100 * BUDGET_CALIBRATION.itemLevel1Fraction * STAT_SCALE) / STAT_SCALE,
       )
@@ -359,17 +371,19 @@ describe('mechanical anchors', () => {
     expect(maxPerSlotAtItemLevel('crit-chance', 'flat', 100)).toBeCloseTo(33.3333, 3)
   })
 
-  it('keeps a spread axis at the literal slot share: one item is +21.45% move speed', () => {
+  it('keeps a spread axis at the literal slot share: one item is +27% move speed', () => {
     // The number a reader needs to sanity-check the spread/concentrated
-    // ruling (decision 0050). `move-speed`'s axis target is a *measured
-    // nine-slot sum* (0.36 across the shipped set, scaled by k), so the
-    // 3/9 share applies literally: one item may carry +21.45% at item level
-    // 100 and one mod +7.15%. Were it concentrated like `damage`, one item
-    // could carry +64.4% — the first draft of this module shipped that shape
-    // and PR #76 flagged it. Recalibrating on decision 0052's stick shrank
-    // both numbers by the k ratio, from +35.4% / +11.8%.
-    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.2145, 4)
-    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.0715, 4)
+    // ruling (decision 0050). `move-speed`'s axis target is now a **designed**
+    // +81% nominal full-set figure (decision 0062, correcting 0058's +25%),
+    // but its 3/9 share still applies **literally** — 0058 pinned the designed
+    // target at 0050's spread classification — so one item may carry +27% at
+    // item level 100 and one mod +9%. Were it concentrated like `damage`, one
+    // item could carry +81%; the first draft of this module shipped that shape
+    // for the then-measured anchor and PR #76 flagged it. Concentration
+    // remains the wrong lever: it is a 3× loosening by the back door, and
+    // exactly the size of the arithmetic error 0062 exists to correct.
+    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.27, 4)
+    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.09, 4)
     // ...and `life-regen`, the other measured nine-slot sum, is spread too:
     // its per-mod ceiling of 4.17 now sits well under the authored 7, so the
     // two tier-1 regen rolls are over budget at *every* item level (task 0710).
@@ -386,6 +400,115 @@ describe('mechanical anchors', () => {
     expect(maxAtItemLevel('move-speed', 'flat', 100)).not.toBe(
       maxAtItemLevel('move-speed', 'increased', 100),
     )
+  })
+})
+
+/**
+ * Every priced pair's per-mod ceiling at item level 100, read out of the module
+ * **on `main`** before the designed move-speed anchor landed. Only the two
+ * `move-speed` entries differ from that reading; freezing the other 31 is what
+ * turns "no other axis moved" from a hope into an assertion.
+ */
+const ENDGAME_CEILINGS: Record<string, number> = {
+  'strength/flat': 36,
+  'strength/increased': 2,
+  'dexterity/flat': 22.2222,
+  'dexterity/increased': 0.6667,
+  'intelligence/flat': 200,
+  'intelligence/increased': 2,
+  'vitality/flat': 18.0759,
+  'vitality/increased': 1,
+  'max-life/flat': 72.3036,
+  'max-life/increased': 1,
+  'life-regen/flat': 4.1714,
+  'life-regen/increased': 1,
+  'armor/flat': 27.4118,
+  'armor/increased': 1,
+  'damage/flat': 36,
+  'damage/increased': 2,
+  'attack-speed/increased': 2,
+  'crit-chance/flat': 11.1111,
+  'crit-chance/increased': 0.6667,
+  'crit-damage/flat': 200,
+  'crit-damage/increased': 2,
+  'move-speed/flat': 0.216, // decision 0062, designed — was 0.1716
+  'move-speed/increased': 0.09, // decision 0062, designed — was 0.0715
+  'resist-fire/flat': 25,
+  'resist-fire/increased': 3,
+  'resist-cold/flat': 25,
+  'resist-cold/increased': 3,
+  'resist-lightning/flat': 25,
+  'resist-lightning/increased': 3,
+  'resist-poison/flat': 25,
+  'resist-poison/increased': 3,
+  'resist-shadow/flat': 25,
+  'resist-shadow/increased': 3,
+}
+
+describe('designed anchors (decisions 0058 and 0062)', () => {
+  it('is exactly one axis wide — a measured anchor is the default', () => {
+    // Decision 0058's precedent is the load-bearing part: **a measured anchor
+    // is the default, and departing from one requires an owner decision**
+    // recorded in `docs/decisions/`. `move-speed` is the first and only such
+    // axis, so this list is one entry long. It is asserted rather than
+    // inspected because the failure mode is a second designed axis appearing
+    // quietly — 0058 explicitly considered `life-regen` as the next candidate
+    // and left it measured on purpose ("it is fixable by trimming").
+    expect(Object.keys(BUDGET_CALIBRATION.designedAxisFullSetGain)).toEqual([
+      'move-speed/increased',
+    ])
+    expect(BUDGET_CALIBRATION.designedAxisFullSetGain['move-speed/increased']).toBe(0.81)
+    // ...and it stays a *spread* axis at decision 0050's classification, which
+    // 0058 pinned the designed target at. Moving it to concentrated multiplies
+    // the per-slot result by 3 — a 3× loosening by the back door, exactly the
+    // size of the arithmetic error 0062 exists to correct, so an agent making
+    // both changes would land on a number that looks right for the wrong
+    // reason.
+    expect(BUDGET_CALIBRATION.spreadAxisStats).toContain('move-speed')
+    // The measurement it replaced is kept as evidence, not deleted: both 0058
+    // and 0062 argue *from* it (0.36 × k = +64.4%, tighter than the design).
+    expect(BUDGET_CALIBRATION.measuredShippedSetGain['move-speed/increased']).toBe(0.36)
+  })
+
+  it('moves no other axis: all 33 priced pairs against a frozen record', () => {
+    // The claim this whole change rests on. Both directions are asserted:
+    // every priced pair must have a frozen entry (so a newly priced pair
+    // cannot slip through unpinned) and every frozen entry must still be
+    // priced (so a pair cannot quietly stop existing).
+    const actual: Record<string, number> = {}
+    for (const [stat, mode] of pricedPairs) {
+      actual[`${stat}/${mode}`] = maxAtItemLevel(stat, mode, 100) as number
+    }
+    for (const key of Object.keys(actual)) {
+      expect(ENDGAME_CEILINGS, `${key} is priced but not pinned`).toHaveProperty(key)
+      expect(actual[key], key).toBe(ENDGAME_CEILINGS[key])
+    }
+    expect(Object.keys(actual).sort()).toEqual(Object.keys(ENDGAME_CEILINGS).sort())
+    expect(pricedPairs).toHaveLength(33)
+  })
+
+  it('prices move-speed off the designed target, per mod and per item', () => {
+    // `0.81 / 9 = 0.09` exactly — the target is the authored `of-haste`/
+    // `of-the-stag` tier-1 roll multiplied back up through the set → slot →
+    // mod chain (the 3/9 share, then the 3-mod `perKindAffixCap`), which is
+    // why the per-mod ceiling lands on 0.09 and not near it.
+    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBe(0.09)
+    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBe(0.27)
+    expect(maxAtItemLevel('move-speed', 'increased', 1)).toBe(0.009)
+    expect(maxAtItemLevel('move-speed', 'increased', 20)).toBe(0.0245)
+    expect(maxAtItemLevel('move-speed', 'increased', 50)).toBe(0.0491)
+    // The flat pair keeps decision 0050's relationship — the fraction's
+    // equivalent on the named reference character, `increased × moveSpeed` —
+    // and only the source of the fraction changed: 0.81 × 2.4 = 1.944 full-set.
+    expect(maxAtItemLevel('move-speed', 'flat', 100)).toBe(0.216)
+    expect(BUDGET_CALIBRATION.referenceUngeared.moveSpeed).toBe(2.4)
+    // The ratification is by **exact equality with zero headroom**: the
+    // over-budget check is a strict `max > ceiling`, so an authored 0.09 at
+    // item level 100 is legal and one quantum more is not. Task 0710 either
+    // leaves a quantum or records that it is authoring onto the boundary.
+    const endgame = maxAtItemLevel('move-speed', 'increased', 100) as number
+    expect(0.09 > endgame).toBe(false)
+    expect(0.09 + 1 / STAT_SCALE > endgame).toBe(true)
   })
 })
 
