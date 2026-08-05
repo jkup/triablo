@@ -3,7 +3,8 @@
 - **Role:** systems
 - **Phase:** 3
 - **Priority:** 2 (lower runs first)
-- **Depends on:** 0700-recalibrate-budget-ceilings.md, 0710-recost-and-extend-affix-ladder.md
+- **Depends on:** 0700-recalibrate-budget-ceilings.md,
+  0710-recost-and-extend-affix-ladder.md, 0740-designed-move-speed-anchor.md
 
 > ### Amended 2026-08-05 — the ceilings and the pool both moved under this task
 >
@@ -33,6 +34,25 @@
 > `null`-means-denied ruling and the task-0370 weight convention are as
 > written. Cite decisions **0052/0053** rather than 0047 where the calibration
 > is mentioned.
+
+> ### Amended 2026-08-05 (second pass) — implicits are ruled out of this check
+>
+> 1. **Decision 0061 (owner): implicits carry their own allowance**, separate
+>    from the affix budget, and consume **no part** of a slot's affix share.
+>    This task's `loot-smoke` invariant was specified to sum implicits together
+>    with affix mods against `maxPerSlotAtItemLevel`; that reading is now
+>    wrong and the requirement is amended below. An implicit is not priced at
+>    its base's `levelRequirement` either, so the 9-of-10 over-budget implicit
+>    measurement in task 0600's Outcome is against a ceiling that does not
+>    apply. Sizing the implicit allowance is a **future task** — do not invent
+>    one here, and do not add a check for it.
+> 2. **Task 0740** (added as a dependency above) implements decisions **0058 +
+>    0062**'s designed `move-speed` anchor in `packages/core/src/loot/budget.ts`
+>    before task 0710 re-costs the pool: the per-mod `move-speed/increased`
+>    ceiling at item level 100 becomes **0.09**, up from 0.0715. It changes no
+>    interface — one axis's ceiling curve moves — so nothing in this task's
+>    shape changes; it is listed so the chain is explicit and so you do not wire
+>    against a ceiling that is about to move under you.
 
 ## Goal
 
@@ -117,10 +137,20 @@ returns a string describing the first violation or `null`, and reads rolled
 items via `world.query(RolledLoot)` with `describeItem(item)` in the message.
 
 It checks **rolled** values, not authored ranges — the per-item sum of each
-`(stat, mode)` across implicits and affix mods against
-`maxPerSlotAtItemLevel(stat, mode, item.itemLevel)`. The registry rule proves
-the *pool* is safe; this proves the *roller* is, and catches any future
-divergence between them.
+`(stat, mode)` across ~~implicits and~~ (*amended*) the item's **affix mods
+only**, against `maxPerSlotAtItemLevel(stat, mode, item.itemLevel)`. The
+registry rule proves the *pool* is safe; this proves the *roller* is, and
+catches any future divergence between them.
+
+*Amended for decision 0061:* the original wording summed the base's implicit
+into that total. **Implicits carry their own allowance and consume no part of a
+slot's affix share**, so including one here would price it out of the affix
+budget — exactly the "perverse incentive to author weak implicits" 0061 names —
+and would fire immediately on the shipped bases. Exclude the implicit from the
+sum, say in the decision entry that the affix ceiling bounds affixes only and
+why, and note that **the implicit allowance is unimplemented and needs its own
+task**. The existing `implicits-within-base-ranges` invariant is untouched and
+still checks that a rolled implicit lies inside its base's authored range.
 
 `loot-smoke` is deliberately unpinned (decision 0003 forbids pinning
 registry-breadth scenarios), so this adds a real check at zero replay cost.
