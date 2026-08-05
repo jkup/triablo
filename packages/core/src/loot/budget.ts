@@ -21,6 +21,12 @@
  * the constants that block is anchored on are decisions 0051 and 0052,
  * re-derived in decision 0055 (which partially supersedes 0050: its anchor
  * constants only).
+ *
+ * An axis anchor is **measured by default** and may be **designed** where the
+ * measurement is too thin to mean anything (decision 0058). The two live in
+ * separate blocks — `measuredShippedSetGain` and `designedAxisFullSetGain` —
+ * so "which axes are designed?" is answered by reading one of them.
+ * `move-speed` is the only designed axis today (decision 0062).
  */
 
 import { ARMOR_K, RESIST_CAP } from '../combat/damage'
@@ -235,9 +241,68 @@ export const BUDGET_CALIBRATION = {
     'max-life/flat': 364,
     'armor/flat': 138,
     'life-regen/flat': 21,
+    /**
+     * **No longer a pricing input** — `move-speed`'s anchor moved to
+     * `designedAxisFullSetGain` below (decisions 0058 and 0062). Kept because
+     * both of those decisions argue *from* this measurement: it is the evidence
+     * that the measured anchor (`0.36 × k = +64.4%`) is tighter than the design
+     * intends. Same status as `damage/flat` — a cross-check, not a derivation.
+     */
     'move-speed/increased': 0.36,
     /** Not used in a derivation; kept as the cross-check on ×2.5556. */
     'damage/flat': 28,
+  },
+
+  /**
+   * Axis targets that are **designed rather than measured** (decision 0058).
+   * A measured anchor is the default — everything in `measuredShippedSetGain`
+   * — and departing from one requires an entry here *and* a decision recording
+   * the reasoning. Keys are `(stat, mode)` pairs, and the value is what a full
+   * endgame set may gain, in the stat's own units, exactly like a
+   * `measuredShippedSetGain × DEFENSIVE_SCALE` product. One axis today; adding
+   * a second is an owner ruling, not an edit.
+   *
+   * **The measuring stick is a field, not a comment:** "full set" means
+   * `maxSingleSlotShare.equipmentSlotCount` slots — nine today — and a target
+   * here follows that field if a tenth slot is ever authored. What no field
+   * carries yet is how many slots each axis is *authored on*, which is why a
+   * four-slot axis needs a nine-slot target that reads high; decision 0062
+   * names re-expressing targets over the slots that can carry them as the fix,
+   * and it is a redesign of the set → slot → mod chain for every axis.
+   */
+  designedAxisFullSetGain: {
+    /**
+     * Decision **0062** (correcting 0058's +25%): **+81% nominal** full-set
+     * move speed, i.e. a per-mod ceiling of exactly **0.09** at item level 100,
+     * which ratifies the authored `of-haste`/`of-the-stag` tier-1 roll —
+     * `0.09 × 9 = 0.81` is the roll multiplied back up through the
+     * set → slot → mod chain.
+     *
+     * **+81% is not a typo.** Three things a reader needs before the number
+     * stops looking like a bug sitting beside a measured 0.36:
+     *
+     * 1. It is **nominal over nine slots** while the axis is authored on four
+     *    (`of-haste` on feet/legs, `of-the-stag` on head/hands — disjoint, so a
+     *    real character carries at most four). The realistic maximum is
+     *    `4 × 9% = 36%`, which is genre-normal (decision 0062). The alarming
+     *    figure is an artifact of expressing a four-slot axis in a nine-slot
+     *    unit; 0062 names re-expressing targets over the slots that can carry
+     *    them as the thing to revisit, and it is not this constant's problem.
+     * 2. `move-speed` is the **only priced stat with no engine roof** —
+     *    `RESIST_CAP` is 75, crit-chance clamps at 100 — and past a point more
+     *    speed is handling rather than power, so its ceiling is a feel
+     *    judgement a measurement cannot make (decision 0058).
+     * 3. It is deliberately **looser** than the measured anchor it replaces
+     *    (`0.36 × DEFENSIVE_SCALE` = +64.4%), not tighter.
+     *
+     * The trap that caught two decisions: a per-axis target is a nine-slot,
+     * whole-set number, and every ceiling a consumer checks is that number
+     * divided by 9 — the 3/9 share, then the 3-mod `perKindAffixCap`. 0058 set
+     * +25% by stopping at the per-*item* figure (+8.3%) and comparing it to a
+     * per-*mod* roll; the per-mod ceiling there is 0.0278, so +25% was a 2.57×
+     * tightening. State which of the three units you mean, every time.
+     */
+    'move-speed/increased': 0.81,
   },
 } as const
 
@@ -249,6 +314,7 @@ const REF = BUDGET_CALIBRATION.referenceUngeared
 const TARGET = BUDGET_CALIBRATION.targetFullSetRatio
 const SHARE = BUDGET_CALIBRATION.maxSingleSlotShare
 const MEASURED = BUDGET_CALIBRATION.measuredShippedSetGain
+const DESIGNED = BUDGET_CALIBRATION.designedAxisFullSetGain
 
 /** Decision 0004's armor curve, at the measuring stick's attacker level. */
 const LEVEL_SCALE = ARMOR_K * TARGET.measuredAgainstAttackerLevel
@@ -363,15 +429,26 @@ function deny(stat: StatKey, mode: StatModMode, reason: string): void {
 price('max-life', 'flat', MEASURED['max-life/flat'] * DEFENSIVE_SCALE)
 price('armor', 'flat', MEASURED['armor/flat'] * DEFENSIVE_SCALE)
 
-// --- Sustain and utility: no target measures them, so the measured shipped
-// shape scales by the conservative family factor. Both are measured nine-slot
-// sums, so both are spread axes — see `spreadAxisStats`. ---
+// --- Sustain: no target measures `life-regen`, so its measured shipped shape
+// scales by the conservative family factor. It stays **measured** on purpose —
+// decision 0058 considered it as the next candidate for a designed anchor and
+// left it measured, because it is fixable by trimming a roll. Its target is a
+// measured nine-slot sum, so it is a spread axis — see `spreadAxisStats`. ---
 price('life-regen', 'flat', MEASURED['life-regen/flat'] * DEFENSIVE_SCALE)
-price('move-speed', 'increased', MEASURED['move-speed/increased'] * DEFENSIVE_SCALE)
+
+// --- Utility: `move-speed` is the one **designed** axis (decisions 0058 and
+// 0062). It reads its target straight out of `designedAxisFullSetGain` and does
+// *not* scale by `DEFENSIVE_SCALE` — a designed target is already a full-set
+// number, so scaling it would price the design against a measurement it was
+// written to replace. It stays in `spreadAxisStats` at decision 0050's
+// classification: moving it to concentrated is a 3× loosening by the back door,
+// exactly the size of the arithmetic error 0062 exists to correct. ---
+price('move-speed', 'increased', DESIGNED['move-speed/increased'])
 // A flat move-speed mod is the fraction's equivalent on the reference
 // character: `increased × base`. This is the one place `increased` and `flat`
-// are made comparable, and it only works because the base is named.
-price('move-speed', 'flat', MEASURED['move-speed/increased'] * DEFENSIVE_SCALE * REF.moveSpeed)
+// are made comparable, and it only works because the base is named. Only the
+// source of the fraction changed; the relationship is decision 0050's.
+price('move-speed', 'flat', DESIGNED['move-speed/increased'] * REF.moveSpeed)
 
 // --- The offence axis: decision 0047's ×7, each axis in its own units ---
 price('damage', 'flat', REF.damage * (TARGET.offence - 1))

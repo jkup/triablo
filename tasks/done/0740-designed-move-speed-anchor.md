@@ -400,9 +400,180 @@ Add three tests that do not exist:
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** one new block inside `BUDGET_CALIBRATION` and the two
+  pricing sites that read it.
 
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
+  - `designedAxisFullSetGain` sits directly below `measuredShippedSetGain` with
+    **exactly one entry**, `'move-speed/increased': 0.81` (decision 0062). Its
+    doc comment carries all three things the task file requires: the figure is
+    **nominal over nine slots** while the axis is authored on four, so a real
+    character maxes near `4 × 9% = 36%`; `move-speed` is the only priced stat
+    with **no engine roof**, so its ceiling is a feel judgement a measurement
+    cannot make (0058); and it is deliberately **looser** than the measured
+    anchor it replaces (`0.36 × k` = +64.4%). The condensed
+    per-item-vs-per-mod trap is in the same comment, so the 2.57× tightening
+    cannot be reintroduced by someone "correcting" 0.81 back to 0.25.
+  - `price('move-speed', 'increased', DESIGNED['move-speed/increased'])` and
+    `price('move-speed', 'flat', DESIGNED[...] * REF.moveSpeed)` — neither
+    multiplies by `DEFENSIVE_SCALE` any more. The flat pair keeps 0050's
+    relationship (the fraction's equivalent on the named reference character);
+    only the source of the fraction changed.
+  - The "Sustain and utility" comment was **split**, because it was half false:
+    `life-regen` is still measured (0058 considered it and left it measured on
+    purpose — "it is fixable by trimming"), `move-speed` is designed. The
+    `move-speed` block also says out loud that the axis stays in
+    `spreadAxisStats` and why moving it is a back-door 3× loosening.
+  - `measuredShippedSetGain['move-speed/increased']: 0.36` is **kept** with a
+    comment marking it as no longer a pricing input, mirroring `damage/flat` —
+    both 0058 and 0062 argue *from* that measurement, so deleting it erases the
+    evidence. The module header gained a paragraph naming the two anchor kinds
+    so "which axes are designed?" is answered by reading one block.
+
+  **The arithmetic, read out of the patched module with `npx tsx` (not
+  predicted), reproducing the task file exactly:**
+
+  | item level | 1 | 20 | 50 | 100 |
+  |---|---|---|---|---|
+  | per **mod** | **0.0090** | **0.0245** | **0.0491** | **0.0900** |
+  | per **item** | **0.0270** | **0.0736** | **0.1473** | **0.2700** |
+
+  Full ladder at every gate 0710 authors against (1, 15, 20, 22, 25, 35, 40,
+  50, 60, 70, 80, 90, 100): `0.009 0.0205 0.0245 0.0262 0.0286 0.0368 0.0409
+  0.0491 0.0573 0.0655 0.0736 0.0818 0.09` — identical to the task file's
+  frozen ladder. `move-speed/flat` is **0.216** per mod at item level 100 (was
+  0.1716) and 0.648 per item.
+
+  **No other axis moved, proven not hoped.** All 33 priced pairs were snapshotted
+  out of the module on `main` before the change and compared after: the other
+  **31 are byte-identical**, and only `move-speed/increased` (0.0715 → 0.09) and
+  `move-speed/flat` (0.1716 → 0.216) differ. That record is now frozen in the
+  test as `ENDGAME_CEILINGS` and asserted in **both directions** — every priced
+  pair must have an entry (a newly priced pair cannot slip through unpinned) and
+  every entry must still be priced. Module invariants re-measured after the
+  change: `itemLevel1Fraction` is exactly 1/10, the item-level-1 equality
+  `at1 === quantize(at100 × itemLevel1Fraction)` holds for **33 of 33 with zero
+  mismatches**, there are **zero** dead rungs across 33 pairs × 100 item levels,
+  and `perSlot >= perMod` at every pair and level (zero violations).
+
+  **Tests.** All three named assertions moved rather than loosened: the spread-axis
+  title and body now read +27% / +9% (citing 0062 for the anchor and 0050 for the
+  still-literal 3/9 share, and keeping the concentration counterfactual at +81%);
+  `life-regen/flat` at 100 stays **4.1714**, untouched. The item-level-1 comment
+  was **re-pointed**: `move-speed` is no longer the rounded-tenth example, because
+  at +81% its item-level-1 ceiling of 0.009 is an *exact* tenth of 0.09 with zero
+  drift. Measured under the new anchor, the widest drifting pairs are
+  `crit-chance/increased` and `dexterity/increased`, whose 0.0667 sits **+0.045%**
+  above a literal tenth of 0.06667 — the comment now names those. **The assertion
+  itself is untouched and still passes for all 33 pairs.** Three tests were added:
+  the designed block is exactly one axis wide (with `spreadAxisStats` still
+  containing `move-speed` and the 0.36 measurement still present); the 33-pair
+  frozen-ceiling comparison; and the move-speed ladder plus the zero-headroom
+  boundary. `itemLevel1Fraction === 1 / 10` is now asserted exactly (`toBe`), with
+  0058's reasoning in the comment, alongside the pre-existing `toBeCloseTo`.
+  `budget.test.ts` is 33 tests, all green; no `toBeCloseTo` digit count was
+  reduced anywhere in the file.
+
+  **`npm run verify` is green:** 37 test files, **616 tests passed**, content ok
+  (53 entries), 8 smoke scenarios × 20 seeds ok, **6 of 6 replays ok**.
+
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is empty
+  and `git diff --stat main -- packages/content packages/sim packages/client` is
+  empty. `npm run sim -- run loot-smoke --seed 1` reports state hash
+  **`0a835d8b90ed09f3`** with **`totalAffixesRolled 271`** — the same pair task
+  0700 measured on both sides of its change:
+
+  ```
+  loot-smoke  seed=1  ticks=1
+
+    basesRolled          11
+    affixPoolSize        22
+    totalItems           88
+    magicItems           44
+    rareItems            44
+    totalAffixesRolled   271
+    distinctAffixesSeen  22
+
+    ticks completed  1
+    state hash       0a835d8b90ed09f3
+  ```
+
+  `rollItem` is untouched and no golden replay rolls an item; ceilings are
+  authoring-time (decision 0044's Model A) and nothing consumes them yet.
+
+- **The four re-derived move-speed rows** (throwaway `npx tsx` script outside the
+  repo, reading `packages/content/data/affixes/` and running every tier's mods
+  through `budgetedContributions`):
+
+  | affix | tier | gate | authored `max` | ceiling at gate | over by | legal at (per mod) |
+  |---|---|---|---|---|---|---|
+  | `of-haste` | 2 | 1 | 0.05 | 0.0090 | ×5.56 | **52** |
+  | `of-haste` | 1 | 20 | 0.09 | 0.0245 | ×3.67 | **100** |
+  | `of-the-stag` | 2 | 1 | 0.05 | 0.0090 | ×5.56 | **52** |
+  | `of-the-stag` | 1 | 20 | 0.09 | 0.0245 | ×3.67 | **100** |
+
+  Exactly the task file's cross-check. The pool-wide over-budget count is
+  **42 of 53, unchanged** — the same 42 rows task 0700's Outcome lists, with only
+  these four rows' numbers moving; no row left the list and none joined it. Rows
+  legal at **no item level** drop from four to **two**: only `of-hunger`/`of-vigor`
+  tier 1 (7 life-regen against 4.1714) remain, since both move-speed tier-1 rows
+  are now legal at item level 100.
+
+  **The zero-headroom boundary fact, for task 0710.** `0.81 / 9 = 0.09` exactly
+  and `Math.round(0.09 * 10000) / 10000 === 0.09` is `true`, so the item-level-100
+  per-mod ceiling *is* 0.09. The over-budget check is a strict `max > ceiling`, so
+  the authored 0.09 is **legal with exactly zero headroom** — `0.09 > ceiling` is
+  `false`, and one quantum more (0.0901) is illegal. That is the ratification 0062
+  intends, but 0710's own trap 4 warns against authoring onto a floating-point
+  boundary: **0710 must either leave a quantum or knowingly record that it is
+  authoring on the boundary.** Both facts are pinned in a test.
+
+- **On CLAUDE.md's new "a number without its measuring stick is not a number"
+  rule**, which landed on `main` (PR #86) while this task was in flight and was
+  merged into this branch before the PR. The stick for a designed target *is*
+  already a field: "full set" means `maxSingleSlotShare.equipmentSlotCount`
+  slots, so a target here follows that field if a tenth slot is ever authored,
+  and the block comment now points at it explicitly. The per-mod / per-item /
+  per-set units are named at every mention of a number, which is the distinction
+  that falsified 0058. The one stick that is *not* a field is **how many slots
+  each axis is authored on** (four, for `move-speed`) — that is exactly 0062's
+  named follow-up and this task file's Out of scope, so it is documented in the
+  block comment and left to the owner ruling rather than started here. Adding it
+  as a field would also make `core` carry a measurement of `content`, which can
+  change under it.
+
+- **Scope deviations:** two, both inside Files in scope, neither widening it.
+
+  1. **0055's `Status:` line is three lines, not the "one line, or two if the
+     Status wraps" the acceptance criterion anticipates.** The line it replaces
+     was already two lines and carried a second fact — that 0055 *partially
+     supersedes 0050* — which the partial-supersession form must not drop. The
+     shipped line is `partially superseded by 0063 (the move-speed/increased
+     anchor 0.118 → 0.0715, now a designed 0.09 per mod; every other axis, the
+     solved k and this entry's partial supersession of 0050 stand)`. Still one
+     logical line, still only the Status line, body untouched.
+     `git diff docs/decisions/0058-budget-anchors-may-be-designed.md` is empty.
+  2. **The audit script's "legal at" column needed the legality test spelled
+     out, and the obvious form is wrong.** A first pass used `ceiling > authored`
+     and reported both 0.09 rows as `never` — because at item level 100 the
+     ceiling *equals* the roll. The module's over-budget check is
+     `max > ceiling`, so legal is its negation, `max <= ceiling`. With the
+     correct test the rows read **100**, matching the task file, and the resist
+     rows (`of-the-plague`/`of-the-storm`/`of-the-tide`/`storm-warded` tier 1)
+     return to task 0700's **56** rather than 57. Recorded because it is the same
+     boundary the zero-headroom fact is about, from the other side: an off-by-one
+     in the comparison operator is exactly what "zero headroom" makes visible.
+
 - **Follow-ups worth a new task:**
+  - **Task 0710** is unblocked and must resolve the zero-headroom boundary above
+    (leave a quantum on the tier-1 0.09, or record the boundary), plus move the
+    tier-2 gates to 52 (or trim 0.05) and re-cost the remaining 38 rows.
+  - **Re-expressing per-axis targets over the slots that can actually carry
+    them.** 0062 names this as the thing worth revisiting, and it is the honest
+    fix for a nominal figure that looks wrong; `life-regen` (three slots) is the
+    next axis to hit it. It is a redesign of the set → slot → mod chain for every
+    axis and needs an owner ruling. **Not started here**, as the task file
+    directs.
+  - `of-hunger`/`of-vigor` tier 1 remain legal at no item level: they need a
+    trimmed roll or a fourth authored `life-regen` source to widen the axis.
+    0058 chose to leave `life-regen` measured precisely because trimming is
+    available; that choice is now the only unresolved `never` in the pool.
