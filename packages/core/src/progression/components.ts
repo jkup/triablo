@@ -4,13 +4,17 @@
  *
  * ## What a level is here
  *
- * Nothing that hits. Decision 0045 rules that a character level grants **no
- * combat power** — it is an access gate (item `levelRequirement`, dungeon
- * access, content pacing), and the reference ungeared statline is identical at
- * level 1 and at level 70. So this module holds no stat table, feeds neither
- * `computeStats` nor `computeDamage`, and never writes `Combatant.level`
- * (which is a different quantity: the *attacker* level in decision 0004's
- * armor curve, fixed at spawn).
+ * One axis, and an access gate. Decision 0051 (superseding 0045) rules that a
+ * character level grants **+6 max-life and nothing else** — no armor, no
+ * damage, no attributes, no crit — on top of what a level always was: item
+ * `levelRequirement`, dungeon access, content pacing.
+ *
+ * That grant does not live in *this* file: it is a `max-life` `StatMod` in
+ * `grants.ts`, folded at the `computeStats` seam by whoever spawns the
+ * character. So this component still holds no stat table, and nothing in this
+ * module ever feeds `computeDamage` or writes `Combatant.level` (which is a
+ * different quantity: the *attacker* level in decision 0004's armor curve,
+ * fixed at spawn).
  *
  * ## Why its own component, and not a `Combatant` field
  *
@@ -36,7 +40,8 @@ import { defineComponent } from '../ecs'
 /**
  * The character level cap.
  *
- * Ratified by decision 0045 ("The character level cap is 70"). It is a hard
+ * Ratified by decision 0045 ("The character level cap is 70") and carried
+ * forward unchanged by decision 0051, which supersedes it. It is a hard
  * boundary, not a soft target: no function in this package ever returns a
  * `Progression` above it.
  */
