@@ -55,9 +55,10 @@ no attacker level, so the stick cannot move it.
 **One edge case this settles.** A ceiling equals a tenth of its endgame ceiling
 only up to decision 0005's 1/10000 quantum. The recalibrated
 `move-speed/increased` ceiling at item level 1 is 0.0072 — a rounded 0.00715,
-0.7% above a literal tenth — so the item-level-1 anchor is asserted to within
-one quantum of the endgame ceiling, a bound that scales with the pair, rather
-than a flat tolerance that only held while ceilings were large.
+0.7% above a literal tenth — so the anchor is the **quantized** tenth, not a
+literal one. That is exact, not an approximation: for every priced pair the
+item-level-1 ceiling *is* `quantize(endgame × itemLevel1Fraction)`. A ceiling
+that reads a fraction of a percent off a literal tenth is correct, not a bug.
 
 ## Consequences
 
