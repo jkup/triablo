@@ -287,20 +287,16 @@ describe('curve shape', () => {
     for (const [stat, mode] of pricedPairs) {
       const at1 = maxAtItemLevel(stat, mode, 1) as number
       const at100 = maxAtItemLevel(stat, mode, 100) as number
-      // Both endpoints are rounded to decision 0005's 1/10000 before they are
-      // returned, so the ratio can only be exact to within one quantum of the
-      // endgame ceiling — a bound that *tightens* with the pair instead of
-      // assuming one size. It is stricter than a flat 3-decimal tolerance for
-      // every pair but `move-speed/increased`, whose item-level-1 ceiling of
-      // 0.0072 is a rounded 0.00715: at a 1/10000 grain a +0.7% move-speed
-      // ceiling cannot express a tenth of +7.15% any closer. Decision 0055
-      // records that recalibration shrank the smallest ceilings to where the
-      // quantum is visible.
-      const tolerance = 1 / STAT_SCALE / at100
-      expect(
-        Math.abs(at1 / at100 - BUDGET_CALIBRATION.itemLevel1Fraction),
-        `${stat}/${mode}`,
-      ).toBeLessThanOrEqual(tolerance)
+      // An **equality**, not a tolerance: both endpoints are rounded to
+      // decision 0005's 1/10000 before they are returned, so the exact
+      // statement is that the item-level-1 ceiling *is* the quantized tenth of
+      // the endgame ceiling. That holds for every priced pair with no slack at
+      // all, including `move-speed/increased`, whose 0.0072 is a rounded
+      // 0.00715 and which a ratio-with-tolerance form could only accommodate
+      // by widening the window for pairs that never needed one.
+      expect(at1, `${stat}/${mode}`).toBe(
+        Math.round(at100 * BUDGET_CALIBRATION.itemLevel1Fraction * STAT_SCALE) / STAT_SCALE,
+      )
     }
   })
 })

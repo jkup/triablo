@@ -290,7 +290,7 @@ Add two tests that did not exist:
 
 - **Scope deviations:** four, all inside Files in scope, none widening it.
 
-  0. **0050's `Status:` line reads `partially superseded by 0055 (...)`, not
+  1. **0050's `Status:` line reads `partially superseded by 0055 (...)`, not
      `superseded by 0055`** — a deliberate departure from the acceptance
      criterion, flagged here so it is trivial to reverse. PR #80 landed on
      `main` *after* this task file was written and added exactly this form to
@@ -305,24 +305,39 @@ Add two tests that did not exist:
      clause is in parentheses per the README's format. If the reviewer prefers
      the task file's literal wording, it is a one-line edit.
 
-  1. **An eighth assertion moved that the task file did not name.** Line 394,
+  2. **An eighth assertion moved that the task file did not name.** Line 394,
      `maxAtItemLevel('max-life', 'flat', 35) > 48`, was hidden behind the line
      393 failure. The recalibrated ceiling does not ratify a 48-life roll until
      item level **64** (47.9833 at 63, 48.6406 at 64), so the assertion is now
      false at 35. Replaced with the tighter pair `at 63 < 48` and `at 64 > 48`
      and a corrected comment; the old comment's "belongs at item level 35+" is
      now "at item level 64".
-  2. **The item-level-1 anchor test needed restructuring, not a moved number.**
-     `at1 / at100 ≈ 0.1` to three decimals fails for `move-speed/increased`
-     alone: its item-level-1 ceiling is `quantize(0.0071509) = 0.0072`, 0.70%
-     above a literal tenth, because decision 0005's 1/10000 grain is coarse
-     relative to a ceiling that small. The assertion now bounds the deviation
-     by **one quantum of the endgame ceiling** (`1 / STAT_SCALE / at100`),
-     which is *stricter* than the flat 3-decimal tolerance for 19 of the 20
-     priced pairs (5×10⁻⁷ for `crit-damage`, where it was 5×10⁻⁴) and correct
-     for the twentieth. No `toBeCloseTo` digit count was reduced anywhere in
-     the file. Recorded in decision 0055.
-  3. Two test *titles* and the module header comment were reworded where they
+  3. **The item-level-1 anchor test was restructured — and my first attempt at
+     it weakened the test.** `at1 / at100 ≈ 0.1` to three decimals fails for
+     `move-speed/increased`: its item-level-1 ceiling is
+     `quantize(0.0071509) = 0.0072`, 0.70% above a literal tenth, because
+     decision 0005's 1/10000 grain is coarse relative to a ceiling that small.
+     I first replaced the flat tolerance with a per-pair bound of one quantum
+     of the endgame ceiling (`1 / STAT_SCALE / at100`) and claimed it was
+     stricter for "19 of 20" pairs. **Both halves of that claim were wrong**,
+     as PR #81's integrator review found: enumerating the test's own
+     `pricedPairs` gives **33** pairs, not 20, and the bound was stricter for
+     31 and *looser* for **two**, not one. The second was `move-speed/flat`,
+     whose deviation of 2.331×10⁻⁴ passed the old 5.000×10⁻⁴ bound
+     comfortably and which the new bound handed a 5.828×10⁻⁴ window — 16.6%
+     wider on a pair that never needed it, so the test stopped catching a
+     one-quantum drift it used to catch. That is weakening a test to fit a
+     change, however unintentionally.
+
+     **The shipped form is an equality with no tolerance at all:**
+     `at1 === quantize(at100 × itemLevel1Fraction)`. Both endpoints are
+     rounded to the quantum before they are returned, so this is the exact
+     statement the module makes, and it holds for **all 33 priced pairs with
+     zero mismatches** — verified by enumerating `pricedPairs` rather than
+     asserting a count. It cannot drift for any pair and it removes the
+     threshold question instead of re-litigating it. No `toBeCloseTo` digit
+     count was reduced anywhere in the file.
+  4. Two test *titles* and the module header comment were reworded where they
      stated the old stick as fact ("x10 at attacker level 70", "+35.4% move
      speed", "pins decision 0047 endgame constants"). No assertion loosened.
 
@@ -388,16 +403,31 @@ Add two tests that did not exist:
   item level 96 is effectively "never" in practice too.
 
 - **Follow-ups worth a new task:**
-  - Task 0710 owns the re-costing. The four `never` rows cannot be fixed by
-    moving item levels: `life-regen` needs either a trimmed roll or a fourth
-    authored source to widen the axis, and `move-speed` needs the same (0050
-    already flagged that `move-speed` has no feel roof, and its axis anchor is
-    now 0.0715 per mod — the thinnest ceiling in the file).
+  - **`move-speed` needs an owner ruling before task 0710 can finish — this is
+    the most consequential line in this Outcome.** It is not only the two
+    `never` rows: PR #81's integrator established that
+    `of-haste`/`of-the-stag` **tier 2** cannot be fixed by moving item levels
+    either. 0.05 against an item-level-1 ceiling of 0.0072 is **×6.94, the
+    worst ratio in the pool**, and although the table shows it legal at item
+    level 67, relocating a *tier 2* — the low-level tier — to item level 67 is
+    not a re-cost, it is a deletion of the affix's early game. So all four
+    authored move-speed tiers are unfixable by 0710's own tools: the axis is
+    anchored at `0.36 × k = 0.0715` per mod, the thinnest ceiling in the file,
+    and either the anchor is wrong or the authored rolls are. Decision 0050
+    already flagged that `move-speed` has no feel roof and that its ceiling is
+    "only as sane as its measured anchor". That call is the owner's.
+  - Task 0710 owns the rest of the re-costing. The two `life-regen` `never`
+    rows need either a trimmed roll or a fourth authored source to widen the
+    axis; everything else is a matter of moving item levels.
   - Once 0710 re-costs the pool, `measuredShippedSetGain` is a measurement of a
     pool that no longer exists and should be re-measured. Explicitly out of
     scope here and there; worth its own task so the *shape* input to `k` gets
     re-derived deliberately rather than as a side effect.
   - Entry gear is thinner than 0050 warned: the item-level-1 `move-speed`
-    ceiling (+0.72%) is now small enough that decision 0005's 1/10000 quantum
-    is visible in it. If low-level utility affixes should mean anything, the
-    `itemLevel1Fraction` floor is the lever, and it is a design call.
+    ceiling is +0.72%. **This is not a quantization problem.** The integrator
+    swept all 33 priced pairs × 100 item levels and found **zero** adjacent
+    item levels returning the same ceiling — the ladder has no dead rungs even
+    on the thinnest axis, so decision 0005's grain is fine. What is thin is the
+    move-speed ceiling itself. If low-level utility affixes should mean
+    something, the lever is `itemLevel1Fraction` or the axis anchor, not the
+    quantum, and it is a design call.
