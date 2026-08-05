@@ -23,7 +23,7 @@ no downstream contract, or anything already decided elsewhere.
 
 - **Date:** YYYY-MM-DD
 - **Decided by:** human | agent (task NNNN)
-- **Status:** accepted | superseded by NNNN
+- **Status:** accepted | superseded by NNNN | partially superseded by NNNN (<clause>)
 
 ## Context
 Two or three sentences: the question and why it had to be answered now.
@@ -43,6 +43,13 @@ than none.
 - Append-only: never edit an accepted decision. To reverse one, write a new
   decision that supersedes it and flip the old file's Status line — that pair
   of changes is the one exception to append-only.
+- **Partial supersession.** When a later decision kills one clause of an
+  entry but leaves the rest standing, do not mark the whole file superseded —
+  that sends readers hunting for a wholesale replacement that does not exist.
+  Use `partially superseded by NNNN` and name the dead clause in parentheses,
+  e.g. `partially superseded by 0051 ("No level grants any stat")`. The rest
+  of the entry remains binding. Everything else about append-only still
+  applies: the body is not edited, only the Status line.
 - The human owner may veto any agent decision by superseding it; the
   superseding file then wins.
 - Numbering collisions between parallel PRs are resolved at merge by whoever
