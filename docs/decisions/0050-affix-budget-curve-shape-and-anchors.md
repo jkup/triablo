@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-04
 - **Decided by:** agent (task 0600)
-- **Status:** accepted
+- **Status:** superseded by 0055
 
 ## Context
 

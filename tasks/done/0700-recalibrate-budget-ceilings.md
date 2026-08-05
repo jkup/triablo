@@ -231,9 +231,158 @@ Add two tests that did not exist:
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** two fields in `BUDGET_CALIBRATION` plus the arithmetic that
+  falls out. `targetFullSetRatio.measuredAgainstAttackerLevel` 70 → **5**
+  (decision 0052) and `referenceUngeared` became the **level-70 ungeared
+  statline** — `life` 200 → **614**, armor/damage/moveSpeed/attackInterval
+  untouched (decision 0051) — carrying `atCharacterLevel: 70` as a **field**,
+  next to a doc comment showing `200 + 6 × 69 = 614`. The `referenceUngeared`
+  and `measuredAgainstAttackerLevel` doc comments, which asserted the now-false
+  0045 claims ("decision 0030's slice avatar, verbatim", "identical at level 1
+  and at level 70", "0047 pins it at 70 — the character level cap"), were
+  rewritten to cite 0051 and 0052. `measuredShippedSetGain`'s values are
+  unchanged; only its comment moved, because the ratios it implies moved with
+  the denominator. Nothing below the calibration block was touched.
 
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
+  **The solved constants, read out of the module** (`npx tsx` against the built
+  exports, not predicted):
+
+  - `DEFENSIVE_SCALE` (decision 0050's `k`) = **1.7877255112192385**, was
+    2.9499. `LEVEL_SCALE = ARMOR_K × 5 = 50`; the quadratic takes `a = 364`,
+    `b = 138`, `life₀ = 614`, `armorTerm = 64`, ratio 10 →
+    `qa = 50232, qb = 108028, qc = −353664`.
+    *Note on the task file's 1.7877263736:* that is `k` back-derived from the
+    **quantized** item-level-100 `max-life` ceiling (`72.3036 × 9 / 364`); the
+    exact positive root is 1.7877255112. They agree to six significant figures
+    and every derived ceiling in the task's table reproduces exactly, so this is
+    a reporting-precision difference, not a disagreement.
+  - Endgame nine-slot set: **1264.7321 life / 260.7062 armor** →
+    **83.9076% mitigation** at attacker level 5 and **×10.0000 effective HP**.
+  - Ceilings at item level 100, all reproducing the task file's table:
+    `max-life/flat` **72.3036**, `armor/flat` **27.4118**, `life-regen/flat`
+    **4.1714**, `move-speed/increased` **0.0715**, `move-speed/flat`
+    **0.1716**, `vitality/flat` **18.0759** — 60.60% of their shipped values.
+    Unchanged: `damage/flat` 36, `crit-chance/flat` 11.1111,
+    `crit-damage/flat` 200, `resist-*/flat` 25, `attack-speed/increased` 2.
+  - Effective HP the new ceilings permit, by attacker level: ×23.23 at 1,
+    ×17.01 at 2, **×10.00 at 5**, ×2.77 at 70.
+  - The shipped pool cross-check: life 614 → 978, armor 14 → 152 is
+    **×5.0274** effective HP at attacker level 5 (0047 reported ×3.3650 for the
+    same pool at attacker level 70 on a 200-life reference); offence unchanged
+    at ×2.5556.
+
+  **Tests.** The seven pinned assertions moved to the values above (43 → `5`;
+  63–64 → the 614/`atCharacterLevel` statline; 83 → 5.0274; 310/311 → 0.2145 /
+  0.0715; 315 → 4.1714; 393 → 23.0057), with their comments rewritten rather
+  than their tolerances loosened. Two tests were added: the endgame set is ×10
+  at attacker level 5 **and ≈×2.77 at 70** (with the 1264.73/260.71 pair and
+  83.91% mitigation pinned), and `referenceUngeared.atCharacterLevel` is 70
+  with `life === 200 + 6 × (atCharacterLevel − 1)` written literally, importing
+  nothing from `progression/`. `budget.test.ts` is 30 tests, all green.
+
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty and all six replays report `ok`. Independently confirmed by running
+  `loot-smoke --seed 1` with and without the change: state hash
+  `0a835d8b90ed09f3` both times, 271 affixes rolled both times. Ceilings are
+  authoring-time (decision 0044's Model A) and nothing consumes them yet.
+  `git diff --stat origin/main -- packages/content packages/sim packages/client`
+  is also empty.
+
+- **Scope deviations:** three, all inside Files in scope, none widening it.
+
+  1. **An eighth assertion moved that the task file did not name.** Line 394,
+     `maxAtItemLevel('max-life', 'flat', 35) > 48`, was hidden behind the line
+     393 failure. The recalibrated ceiling does not ratify a 48-life roll until
+     item level **64** (47.9833 at 63, 48.6406 at 64), so the assertion is now
+     false at 35. Replaced with the tighter pair `at 63 < 48` and `at 64 > 48`
+     and a corrected comment; the old comment's "belongs at item level 35+" is
+     now "at item level 64".
+  2. **The item-level-1 anchor test needed restructuring, not a moved number.**
+     `at1 / at100 ≈ 0.1` to three decimals fails for `move-speed/increased`
+     alone: its item-level-1 ceiling is `quantize(0.0071509) = 0.0072`, 0.70%
+     above a literal tenth, because decision 0005's 1/10000 grain is coarse
+     relative to a ceiling that small. The assertion now bounds the deviation
+     by **one quantum of the endgame ceiling** (`1 / STAT_SCALE / at100`),
+     which is *stricter* than the flat 3-decimal tolerance for 19 of the 20
+     priced pairs (5×10⁻⁷ for `crit-damage`, where it was 5×10⁻⁴) and correct
+     for the twentieth. No `toBeCloseTo` digit count was reduced anywhere in
+     the file. Recorded in decision 0055.
+  3. Two test *titles* and the module header comment were reworded where they
+     stated the old stick as fact ("x10 at attacker level 70", "+35.4% move
+     speed", "pins decision 0047 endgame constants"). No assertion loosened.
+
+- **The regenerated over-budget report — task 0710's work order.** Every
+  shipped `(affix, tier, mod)` whose expanded `max` exceeds `maxAtItemLevel`
+  at that tier's `itemLevel`. Produced by a throwaway `npx tsx` script outside
+  the repo, reading `packages/content/data/affixes/` and running each tier's
+  mods through `budgetedContributions`. **42 of 53 entries are over budget**
+  (up from 0600's 40 — the cross-check in the task file matches exactly), and
+  **four are legal at no item level**.
+
+  | affix | tier | ilvl | stat/mode | authored | ceiling | over by | legal at |
+  |---|---|---|---|---|---|---|---|
+  | `brutal` | 3 | 1 | `damage/flat` | 6 | 3.6000 | ×1.67 | 9 |
+  | `brutal` | 2 | 15 | `damage/flat` | 12 | 8.1818 | ×1.47 | 27 |
+  | `brutal` | 1 | 35 | `damage/flat` | 20 | 14.7273 | ×1.36 | 52 |
+  | `fell` | 3 | 1 | `crit-chance/flat` | 2 | 1.1111 | ×1.80 | 10 |
+  | `fell` | 2 | 15 | `crit-chance/flat` | 4 | 2.5253 | ×1.58 | 30 |
+  | `fell` | 1 | 35 | `crit-chance/flat` | 7 | 4.5455 | ×1.54 | 60 |
+  | `ironbound` | 2 | 1 | `armor/flat` | 6 | 2.7412 | ×2.19 | 15 |
+  | `ironbound` | 1 | 20 | `armor/flat` | 12 | 7.4759 | ×1.61 | 39 |
+  | `keen` | 3 | 1 | `crit-chance/flat` | 2 | 1.1111 | ×1.80 | 10 |
+  | `keen` | 2 | 15 | `crit-chance/flat` | 4 | 2.5253 | ×1.58 | 30 |
+  | `keen` | 1 | 40 | `crit-chance/flat` | 7 | 5.0505 | ×1.39 | 60 |
+  | `lithe` | 2 | 1 | `crit-chance/flat` | 2 | 1.1111 | ×1.80 | 10 |
+  | `lithe` | 1 | 20 | `crit-chance/flat` | 4.5 | 3.0303 | ×1.49 | 35 |
+  | `of-embers` | 3 | 1 | `resist-fire/flat` | 6 | 2.5000 | ×2.40 | 17 |
+  | `of-embers` | 2 | 15 | `resist-fire/flat` | 12 | 5.6818 | ×2.11 | 43 |
+  | `of-embers` | 1 | 35 | `resist-fire/flat` | 18 | 10.2273 | ×1.76 | 70 |
+  | `of-haste` | 2 | 1 | `move-speed/increased` | 0.05 | 0.0072 | ×6.94 | 67 |
+  | `of-haste` | 1 | 20 | `move-speed/increased` | 0.09 | 0.0195 | ×4.62 | **never** |
+  | `of-hunger` | 3 | 1 | `life-regen/flat` | 2 | 0.4171 | ×4.80 | 43 |
+  | `of-hunger` | 2 | 15 | `life-regen/flat` | 4 | 0.9480 | ×4.22 | 96 |
+  | `of-hunger` | 1 | 35 | `life-regen/flat` | 7 | 1.7065 | ×4.10 | **never** |
+  | `of-the-bear` | 2 | 1 | `max-life/flat` | 24 | 7.2304 | ×3.32 | 27 |
+  | `of-the-bear` | 1 | 25 | `max-life/flat` | 48 | 23.0057 | ×2.09 | 64 |
+  | `of-the-plague` | 2 | 1 | `resist-poison/flat` | 8 | 2.5000 | ×3.20 | 26 |
+  | `of-the-plague` | 1 | 22 | `resist-poison/flat` | 15 | 7.2727 | ×2.06 | 56 |
+  | `of-the-stag` | 2 | 1 | `move-speed/increased` | 0.05 | 0.0072 | ×6.94 | 67 |
+  | `of-the-stag` | 1 | 20 | `move-speed/increased` | 0.09 | 0.0195 | ×4.62 | **never** |
+  | `of-the-storm` | 2 | 1 | `resist-lightning/flat` | 8 | 2.5000 | ×3.20 | 26 |
+  | `of-the-storm` | 1 | 22 | `resist-lightning/flat` | 15 | 7.2727 | ×2.06 | 56 |
+  | `of-the-tide` | 2 | 1 | `resist-cold/flat` | 8 | 2.5000 | ×3.20 | 26 |
+  | `of-the-tide` | 1 | 22 | `resist-cold/flat` | 15 | 7.2727 | ×2.06 | 56 |
+  | `of-vigor` | 3 | 1 | `life-regen/flat` | 2 | 0.4171 | ×4.80 | 43 |
+  | `of-vigor` | 2 | 15 | `life-regen/flat` | 4 | 0.9480 | ×4.22 | 96 |
+  | `of-vigor` | 1 | 35 | `life-regen/flat` | 7 | 1.7065 | ×4.10 | **never** |
+  | `stalwart` | 2 | 1 | `armor/flat` | 6 | 2.7412 | ×2.19 | 15 |
+  | `stalwart` | 1 | 20 | `armor/flat` | 12 | 7.4759 | ×1.61 | 39 |
+  | `storm-warded` | 2 | 1 | `resist-lightning/flat` | 8 | 2.5000 | ×3.20 | 26 |
+  | `storm-warded` | 1 | 22 | `resist-lightning/flat` | 15 | 7.2727 | ×2.06 | 56 |
+  | `undying` | 2 | 1 | `max-life/flat` | 24 | 7.2304 | ×3.32 | 27 |
+  | `undying` | 1 | 25 | `max-life/flat` | 48 | 23.0057 | ×2.09 | 64 |
+  | `vital` | 2 | 1 | `max-life/flat` | 16 | 7.2304 | ×2.21 | 15 |
+  | `vital` | 1 | 20 | `max-life/flat` | 36 | 19.7192 | ×1.83 | 45 |
+
+  Reading it: the eleven entries **not** listed are all under budget. The two
+  new rows against 0600's 40 are `of-haste`/`of-the-stag` **tier 2** (0.05
+  move-speed against an item-level-1 ceiling of 0.0072), which the old
+  calibration ratified. The worst offenders are now the two utility axes — the
+  four `never` rows are exactly the ones the task file predicted — and the
+  worst ratio is ×6.94, up from 0600's ×4.3. `of-hunger`/`of-vigor` tier 2 at
+  item level 96 is effectively "never" in practice too.
+
 - **Follow-ups worth a new task:**
+  - Task 0710 owns the re-costing. The four `never` rows cannot be fixed by
+    moving item levels: `life-regen` needs either a trimmed roll or a fourth
+    authored source to widen the axis, and `move-speed` needs the same (0050
+    already flagged that `move-speed` has no feel roof, and its axis anchor is
+    now 0.0715 per mod — the thinnest ceiling in the file).
+  - Once 0710 re-costs the pool, `measuredShippedSetGain` is a measurement of a
+    pool that no longer exists and should be re-measured. Explicitly out of
+    scope here and there; worth its own task so the *shape* input to `k` gets
+    re-derived deliberately rather than as a side effect.
+  - Entry gear is thinner than 0050 warned: the item-level-1 `move-speed`
+    ceiling (+0.72%) is now small enough that decision 0005's 1/10000 quantum
+    is visible in it. If low-level utility affixes should mean anything, the
+    `itemLevel1Fraction` floor is the lever, and it is a design call.
