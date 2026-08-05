@@ -46,12 +46,13 @@
 >    measurement in task 0600's Outcome is against a ceiling that does not
 >    apply. Sizing the implicit allowance is a **future task** — do not invent
 >    one here, and do not add a check for it.
-> 2. **Task 0740** (added as a dependency above) implements decision 0058's
->    designed `move-speed` anchor in `packages/core/src/loot/budget.ts` before
->    task 0710 re-costs the pool. It changes no interface — one axis's ceiling
->    curve moves — so nothing in this task's shape changes; it is listed so the
->    chain is explicit and so you do not wire against a ceiling that is about
->    to move under you.
+> 2. **Task 0740** (added as a dependency above) implements decisions **0058 +
+>    0062**'s designed `move-speed` anchor in `packages/core/src/loot/budget.ts`
+>    before task 0710 re-costs the pool: the per-mod `move-speed/increased`
+>    ceiling at item level 100 becomes **0.09**, up from 0.0715. It changes no
+>    interface — one axis's ceiling curve moves — so nothing in this task's
+>    shape changes; it is listed so the chain is explicit and so you do not wire
+>    against a ceiling that is about to move under you.
 
 ## Goal
 
