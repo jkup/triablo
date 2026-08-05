@@ -33,17 +33,19 @@ const range = (stat: StatKey, mode: StatModMode, min: number, max: number): Stat
 })
 
 describe('the calibration block', () => {
-  it('pins decision 0047 endgame constants, including the measuring stick', () => {
-    // Decision 0047: "×10 effective HP and ×7 offence, both measured against
-    // an attacker level of 70". The level is a *field*, not a comment — a
-    // ratio without its level is meaningless, which is the units error that
-    // bit task 0570 and the reason 0650 made it required.
+  it('pins decision 0052 endgame constants, including the measuring stick', () => {
+    // Decision 0052 (supersedes 0047): ×10 effective HP and ×7 offence carried
+    // forward verbatim, but measured against an attacker level of **5** — the
+    // top of the authored monster band, because decision 0046 fixed monsters
+    // at a level band and none ever reaches 70. The level is a *field*, not a
+    // comment — a ratio without its level is meaningless, which is the units
+    // error that bit task 0570 and produced 0047's ×47–114 ceilings.
     expect(BUDGET_CALIBRATION.targetFullSetRatio.effectiveHp).toBe(10)
     expect(BUDGET_CALIBRATION.targetFullSetRatio.offence).toBe(7)
-    expect(BUDGET_CALIBRATION.targetFullSetRatio.measuredAgainstAttackerLevel).toBe(70)
+    expect(BUDGET_CALIBRATION.targetFullSetRatio.measuredAgainstAttackerLevel).toBe(5)
 
-    // Decision 0047: item level 100, already LevelSchema's cap, deliberately
-    // 30 levels above decision 0045's character cap of 70.
+    // Decision 0047 (carried forward by 0052): item level 100, already
+    // LevelSchema's cap, deliberately 30 levels above the character cap of 70.
     expect(BUDGET_CALIBRATION.endgameItemLevel).toBe(100)
 
     // Decision 0047: `maxSingleSlotShare` = 3 × the equal share. Encoded as
@@ -55,13 +57,14 @@ describe('the calibration block', () => {
     expect(BUDGET_CALIBRATION.maxSingleSlotShare.share).toBeCloseTo(0.3333, 4)
   })
 
-  it('carries decision 0030 slice avatar verbatim as the ungeared reference', () => {
-    // Decision 0045: a character level grants no combat power, so the ungeared
-    // statline is this block *at every level* — identical at 1 and at 70. That
-    // is what makes calibrating against a fixed reference legitimate; the
-    // reference cannot drift out from under the ceilings.
+  it('carries the level-70 ungeared statline as the reference, level included', () => {
+    // Decision 0051: a character level grants +6 max-life and *only* max-life,
+    // so the ungeared statline is level-dependent and 0052 pins the reference
+    // at the level-70 one — a single fixed denominator, so the reference still
+    // cannot drift out from under the ceilings as a character levels.
     expect(BUDGET_CALIBRATION.referenceUngeared).toEqual({
-      life: 200,
+      atCharacterLevel: 70,
+      life: 614,
       armor: 14,
       damage: 18,
       damageType: 'physical',
@@ -70,29 +73,50 @@ describe('the calibration block', () => {
     })
   })
 
-  it('reproduces decision 0047 measured shipped set, the shape input', () => {
+  it('labels the reference with its character level and pays decision 0051 grant', () => {
+    // The regression that keeps the statline honest: a life number without the
+    // level it belongs to is as meaningless as a ratio without its attacker
+    // level. The arithmetic is written out literally — decision 0051's +6
+    // max-life per level, 200 at level 1 — rather than imported from
+    // `progression/`, so this test pins the *calibration*, not another
+    // module's constant, and cannot drift when that one is retuned.
+    const { atCharacterLevel, life } = BUDGET_CALIBRATION.referenceUngeared
+    expect(atCharacterLevel).toBe(70)
+    expect(life).toBe(200 + 6 * (atCharacterLevel - 1))
+  })
+
+  it('reproduces the measured shipped set on the new reference, the shape input', () => {
     // The nine-slot max-rolled set out of packages/content/data, with
-    // attribute mods expanded (decision 0044 §3): life 200 → 564, armor
-    // 14 → 152, damage 18 → 46. Decision 0047's Context states ×3.3650
-    // effective HP and ×2.5556 offence against an attacker of level 70; if
-    // this test fails, the measured block no longer describes the pool it
-    // claims to, and the life:armor *shape* of every defensive ceiling is
-    // stale.
+    // attribute mods expanded (decision 0044 §3): life 614 → 978, armor
+    // 14 → 152, damage 18 → 46. That is ×5.0274 effective HP at decision
+    // 0052's attacker level 5, where decision 0047's Context reported ×3.3650
+    // for the same pool on a 200-life reference at attacker level 70. If this
+    // test fails, the measured block no longer describes the pool it claims
+    // to, and the life:armor *shape* of every defensive ceiling is stale.
     const { life, armor, damage } = BUDGET_CALIBRATION.referenceUngeared
     const gain = BUDGET_CALIBRATION.measuredShippedSetGain
-    expect(effectiveHp(life + gain['max-life/flat'], armor + gain['armor/flat']) / effectiveHp(life, armor)).toBeCloseTo(3.365, 3)
+    expect(effectiveHp(life + gain['max-life/flat'], armor + gain['armor/flat']) / effectiveHp(life, armor)).toBeCloseTo(5.0274, 4)
     expect((damage + gain['damage/flat']) / damage).toBeCloseTo(2.5556, 4)
   })
 })
 
-/** Decision 0004's mitigation, at decision 0047's measuring-stick level. */
-function effectiveHp(life: number, armor: number): number {
-  const levelScale = ARMOR_K * BUDGET_CALIBRATION.targetFullSetRatio.measuredAgainstAttackerLevel
+/** Decision 0004's mitigation, at any attacker level. */
+function effectiveHpAt(life: number, armor: number, attackerLevel: number): number {
+  const levelScale = ARMOR_K * attackerLevel
   return (life * (armor + levelScale)) / levelScale
 }
 
+/** Decision 0004's mitigation, at decision 0052's measuring-stick level. */
+function effectiveHp(life: number, armor: number): number {
+  return effectiveHpAt(
+    life,
+    armor,
+    BUDGET_CALIBRATION.targetFullSetRatio.measuredAgainstAttackerLevel,
+  )
+}
+
 describe('ceilings hit the target they are derived from', () => {
-  it('a full endgame set at the effective-HP ceilings is x10 at attacker level 70', () => {
+  it('a full endgame set at the effective-HP ceilings is x10 at attacker level 5', () => {
     // The per-slot ceiling is `share × fullSetGain`, so the set gain it
     // implies is `perSlot / share`. Folding both defensive axes back through
     // decision 0004's curve must return decision 0047's number — this is the
@@ -104,6 +128,33 @@ describe('ceilings hit the target they are derived from', () => {
     const { life, armor } = BUDGET_CALIBRATION.referenceUngeared
     const ratio = effectiveHp(life + setLife, armor + setArmor) / effectiveHp(life, armor)
     expect(ratio).toBeCloseTo(BUDGET_CALIBRATION.targetFullSetRatio.effectiveHp, 4)
+  })
+
+  it('hits x10 at attacker level 5 and only there — the stick is part of the constant', () => {
+    // The regression that would have caught decision 0047's error: the same
+    // ceilings measured against a *different* attacker are a different ratio,
+    // because decision 0004 scales armor by the attacker's level. Calibrated
+    // at 70 the ceilings read ×10 there and ×47 against a level-5 monster
+    // (decision 0052's table); calibrated at 5 they read ×10 against the
+    // monsters that exist and ×2.77 against an attacker no monster ever is.
+    // If this test ever passes at both levels, the armor axis has stopped
+    // participating and the effective-HP target has quietly become a life
+    // target.
+    const { share } = BUDGET_CALIBRATION.maxSingleSlotShare
+    const endgame = BUDGET_CALIBRATION.endgameItemLevel
+    const { life, armor } = BUDGET_CALIBRATION.referenceUngeared
+    const setLife = life + (maxPerSlotAtItemLevel('max-life', 'flat', endgame) as number) / share
+    const setArmor = armor + (maxPerSlotAtItemLevel('armor', 'flat', endgame) as number) / share
+    // The endgame set decision 0055 records: 1264.73 life, 260.71 armor.
+    expect(setLife).toBeCloseTo(1264.73, 1)
+    expect(setArmor).toBeCloseTo(260.71, 1)
+    expect(effectiveHpAt(setLife, setArmor, 5) / effectiveHpAt(life, armor, 5)).toBeCloseTo(10, 4)
+    expect(effectiveHpAt(setLife, setArmor, 70) / effectiveHpAt(life, armor, 70)).toBeCloseTo(
+      2.7715,
+      3,
+    )
+    // 83.91% mitigation against the top of the authored monster band.
+    expect(setArmor / (setArmor + ARMOR_K * 5)).toBeCloseTo(0.8391, 4)
   })
 
   it('one main hand at the damage ceiling is exactly the x7 offence target', () => {
@@ -236,7 +287,16 @@ describe('curve shape', () => {
     for (const [stat, mode] of pricedPairs) {
       const at1 = maxAtItemLevel(stat, mode, 1) as number
       const at100 = maxAtItemLevel(stat, mode, 100) as number
-      expect(at1 / at100, `${stat}/${mode}`).toBeCloseTo(BUDGET_CALIBRATION.itemLevel1Fraction, 3)
+      // An **equality**, not a tolerance: both endpoints are rounded to
+      // decision 0005's 1/10000 before they are returned, so the exact
+      // statement is that the item-level-1 ceiling *is* the quantized tenth of
+      // the endgame ceiling. That holds for every priced pair with no slack at
+      // all, including `move-speed/increased`, whose 0.0072 is a rounded
+      // 0.00715 and which a ratio-with-tolerance form could only accommodate
+      // by widening the window for pairs that never needed one.
+      expect(at1, `${stat}/${mode}`).toBe(
+        Math.round(at100 * BUDGET_CALIBRATION.itemLevel1Fraction * STAT_SCALE) / STAT_SCALE,
+      )
     }
   })
 })
@@ -299,20 +359,21 @@ describe('mechanical anchors', () => {
     expect(maxPerSlotAtItemLevel('crit-chance', 'flat', 100)).toBeCloseTo(33.3333, 3)
   })
 
-  it('keeps a spread axis at the literal slot share: one item is +35.4% move speed', () => {
+  it('keeps a spread axis at the literal slot share: one item is +21.45% move speed', () => {
     // The number a reader needs to sanity-check the spread/concentrated
     // ruling (decision 0050). `move-speed`'s axis target is a *measured
     // nine-slot sum* (0.36 across the shipped set, scaled by k), so the
-    // 3/9 share applies literally: one item may carry +35.4% at item level
-    // 100 and one mod +11.8%. Were it concentrated like `damage`, one item
-    // could carry +106.2% — which is what the first draft of this module did
-    // and what the PR #76 review flagged.
-    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.354, 4)
-    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.118, 4)
+    // 3/9 share applies literally: one item may carry +21.45% at item level
+    // 100 and one mod +7.15%. Were it concentrated like `damage`, one item
+    // could carry +64.4% — the first draft of this module shipped that shape
+    // and PR #76 flagged it. Recalibrating on decision 0052's stick shrank
+    // both numbers by the k ratio, from +35.4% / +11.8%.
+    expect(maxPerSlotAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.2145, 4)
+    expect(maxAtItemLevel('move-speed', 'increased', 100)).toBeCloseTo(0.0715, 4)
     // ...and `life-regen`, the other measured nine-slot sum, is spread too:
-    // its per-mod ceiling of 6.88 sits just under the authored 7, because the
-    // whole shipped set grants 21 regen from three sources.
-    expect(maxAtItemLevel('life-regen', 'flat', 100)).toBeCloseTo(6.8831, 4)
+    // its per-mod ceiling of 4.17 now sits well under the authored 7, so the
+    // two tier-1 regen rolls are over budget at *every* item level (task 0710).
+    expect(maxAtItemLevel('life-regen', 'flat', 100)).toBeCloseTo(4.1714, 4)
   })
 
   it('keeps `increased` curves in fractions, not points', () => {
@@ -387,11 +448,14 @@ describe('the shipped pool, priced', () => {
   it('rules the max-life stack the shipped chest rolls today over budget at item level 25', () => {
     // `undying` T1 48 + `of-the-bear` T1 48 + `vital` T1 36 (through its
     // derivation) = 132 max-life on one chest, all unlocking by item level 25.
-    // The ceiling says that stack belongs at item level 35+, and one 48 roll
-    // at item level 25 is ×1.26 over its per-mod ceiling. This is task 0610's
-    // work order in miniature; the full list is in the task Outcome.
-    expect(maxAtItemLevel('max-life', 'flat', 25) as number).toBeCloseTo(37.9614, 4)
-    expect(maxAtItemLevel('max-life', 'flat', 35) as number).toBeGreaterThan(48)
+    // On decision 0052's stick a single 48 roll at item level 25 is ×2.09 over
+    // its per-mod ceiling of 23.0057, and the ceiling does not ratify a 48
+    // roll until item level 64 (it was 35 before the recalibration). This is
+    // task 0710's work order in miniature; the full list is in the task
+    // Outcome.
+    expect(maxAtItemLevel('max-life', 'flat', 25) as number).toBeCloseTo(23.0057, 4)
+    expect(maxAtItemLevel('max-life', 'flat', 63) as number).toBeLessThan(48)
+    expect(maxAtItemLevel('max-life', 'flat', 64) as number).toBeGreaterThan(48)
     expect(maxPerSlotAtItemLevel('max-life', 'flat', 25) as number).toBeLessThan(132)
   })
 

@@ -16,7 +16,11 @@
  *
  * Every number the owner might argue with lives in {@link BUDGET_CALIBRATION}
  * and nothing else in this file hard-codes a target: retuning is editing that
- * one block. The arithmetic that turns it into ceilings is decision 0050.
+ * one block. The arithmetic that turns it into ceilings is decision 0050 —
+ * its curve shape, share split and denials are carried forward unchanged — and
+ * the constants that block is anchored on are decisions 0051 and 0052,
+ * re-derived in decision 0055 (which partially supersedes 0050: its anchor
+ * constants only).
  */
 
 import { ARMOR_K, RESIST_CAP } from '../combat/damage'
@@ -60,28 +64,35 @@ const CRIT_CHANCE_POINT_ROOF = 100
 const PERCENT_POINTS = 100
 
 /**
- * The targets and the measuring stick they are measured against. Decision 0047
- * supplies all three and calls them "a first calibration, revised by playtest".
+ * The targets and the measuring stick they are measured against. Decision 0052
+ * supplies all three (superseding 0047, which it carries the two ratios forward
+ * from verbatim) and they remain "a first calibration, revised by playtest".
  */
 const TARGET_FULL_SET_RATIO = {
   /**
    * A full nine-slot endgame set multiplies the reference character's
-   * effective HP by this much (decision 0047).
+   * effective HP by this much (decision 0047, carried forward by 0052).
    */
   effectiveHp: 10,
-  /** ...and its offence by this much (decision 0047). */
+  /** ...and its offence by this much (decision 0047, carried forward by 0052). */
   offence: 7,
   /**
    * **The measuring stick is part of the constant.** A ratio without its
    * attacker level is meaningless: decision 0004 scales armor mitigation by
-   * the attacker's level, so the same max-rolled chest is ×2.59 effective HP
-   * against a level-5 attacker and ×1.72 against a level-100 one, and armor's
-   * share of a gear set's defensive value collapses from 52.6% at attacker
-   * level 5 to 14.6% at 70 (decision 0046's Context). Decision 0047 pins it at
-   * 70 — the character level cap (decision 0045). Any future axis added to
-   * this block carries its own measuring stick the same way.
+   * the attacker's level, so armor's share of a gear set's defensive value
+   * collapses from 52.6% at attacker level 5 to 14.6% at 70 (decision 0046's
+   * Context).
+   *
+   * Decision **0052** pins it at **5 — the top of the authored monster band**,
+   * not at the character level cap. Decision 0046 fixed difficulty as density
+   * and stats at a fixed monster level band, so no monster ever reaches level
+   * 70 and calibrating there measured the ceilings against an attacker that
+   * does not exist: 0047's stick of 70 (where armor is nearly worthless) bought
+   * an armor budget that permitted ×47–114 effective HP against the monsters
+   * that do. If the band moves, this constant moves with it. Any future axis
+   * added to this block carries its own measuring stick the same way.
    */
-  measuredAgainstAttackerLevel: 70,
+  measuredAgainstAttackerLevel: 5,
 } as const
 
 /**
@@ -91,10 +102,11 @@ const TARGET_FULL_SET_RATIO = {
 export const BUDGET_CALIBRATION = {
   /**
    * The top of the legal item-level range and the level every ceiling is
-   * calibrated at (decision 0047). This is already `LevelSchema`'s cap, and it
-   * is deliberately **30 levels above the character cap of 70** (decision
-   * 0045): item level and character level are different scales, and the gap is
-   * the headroom "harder dungeons drop better loot" needs.
+   * calibrated at (decision 0047, carried forward verbatim by 0052). This is
+   * already `LevelSchema`'s cap, and it is deliberately **30 levels above the
+   * character cap of 70** (decision 0051, carrying 0045's cap forward): item
+   * level and character level are different scales, and the gap is the headroom
+   * "harder dungeons drop better loot" needs.
    */
   endgameItemLevel: 100,
 
@@ -102,17 +114,29 @@ export const BUDGET_CALIBRATION = {
   minItemLevel: 1,
 
   /**
-   * Decision 0030's slice avatar, verbatim — the reference ungeared character.
+   * The **level-70 ungeared** character: decision 0030's slice avatar plus the
+   * life 69 level-ups grant, and nothing else.
    *
-   * This is **not** a stand-in for character progression. Decision 0045 rules
-   * that a character level grants no combat power and that the ungeared
-   * statline at *any* level is this block: identical at level 1 and at level
-   * 70. Gear is the sole power source, which is exactly what makes calibrating
-   * ceilings against a fixed reference legitimate — the reference does not
-   * move under the budget.
+   * Decision **0051** rules that a character level grants +6 max-life and *only*
+   * max-life, so the ungeared statline is now level-dependent —
+   * `200 + 6 × 69 = 614` life at the cap — while armor, damage, move speed and
+   * attack interval are level-invariant and stay at 0030's values. Decision
+   * **0052** therefore pins the reference at the **level 70** statline: a single
+   * fixed denominator, which preserves the property 0045 wanted and 0050 relied
+   * on — the reference does not drift out from under the ceilings as a character
+   * levels. Calibrating at level 1 instead would make every defensive ceiling a
+   * function of character level.
+   *
+   * `atCharacterLevel` is a **field, not a comment**, for the same reason
+   * `measuredAgainstAttackerLevel` is: a statline without its level is as
+   * meaningless as a ratio without its attacker level, and an unlabelled
+   * measuring stick is the units error that bit task 0570 and produced 0047.
    */
   referenceUngeared: {
-    life: 200,
+    /** Decision 0051: which character level `life` below belongs to. */
+    atCharacterLevel: 70,
+    /** Decision 0051: 200 at level 1, +6 per level over 69 level-ups. */
+    life: 614,
     armor: 14,
     damage: 18,
     damageType: 'physical',
@@ -193,9 +217,13 @@ export const BUDGET_CALIBRATION = {
   /**
    * The shipped nine-slot max-rolled set, measured at item level 100 with
    * attribute mods expanded through `ATTRIBUTE_DERIVATIONS` (decision 0044
-   * §3). Reproduces decision 0047's Context exactly: life 200 → 564 and armor
-   * 14 → 152 give **×3.3650 effective HP** against an attacker of level 70,
-   * and damage 18 → 46 gives **×2.5556 offence**.
+   * §3). The gains themselves are unchanged — this is a *measurement* of the
+   * authored pool, not a target — but the ratios they imply move with the
+   * denominator: on the reference above, life 614 → 978 and armor 14 → 152 give
+   * **×5.0274 effective HP** against an attacker of level 5 (decision 0052's
+   * stick), where decision 0047's Context reported ×3.3650 for the same pool on
+   * a 200-life reference at attacker level 70. Damage 18 → 46 gives
+   * **×2.5556 offence**, unchanged: no offence axis carries an attacker level.
    *
    * Used for the axes no target apportions: effective HP is a *product* of
    * life and armor, so one ratio cannot split itself between them, and no

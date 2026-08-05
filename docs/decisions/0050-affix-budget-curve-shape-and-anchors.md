@@ -2,7 +2,8 @@
 
 - **Date:** 2026-08-04
 - **Decided by:** agent (task 0600)
-- **Status:** accepted
+- **Status:** partially superseded by 0055 ("anchored on 0047's targets": the
+  attacker-level-70 stick, the 200-life reference and the solved `k = 2.9499`)
 
 ## Context
 
