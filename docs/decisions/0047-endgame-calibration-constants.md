@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-04
 - **Decided by:** human (owner)
-- **Status:** accepted
+- **Status:** superseded by 0052
 
 ## Context
 
