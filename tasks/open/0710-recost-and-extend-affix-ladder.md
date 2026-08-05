@@ -3,7 +3,41 @@
 - **Role:** content
 - **Phase:** 3
 - **Priority:** 2 (lower runs first)
-- **Depends on:** 0700-recalibrate-budget-ceilings.md
+- **Depends on:** 0700-recalibrate-budget-ceilings.md,
+  0740-designed-move-speed-anchor.md
+
+> ### Amended 2026-08-05 — the `move-speed` ceiling moved again, and implicits got ruled
+>
+> Two decisions landed after this file was written.
+>
+> 1. **Decision 0058 (owner)** replaces `move-speed`'s *measured* budget anchor
+>    with a *designed* one: a full gear set grants **+25% move speed**, instead
+>    of the `0.36 × k = +64.4%` the shipped pool measures. Task **0740** (added
+>    as a dependency above) implements it in
+>    `packages/core/src/loot/budget.ts`. Every `move-speed` number printed in
+>    this file came from the anchor 0740 replaces and is stale; the amended
+>    numbers are marked inline.
+>
+>    **Read 0740's "The finding" section before you touch `of-haste.json` or
+>    `of-the-stag.json`.** 0058 predicts that its designed anchor makes the
+>    authored +9% roll "very nearly legal" and that this task therefore re-costs
+>    move-speed "by trimming rather than by deleting an affix's early game".
+>    The arithmetic does not support that: 0058's "+8.3% per item" is the
+>    **per-item** ceiling (`maxPerSlotAtItemLevel`), while an affix tier is
+>    checked against the **per-mod** ceiling, which is that divided by
+>    `perKindAffixCap` = 3. The designed anchor is a **2.57× tightening**, so
+>    trimming is still required and is deeper than it was. Nothing about this
+>    task's instruction to trim is withdrawn.
+>
+> 2. **Decision 0061 (owner)** settles how base-item implicits are budgeted:
+>    they carry **their own allowance**, separate from the affix budget, and
+>    consume no part of a slot's affix share. Implicits remain out of scope
+>    here — but now because a future task must size that allowance, not because
+>    nobody has ruled. The Notes bullet is amended.
+>
+> Nothing else moved: the ladder rule, the 22 files, the audit instrument, the
+> attribute trap and every acceptance criterion are as written. Original text is
+> kept and corrections are marked *amended*, never silently overwritten.
 
 ## Goal
 
@@ -13,7 +47,10 @@ own Consequences say so):
 
 1. **Re-cost.** Every shipped tier fits under the recalibrated ceilings from
    task 0700. 42 of the 53 authored `(affix, tier, mod)` entries are over
-   budget today, four of them at *every* item level.
+   budget today, ~~four~~ **six** (*amended*) of them at *every* item level —
+   the count is still 42 after task 0740, but its designed `move-speed` anchor
+   moves `of-haste`/`of-the-stag` **tier 2** from "legal at item level 67" to
+   legal at none. See trap 2.
 2. **Extend.** Decision **0053**: every affix's tier ladder runs to **item
    level 100**, roughly six new gates per affix with rising values. Today all
    53 tier entries unlock by item level 40, and `rollItem` uses item level for
@@ -141,7 +178,7 @@ authority):
 | `max-life/flat` | 7.23 | 16.43 | 19.72 | 21.03 | 23.01 | 29.58 | 32.87 | 39.44 | 46.01 | 52.58 | 59.16 | 65.73 | 72.30 |
 | `armor/flat` | 2.74 | 6.23 | 7.48 | 7.97 | 8.72 | 11.21 | 12.46 | 14.95 | 17.44 | 19.94 | 22.43 | 24.92 | 27.41 |
 | `life-regen/flat` | 0.42 | 0.95 | 1.14 | 1.21 | 1.33 | 1.71 | 1.90 | 2.28 | 2.65 | 3.03 | 3.41 | 3.79 | 4.17 |
-| `move-speed/increased` | 0.007 | 0.016 | 0.019 | 0.021 | 0.023 | 0.029 | 0.033 | 0.039 | 0.045 | 0.052 | 0.059 | 0.065 | 0.071 |
+| `move-speed/increased` *(amended — 0740)* | 0.0028 | 0.0063 | 0.0076 | 0.0081 | 0.0088 | 0.0114 | 0.0126 | 0.0152 | 0.0177 | 0.0202 | 0.0227 | 0.0253 | 0.0278 |
 | `damage/flat` | 3.60 | 8.18 | 9.82 | 10.47 | 11.45 | 14.73 | 16.36 | 19.64 | 22.91 | 26.18 | 29.45 | 32.73 | 36.00 |
 | `crit-chance/flat` | 1.11 | 2.53 | 3.03 | 3.23 | 3.54 | 4.55 | 5.05 | 6.06 | 7.07 | 8.08 | 9.09 | 10.10 | 11.11 |
 | `crit-damage/flat` | 20.0 | 45.5 | 54.5 | 58.2 | 63.6 | 81.8 | 90.9 | 109.1 | 127.3 | 145.5 | 163.6 | 181.8 | 200.0 |
@@ -150,6 +187,14 @@ authority):
 | `vitality/flat` (→ max-life) | 1.81 | 4.11 | 4.93 | 5.26 | 5.75 | 7.40 | 8.22 | 9.86 | 11.50 | 13.15 | 14.79 | 16.43 | 18.08 |
 | `dexterity/flat` (→ crit-chance) | 2.22 | 5.05 | 6.06 | 6.47 | 7.07 | 9.09 | 10.10 | 12.12 | 14.14 | 16.16 | 18.18 | 20.20 | 22.22 |
 | `intelligence/flat` (→ crit-damage) | 20.0 | 45.5 | 54.5 | 58.2 | 63.6 | 81.8 | 90.9 | 109.1 | 127.3 | 145.5 | 163.6 | 181.8 | 200.0 |
+
+*Amended for task 0740:* **exactly one row moved** — `move-speed/increased`,
+which is shown to four decimals because three no longer distinguishes its
+rungs. Every other row is task 0700's calibration and is unchanged; 0740 ships
+an assertion over all 33 priced pairs proving that. The companion
+`move-speed/flat` ceiling (no affix rolls it) is 0.0667 per mod at item level
+100. Re-run the numbers yourself against the landed module — it is the
+authority over every number printed in this file.
 
 ## The four traps
 
@@ -162,15 +207,17 @@ rolls a float, which is a visible change in item text. **Rule it and record
 it**: either author fractional life-regen, or raise `of-hunger`/`of-vigor`'s
 weakest gates to where an integer fits. Both are defensible; silence is not.
 
-**2. Four rows are illegal at every item level and must come down, not move
-up.** Raising the gate cannot save them:
+**2. ~~Four~~ Six rows** (*amended — 0740*) **are illegal at every item level
+and must come down, not move up.** Raising the gate cannot save them:
 
 | affix | tier | authored | ceiling at ilvl 100 |
 |---|---|---|---|
 | `of-hunger` T1 | 35 | 7 life-regen | **4.1714** |
 | `of-vigor` T1 | 35 | 7 life-regen | **4.1714** |
-| `of-haste` T1 | 20 | 0.09 move-speed | **0.0715** |
-| `of-the-stag` T1 | 20 | 0.09 move-speed | **0.0715** |
+| `of-haste` T1 | 20 | 0.09 move-speed | **0.0278** *(amended, was 0.0715)* |
+| `of-the-stag` T1 | 20 | 0.09 move-speed | **0.0278** *(amended, was 0.0715)* |
+| `of-haste` T2 | 1 | 0.05 move-speed | **0.0278** *(new row — 0740)* |
+| `of-the-stag` T2 | 1 | 0.05 move-speed | **0.0278** *(new row — 0740)* |
 
 Decision 0050 flagged the life-regen pair as the only two "legal at no item
 level" rows under the old ceilings (7 against 6.88, 1.7% over); under the
@@ -179,6 +226,41 @@ the two move-speed rows join it. The whole shipped set grants 21 life-regen
 from three sources, so one roll was a third of the axis — trimming is the
 in-scope fix. Widening the axis with a fourth source is an affix addition and
 is **out of scope**; note it as a follow-up if you think it is the better fix.
+
+*Amended for task 0740 — read this before you assume move-speed got easier.*
+Decision 0058 gives `move-speed` a **designed** anchor (+25% from a full gear
+set) in place of its measured one, and its Consequences say the authored rolls
+become "very nearly legal" so that this task can re-cost move-speed "by
+trimming rather than by deleting an affix's early game". **That prediction does
+not survive the arithmetic and the instruction to trim is not withdrawn — it is
+deeper.** 0058's "+8.3% per item" is `0.25 × (3/9)`, the **per-item** ceiling
+(`maxPerSlotAtItemLevel`, 0.0833 at item level 100). An affix tier's `max` is
+checked against the **per-mod** ceiling — that number divided by
+`perKindAffixCap` = 3 (decision 0014) — which is **0.0278** at item level 100.
+So against the shipped values:
+
+| affix/tier | gate | authored | per-mod ceiling at gate | over by | was, under 0700 |
+|---|---|---|---|---|---|
+| `of-haste`/`of-the-stag` T1 | 20 | 0.09 | 0.0076 | ×11.84 | ×4.62, never legal |
+| `of-haste`/`of-the-stag` T2 | 1 | 0.05 | 0.0028 | ×17.86 | ×6.94, legal at ilvl 67 |
+
+Two consequences for your authoring. First, the top rung of both affixes lands
+at **0.0278 (+2.78%)** at item level 100, not the +9% they carry today — the
+biggest single trim in the pool, and the decision entry you write must say so
+plainly rather than describing it as a routine re-cost. Second, **the bottom of
+the move-speed ladder is now sub-1%**: 0.0028 at item level 1, and ladder rule 4
+(`min ≈ half of max`) would make its `min` 0.0014, i.e. +0.14% move speed. That
+is a mod the player cannot feel, and it is the same shape of problem as trap 1's
+sub-integer life-regen. **Rule it and record it** — author the fraction anyway,
+or raise `of-haste`/`of-the-stag`'s weakest gates to where the ceiling is worth
+rolling. Both are defensible; silence is not.
+
+**Do not fix any of this by editing `packages/core/src/loot/budget.ts`.** The
+anchor is task 0740's and the ceilings are out of scope here (see Notes). If
+you think +2.78% per roll is the wrong game, that is a finding for your Outcome
+— 0740's decision entry already escalates the same question to the owner and
+names the alternative values (+75% and +81% full-set) that would ratify the
+authored rolls.
 
 **3. The attribute trap.** Attribute affixes are priced through their
 derivation (decision 0044 §3, decision 0031), so the authored number is not
@@ -338,10 +420,13 @@ you did. A generated file nobody read is how a plausible-but-wrong pool ships.
 ## Notes for the implementer
 
 - **Read first:** decisions **0053** (the ladder ruling), **0052** (why the
-  ceilings moved), then task 0700's Outcome — its over-budget report is your
-  work order and its landed module is the authority over every number printed
-  in this file. Decisions 0043, 0044 and 0015 are the background; you do not
-  need 0570.
+  ceilings moved), **0058** (*amended* — why `move-speed`'s anchor is designed
+  rather than measured) and task **0740**'s "The finding" section (*amended* —
+  why that anchor tightens move-speed instead of loosening it), then task
+  0700's Outcome — its over-budget report is your work order, amended for
+  move-speed by 0740's Outcome, and the landed module is the authority over
+  every number printed in this file. Decisions 0043, 0044 and 0015 are the
+  background; you do not need 0570.
 - **Do not reopen the ceilings.** If one looks wrong, that is a finding for
   your Outcome and a follow-up task against task 0700's calibration block, not
   an edit to `packages/core/src/loot/budget.ts` — which is out of scope. The
@@ -351,11 +436,19 @@ you did. A generated file nobody read is how a plausible-but-wrong pool ships.
   makes exactly one weighted draw among the eligible ones (`roll.ts:187-200`),
   so adding rungs changes *which* values come out but not how many draws are
   taken — and no golden replay rolls an item at all.
-- Base-item implicits are **not** in scope and are known to be over budget:
-  task 0600 measured 9 of the 10 implicit mods over the per-mod ceiling at
-  their base's `levelRequirement`, worst `battered-plate` at ×3.24. Nobody has
-  ruled whether an implicit is budgeted at `levelRequirement` or gets its own
-  share of the slot allowance. Leave them; the ruling is a follow-up.
+- Base-item implicits are **not** in scope. *Amended:* when this file was
+  written nobody had ruled how they are budgeted, and task 0600's measurement
+  (9 of the 10 implicit mods over the per-mod ceiling read at their base's
+  `levelRequirement`, worst `battered-plate` at ×3.24) looked like 9 pending
+  violations. **Decision 0061 (owner) settles it: an implicit carries its own
+  allowance, separate from the affix budget, and consumes no part of a slot's
+  affix share** — it is not priced at the base's `levelRequirement` at all, so
+  that measurement is against a ceiling that does not apply to it. They stay
+  out of scope here for the *right* reason: the allowance's size is derived
+  work for the future task that implements the implicit check, bounded by
+  decision 0052's ×10 effective-HP and ×7 offence totals. Do not trade affix
+  budget against an implicit, and do not treat `packages/content/data/items/`
+  as a lever for fitting under a ceiling.
 - Expect the diff to be large but boring. If you find yourself reasoning about
   what a stat is *worth*, stop: a ceiling only bounds magnitude (decision 0044
   rejected the exchange table), and your job is to fill the ladder under it.
