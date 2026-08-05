@@ -5,6 +5,26 @@
 - **Priority:** 2 (lower runs first)
 - **Depends on:** 0660-progression-component-and-xp-curve.md, 0670-xp-award-system.md
 
+> ### Amended 2026-08-05 — cite 0051, and the life grant is not yours
+>
+> Decision **0051** supersedes 0045: a character level grants **+6 max-life and
+> nothing else**, applied at the `computeStats` seam and never as a `Combatant`
+> field. Two consequences for this file, and nothing else changes:
+>
+> 1. **Every citation of 0045 below should read 0051.** The ruling this task
+>    depends on is unchanged in substance — do **not** mirror
+>    `Progression.level` onto `Combatant.level`; the two are different
+>    quantities, and mirroring grants up to +14.69% damage through decision
+>    0004's armor curve, which 0051 does not license (it grants life, at a
+>    different seam).
+> 2. **Applying the life grant is explicitly out of scope here.** Task **0720**
+>    builds it; task **0730** applies it at spawn and on level-up and pays a
+>    second re-bless of the same replay. That is what keeps this task's
+>    behaviour proof valid: with no grant applied, the avatar still spawns at
+>    **200** max life, so `avatarLife 59/200` and all eight death ticks must
+>    reproduce exactly as the table below states. If your run shows 224 max
+>    life, task 0730's change has leaked in — remove it, do not bless it.
+
 ## Goal
 
 Tasks 0660 and 0670 land the state and the award mechanism attached to nothing

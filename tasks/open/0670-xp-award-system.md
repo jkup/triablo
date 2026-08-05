@@ -5,6 +5,86 @@
 - **Priority:** 2 (lower runs first)
 - **Depends on:** 0660-progression-component-and-xp-curve.md
 
+> ### Amended 2026-08-05 — decision 0054 rules how the per-kill value scales
+>
+> This file left the per-kill XP number to the implementer (hard requirement
+> 5). Decision **0054** (owner) now constrains it, and decision **0051**
+> replaces 0045 as the ruling on what a level grants. Four changes, all below
+> and all marked; everything else — the registration slot, the recipient rule,
+> the attribution limitation, determinism, single-award — is unchanged.
+>
+> 1. **XP per kill scales with the dungeon's difficulty tier**, not with a flat
+>    constant and not with monster level (which decision 0046 fixes at a band).
+>    See "Hard requirement 5, amended".
+> 2. **The difficulty-tier system does not exist**, and this task must not
+>    invent it. See the same section.
+> 3. **The acceptance bar is now a pacing criterion**, checkable as a unit
+>    test over all 69 levels. See "Acceptance criteria, added".
+> 4. **Hard requirement 3 now cites decision 0051, not 0045.** The ruling it
+>    states is unchanged and still binding: this system never writes
+>    `Combatant`, including `Combatant.level`. 0051 grants a level **+6
+>    max-life and nothing else**, delivered at the `computeStats` seam — so
+>    mirroring the character level onto the *attacker* level would still grant
+>    up to +14.69% damage through decision 0004's armor curve, which 0051 does
+>    not license. The life grant itself is **out of scope here**: task 0720
+>    builds it, task 0730 applies it (and pays for narrowing this task's
+>    "`Combatant` deep-equals its pre-kill value" test).
+>
+> ### Hard requirement 5, amended — the per-kill XP value
+>
+> Keep everything the original says (pure exported function of the dying
+> `Combatant`; deterministic; integer; positive for every shipped monster; no
+> rng; computed only from fields already on `Combatant`; non-decreasing in
+> `level` and `maxLife`). Add:
+>
+> - **A difficulty-tier multiplier.** The award is a function of the dying
+>   combatant *and* the tier, e.g. `xpForKill(combatant, tier)`, non-decreasing
+>   in the tier. The shape is yours; record it with its arithmetic.
+> - **What it reads when no tier exists.** Nothing in the repo carries a
+>   difficulty tier today. Decision 0046 rules that the dungeon-recipe `level`
+>   field *means* the tier, and open task 0490 ships that field as **reserved
+>   and unused with tier 1 as the identity**. So: the tier is a **parameter
+>   with a default of 1**, supplied by whoever constructs the system (task 0680
+>   supplies nothing, so both live worlds run at tier 1), and **tier 1 must be
+>   the identity** — the award at tier 1 is exactly the un-tiered baseline, so
+>   nothing moves when the tier system finally lands.
+> - **Do not invent the tier system.** No `DifficultyTier` component, no read
+>   of a recipe, no content-schema change, no scaling of monster density,
+>   life or damage. Decision 0054 names this explicitly: "the award task must
+>   state what it reads when no tier exists, and must not invent the tier
+>   system as a side effect." State the seam in the decision entry and stop.
+>
+> ### Acceptance criteria, added
+>
+> - [ ] Test: `xpForKill` is non-decreasing in the difficulty tier across
+>       `1..N` for your chosen tier range, and `xpForKill(m, 1)` equals the
+>       un-tiered baseline for all five shipped statlines.
+> - [ ] Test (**decision 0054's bar**): for **every** level `L` in `1..69`, one
+>       twenty-minute session at the difficulty a character can reasonably
+>       clear at that level yields at least one level — i.e.
+>       `xpForKill(referenceMonster, tierFor(L)) × KILLS_PER_SESSION >=
+>       xpToNextLevel(L)`, iterated, not spot-checked. Two of those three
+>       inputs are measured, not chosen, and must be pinned in the test with
+>       their source:
+>       - `KILLS_PER_SESSION ≈ 196` — `dungeon-crawl` seed 1 kills 8 monsters
+>         in 1466 ticks at `TICK_HZ` 30 (`packages/core/src/time.ts:14`), i.e.
+>         48.9 s and **9.82 kills/minute**; twenty minutes is 196.4 kills.
+>       - `xpToNextLevel(L) = 100 × L` (decision 0049), so the required average
+>         award rises from 0.51 XP/kill at level 1 to **35.1 XP/kill at level
+>         69**. A flat 25 XP/kill clears only through level 49, which is the
+>         failure decision 0054 exists to fix.
+>       - `tierFor(L)` — **your** mapping from character level to "the
+>         difficulty a character can reasonably clear". It is a judgement, it
+>         must be a pure exported function or a documented constant, and it
+>         must be recorded in the decision entry. Do not bury it in the test.
+> - [ ] The Outcome states the required XP/kill at levels 1, 35 and 69 and what
+>       your curve actually awards there, plus the five-monster table and the
+>       crawl's projected 8-kill total (both already required below).
+>
+> The new decision entry must additionally record the tier-scaling shape, the
+> tier-1 identity, the `tierFor` mapping, and — in decision 0054's own terms —
+> that per-kill values are balance numbers that change pacing, not power.
+
 ## Goal
 
 Decision 0048 overrules task 0650's deferral: **XP-on-kill ships in phase 3**,
