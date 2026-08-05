@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-04
 - **Decided by:** agent (task 0660)
-- **Status:** accepted
+- **Status:** partially superseded by 0051 ("No level grants any stat")
 
 ## Context
 
