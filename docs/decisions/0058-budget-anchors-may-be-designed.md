@@ -2,7 +2,7 @@
 
 - **Date:** 2026-08-05
 - **Decided by:** human (owner)
-- **Status:** accepted
+- **Status:** partially superseded by 0062 ("`move-speed`'s target is a designed +25% from a full gear set")
 
 ## Context
 
