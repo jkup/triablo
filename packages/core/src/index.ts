@@ -40,6 +40,18 @@ export { moveOrderSystem, tileOf } from './player/systems'
 
 export { assertCharacterLevel, makeProgression, MAX_CHARACTER_LEVEL, Progression } from './progression/components'
 export { grantXp, LEVEL_XP_STEP, xpToNextLevel } from './progression/levels'
+export {
+  CHARACTER_LEVELS_PER_TIER,
+  createXpAwardSystem,
+  DEFAULT_DIFFICULTY_TIER,
+  tierForCharacterLevel,
+  XP_KILL_BASE,
+  XP_KILL_LIFE_PER_POINT,
+  XP_KILL_PER_MONSTER_LEVEL,
+  XP_PER_TIER_PERCENT,
+  XpAwarded,
+  xpForKill,
+} from './progression/systems'
 
 export { ATTRIBUTE_DERIVATIONS, ATTRIBUTE_KEYS, computeStats, STAT_KEYS, STAT_SCALE } from './combat/stats'
 export type {

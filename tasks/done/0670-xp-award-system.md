@@ -305,9 +305,76 @@ under your curve from task 0660. Task 0680 verifies your arithmetic live.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** `packages/core/src/progression/systems.ts` (new) exports the
+  pure pricing function `xpForKill(combatant, tier = 1)`, the balance yardstick
+  `tierForCharacterLevel(L)`, the `XpAwarded` marker component, and
+  `createXpAwardSystem(tier = 1)` — a factory, so the tier seam is visible at
+  every registration site and `createXpAwardSystem()` is today's tier-1
+  identity. `packages/core/src/index.ts` re-exports them; 25 tests in
+  `systems.test.ts` cover the module to 100% stmt/branch/func/line.
+  **Registered nowhere** (task 0680 owns that).
 
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+  **The award** (integers throughout, no rng):
+
+      baseline = 5 + 2 × combatant.level + floor(combatant.maxLife / 8)
+      award    = floor(baseline × (100 + 25 × (tier − 1)) / 100)
+
+  Tier 1 is the identity by construction (multiplier is exactly 100/100). The
+  system reads the tier from **nowhere** — it is a constructor parameter
+  defaulting to 1; no tier component, no recipe read, no schema change, per
+  decision 0054's instruction not to invent the tier system here.
+
+  **The five-monster table** (tier 1 = today's live value; tier 7 and 14 are
+  `tierForCharacterLevel(35)` and `(69)`):
+
+  | Monster | level | maxLife | XP @ tier 1 | @ tier 7 | @ tier 14 |
+  |---|---|---|---|---|---|
+  | `skeleton-warrior` | 1 | 32 | **11** | 27 | 46 |
+  | `skeleton-archer` | 2 | 24 | **12** | 30 | 51 |
+  | `zombie` | 2 | 44 | **14** | 35 | 59 |
+  | `bone-mage` | 3 | 22 | **13** | 32 | 55 |
+  | `grave-hulk` | 5 | 140 | **32** | 80 | 136 |
+
+  **The crawl's eight seed-1 kills** (2× zombie, 2× skeleton-warrior, 2×
+  skeleton-archer, 1× grave-hulk, 1× bone-mage) total **119 XP** at tier 1. A
+  level-5 avatar ends the clear still at **level 5, 119/500** — confirmed
+  headless in a scratch world registered `attack → xp-award → death`, whose
+  trace paid out 14, 14, 11, 12, 11, 32, 12, 13 in ascending entity id with
+  `rng.getState()` unchanged.
+
+  **Decision 0054's pacing bar**, iterated over all 69 levels against the
+  *weakest* shipped statline (`skeleton-warrior`, 11 XP) so the bar holds for
+  any composition, at `KILLS_PER_SESSION = 196` (8 kills by tick 1466 at
+  `TICK_HZ` 30 = 48.8667 s = 9.8226 kills/min; 196.45 floored):
+
+  | level | required XP/kill | tier | awarded | margin |
+  |---|---|---|---|---|
+  | 1 | 0.51 | 1 | 11 | 21.6× |
+  | 35 | 17.86 | 7 | 27 | 1.51× |
+  | 69 | 35.20 | 14 | 46 | 1.31× |
+
+  The margin decays monotonically (0049's 1/L pacing survives) and never
+  reaches 1; the tightest point is level 69, exactly where a flat 25 XP/kill
+  fails. Full climb at the crawl's monster mix: ~5,660 kills, **~9.6 h**
+  against ~16.4 h at flat 25.
+
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty and `git diff --stat main -- packages/sim packages/client
+  packages/content` is empty — nothing registers this system yet. `npm run
+  verify` green: 36 files / 596 tests passed, 8 smoke scenarios ok, all 6
+  replays `ok`.
+- **Scope deviations:** none in files touched. Two implementation choices worth
+  naming: (a) the "player `Combatant` deep-equals its pre-kill value" test uses
+  a **scripted** kill (no `attackSystem` in that world) — with the player
+  swinging, its own `damageDealt`/`ticksUntilAttack` change legitimately and the
+  deep-equal would fail for reasons unrelated to this system; the separate
+  `attack → xp-award → death` test covers the live ordering. (b) A dying
+  `PlayerControlled` combatant is skipped **without** being marked, and the
+  recipient is resolved before the corpse walk so a world with no player writes
+  nothing at all — not even a marker — which is what keeps decision 0048's
+  "those scenarios and their replays are untouched" literally true.
+- **Follow-ups worth a new task:** the difficulty-tier system itself (0046/0054)
+  — when it lands, `createXpAwardSystem` takes the dungeon's tier instead of the
+  default and nothing else changes. Damage attribution, if monster-vs-monster
+  kills ever become real (needs an entry superseding 0057). Decision 0057 is the
+  new entry; 0055 and 0056 are held by parallel workers in this batch.
