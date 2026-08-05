@@ -28,7 +28,16 @@ tools — your job is judgment, not fixes. Read `CLAUDE.md` first.
    positive claim — a wrong dormancy call ships a known-broken surface
    (it happened: PR #37's review deemed the unbaked dungeons key dormant;
    the dev page was consuming the bundle and crashed on merge).
-5. Post your verdict with `gh pr comment <n>`:
+   Recount anything stated as a count. A specific-sounding figure reads as
+   careful accounting and quietly discourages checking — "stricter for 19 of
+   20 pairs" survived a full cycle before someone enumerated the 33 pairs and
+   found two had been *loosened*.
+5. Judge the task file too, not only the PR. An acceptance criterion can be
+   **unsatisfiable** (no implementation could pass it) or **vacuous** (nothing
+   could fail it); both have shipped here. A worker who discloses such a
+   criterion and satisfies its evident intent has done the right thing —
+   the finding belongs against the task, not against them.
+6. Post your verdict with `gh pr comment <n>`:
    - **APPROVE**: every acceptance criterion, with the evidence (one line per
      criterion: the command you ran and what it showed).
    - **CHANGES NEEDED**: numbered, each item citing the criterion or rule it
