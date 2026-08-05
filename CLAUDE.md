@@ -30,6 +30,13 @@ same PR. The human owner reviews that directory to steer the game; an
 unrecorded decision is invisible and may be silently rebuilt differently by the
 next agent.
 
+**A number without its measuring stick is not a number.** A ratio, ceiling, or
+budget must record what it was measured against — attacker level, per-mod
+versus per-item, which slots the axis spans — as a *field* beside the value,
+not a comment near it. Three decisions have been superseded for omitting it,
+and each time the arithmetic was right and the units were wrong. If you cannot
+name the stick, you have not finished measuring.
+
 ## The gate
 
 ```
@@ -72,6 +79,12 @@ This is what makes replays, regression tests, and reproducible bug reports work.
 - Never `Date.now()` in `core`. Simulation time is `world.tick`.
 - Never iterate an unordered collection where order affects results.
 - Durations are in **ticks**, not milliseconds. See `packages/core/src/time.ts`.
+- **Adding a field to a component moves every replay that carries it.**
+  `world.hash()` hashes the snapshot verbatim, so one new field on `Combatant`
+  moves five of six goldens. Convert at the call boundary, or put the state in
+  its own component that only the entities needing it carry. "Store it on
+  `Combatant`" has been proposed and reverted four times; assume it is
+  replay-moving until you have hashed a world both ways and proved otherwise.
 
 If you break determinism, `npm run verify` fails on replay regression with a
 state-hash mismatch. That failure is real — do not re-bless replays to make it
