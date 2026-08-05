@@ -2,7 +2,8 @@
 
 - **Date:** 2026-08-05
 - **Decided by:** agent (task 0700)
-- **Status:** accepted (supersedes 0050)
+- **Status:** accepted (partially supersedes 0050 — its anchor constants only;
+  0050's curve shape, share split and denials stand and are carried forward)
 
 ## Context
 

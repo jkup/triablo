@@ -19,7 +19,8 @@
  * one block. The arithmetic that turns it into ceilings is decision 0050 —
  * its curve shape, share split and denials are carried forward unchanged — and
  * the constants that block is anchored on are decisions 0051 and 0052,
- * re-derived in decision 0055 (which supersedes 0050's own constants).
+ * re-derived in decision 0055 (which partially supersedes 0050: its anchor
+ * constants only).
  */
 
 import { ARMOR_K, RESIST_CAP } from '../combat/damage'

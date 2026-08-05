@@ -288,7 +288,22 @@ Add two tests that did not exist:
   `git diff --stat origin/main -- packages/content packages/sim packages/client`
   is also empty.
 
-- **Scope deviations:** three, all inside Files in scope, none widening it.
+- **Scope deviations:** four, all inside Files in scope, none widening it.
+
+  0. **0050's `Status:` line reads `partially superseded by 0055 (...)`, not
+     `superseded by 0055`** — a deliberate departure from the acceptance
+     criterion, flagged here so it is trivial to reverse. PR #80 landed on
+     `main` *after* this task file was written and added exactly this form to
+     the decisions README, with the rationale "when a later decision kills one
+     clause of an entry but leaves the rest standing, do not mark the whole
+     file superseded — that sends readers hunting for a wholesale replacement
+     that does not exist." That is precisely this case: 0055 replaces 0050's
+     anchor constants and carries its curve shape, share split, set → slot →
+     mod chain and every denial forward unchanged, and says so in its own
+     first paragraph. Marking 0050 wholly superseded would contradict the
+     entry superseding it. Still one line, body untouched, and the named dead
+     clause is in parentheses per the README's format. If the reviewer prefers
+     the task file's literal wording, it is a one-line edit.
 
   1. **An eighth assertion moved that the task file did not name.** Line 394,
      `maxAtItemLevel('max-life', 'flat', 35) > 48`, was hidden behind the line
