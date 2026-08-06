@@ -117,10 +117,12 @@ Under ~25 lines, in the README's skeleton. It must record:
   cheap, but it is now a **replay-moving** change and needs a task file
   explaining the re-bless, or CI's guard fails it.
 
-**Number it above every reserved entry.** 0064, 0065, 0066 and 0067 are held by
-agents in flight; check the highest number on `main` when you start and take
-the next free one above all of them. If you collide at merge, whoever merges
-second renumbers (README's rule).
+**Check which numbers are actually free.** 0064 (PR #91), 0065 (PR #89) and
+0066 (PR #92) are held by open PRs as of 2026-08-06; **0067 is free** — it was
+reserved for PR #90's worker, which ended up needing no entry. Numbers drift:
+check `docs/decisions/` on `main` and the open PRs when you start, and take the
+next free number. If you collide at merge, whoever merges second renumbers
+(README's rule).
 
 ### 2. The two Status lines
 

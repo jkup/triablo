@@ -128,7 +128,7 @@ and a second one would just double-report the same failure.
 
 ### 4. Client: the pinned system list
 
-`packages/client/src/game.test.ts:125-134` pins the roster exactly and its
+`packages/client/src/game.test.ts:124-133` pins the roster exactly and its
 comment says the order "is contractual, not incidental". Add
 `'dungeon-cleared'` in its new slot and extend the comment with the reason
 (after `death` because the census must observe the post-reap world). Leave the
@@ -138,9 +138,11 @@ rest of that test alone.
 
 No new entry is expected — task 0560's entry rules the cleared condition
 (monsters-dead only, latched, `clearedAtTick`) and the registration convention.
-Write one only if you settle something it did not. If you do, check the highest
-number on `main` first: **0064, 0065, 0066 and 0067 are reserved by other
-agents in flight**, so take a number above those.
+Write one only if you settle something it did not. If you do, check which
+numbers are actually free: 0064 (PR #91), 0065 (PR #89) and 0066 (PR #92) are
+held by open PRs as of 2026-08-06, and **0067 is free** — it was reserved for
+PR #90's worker, which ended up needing no entry. Numbers drift: check
+`docs/decisions/` on `main` and the open PRs when you start.
 
 ### 6. The replay
 

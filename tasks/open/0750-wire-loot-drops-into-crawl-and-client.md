@@ -174,8 +174,10 @@ No new decision is expected — task 0420's entry rules the drop semantics,
 rarity weights and item level, and decision 0059 already rules what happens to
 ground loot on a map transition ("Ground loot left behind on a cleared map is
 destroyed with it"). Write an entry only if you settle something they did not.
-If you do, check the highest number on `main` first: **0064, 0065, 0066 and
-0067 are reserved by other agents in flight**, so take a number above those.
+If you do, check which numbers are actually free: 0064 (PR #91), 0065 (PR #89)
+and 0066 (PR #92) are held by open PRs as of 2026-08-06, and **0067 is free** —
+it was reserved for PR #90's worker, which ended up needing no entry. Numbers
+drift: check `docs/decisions/` on `main` and the open PRs when you start.
 
 ### 6. The replay
 
@@ -268,13 +270,14 @@ leaked into combat or a component write moved a timer. Find it before blessing.
   as landed — you are registering into the system order they built.
 - **You do not need to write any rendering code for a human to see the drops.**
   `buildScene` emits a sprite for every entity carrying core `Position`
-  (`packages/client/src/scene.ts:463-496`), so a `GroundItem` entity draws for
+  (`packages/client/src/scene.ts:463-494`), so a `GroundItem` entity draws for
   free. Read the four specifics before you predict what it looks like, because
   the obvious guesses are wrong:
   - **Radius 10 px, the same as a combatant's** — `Math.round(PIXELS_PER_UNIT *
     0.4)` at `scene.ts:475`. Drops are not smaller than monsters.
-  - **No life bar.** `lifeFrac` is `null` with no `Combatant` (`scene.ts:395`),
-    and both back ends skip the bar on null.
+  - **No life bar.** `lifeFrac` defaults to `null` (`scene.ts:382`) and is only
+    written for entities carrying `Combatant` (`scene.ts:394`), so both back
+    ends skip the bar.
   - **Labelled with the entity id.** `scene.ts:491` sets `label:
     String(entity)`, and `rasterizeScene` draws it under the circle
     (`raster.ts:226-231`), as does the canvas drawer (`main.ts:63-67`).
@@ -301,6 +304,30 @@ leaked into combat or a component write moved a timer. Find it before blessing.
   path, so do not build for it.
 - The three bases the shipped tables can drop are `rusted-cleaver`
   (`main-hand`), `tattered-tunic` (`chest`) and `copper-band` (`ring`).
+- **The consequence you must write down: after this task, content edits can
+  move a golden replay.** Today no golden rolls an item, which is why
+  `tasks/open/0710-recost-and-extend-affix-ladder.md:464-467` can say "no
+  golden replay rolls an item at all" and re-cost 22 affix files with an empty
+  `git diff --stat packages/sim/replays/`. **This task ends that**, by two
+  separate mechanisms, and a content author who does not know it will hit CI's
+  guard with no idea why:
+  1. **Through `LootDomain`.** Built the way Requirement 1 tells you to build
+     it, the component embeds the registry's bases and affixes as plain JSON,
+     and `snapshot()` serializes it — so adding or editing **any** item base or
+     affix file moves `dungeon-crawl.seed1.json` even if it can never drop.
+  2. **Through the rolled items.** Edits that change what actually comes out:
+     the implicits of the three bases above, or any `main-hand`/`chest`/`ring`
+     affix tier gated at item level ≤ 5 (the crawl's monsters are levels 1, 1,
+     2, 2, 2, 3 and 5, and item level comes from the monster's level).
+
+  Mechanism 1 is the broad one and it is the one worth trying to shrink: if you
+  can legitimately build the domain's **base** list from only the item ids the
+  spawned monsters' loot tables reference, do — that is 3 bases instead of 11.
+  Do **not** pre-filter the **affix** pool: slot eligibility varies per drop
+  and is `rollItem`'s job by contract (`roll.ts`), so the whole sorted pool has
+  to go in. Measure which mechanisms remain, say so in the replay's `note` and
+  in your Outcome, and name a follow-up if you think the parallel-content model
+  deserves better than "every content PR re-blesses one golden".
 - **The trap.** Building the `LootDomain` inside `monsterFor`, or per death.
   It is a whole-registry snapshot; rebuilding it per monster is 8× the work and
   invites a different sort order on one of the builds. Build it once at setup.

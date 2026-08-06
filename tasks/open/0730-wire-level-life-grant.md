@@ -26,8 +26,10 @@
 >    where the grant is applied and why not in a separate reconciling system
 >    (the state a reconciler would need), that spawn and level-up must agree,
 >    and the confirmation that no combat field other than life moved. It must
->    cite 0060 rather than restate it. Check the highest number on `main` first —
->    0064, 0065, 0066 and 0067 are reserved by agents in flight.
+>    cite 0060 rather than restate it. For the number: 0064 (PR #91), 0065
+>    (PR #89) and 0066 (PR #92) are held by open PRs as of 2026-08-06 and 0067
+>    is free — but numbers drift, so check `main` and the open PRs when you
+>    start and take the next free one.
 >
 > 3. **`packages/client/src/game.test.ts` is missing from Files in scope, and
 >    this task cannot pass without it.** That file pins
