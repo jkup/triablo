@@ -306,8 +306,9 @@ leaked into combat or a component write moved a timer. Find it before blessing.
   (`main-hand`), `tattered-tunic` (`chest`) and `copper-band` (`ring`).
 - **The consequence you must write down: after this task, content edits can
   move a golden replay.** Today no golden rolls an item, which is why
-  `tasks/open/0710-recost-and-extend-affix-ladder.md:464-467` can say "no
-  golden replay rolls an item at all" and re-cost 22 affix files with an empty
+  `0710-recost-and-extend-affix-ladder.md:464-467` (in `tasks/done/` by the
+  time you read this) can say "no golden replay rolls an item at all" and
+  re-cost 22 affix files with an empty
   `git diff --stat packages/sim/replays/`. **This task ends that**, by two
   separate mechanisms, and a content author who does not know it will hit CI's
   guard with no idea why:

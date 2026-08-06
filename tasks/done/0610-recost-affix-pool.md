@@ -248,7 +248,8 @@ console.log(bad === 0 ? 'CLEAN' : `${bad} violations`)
 
 - **What changed:** Nothing in the repo. This task was superseded on
   2026-08-05 (see the banner at the top of this file) and its work was absorbed
-  whole into `tasks/open/0710-recost-and-extend-affix-ladder.md`, which re-costs
+  whole into task **0710** (`0710-recost-and-extend-affix-ladder.md`; open when
+  this was filed, in `tasks/done/` once PR #92 lands), which re-costs
   the pool onto the recalibrated ceilings **and** extends every tier ladder to
   item level 100 in one pass. 0710 carries this file's audit instrument, its
   attribute-derivation trap, its per-slot stacking trap, and the ceiling table
@@ -263,5 +264,5 @@ console.log(bad === 0 ? 'CLEAN' : `${bad} violations`)
   for provenance, and the number 0610 is retired — not reused.
 - **Replays re-blessed:** none.
 - **Scope deviations:** none — no code, content, or docs were touched.
-- **Follow-ups worth a new task:** none. `0710` is the successor and is already
-  open; `0620-budget-invariant-executable.md` remains blocked on it.
+- **Follow-ups worth a new task:** none. `0710` is the successor;
+  `0620-budget-invariant-executable.md` remains blocked on it.
