@@ -10,7 +10,12 @@
     {
       "type": "melee-hit",
       "reachTiles": 1,
-      "damage": { "type": "physical", "weaponMultiplier": 1.4 }
+      "damage": { "type": "physical", "weaponMultiplier": 1.4 },
+      "status": {
+        "kind": "dot",
+        "damage": { "type": "physical", "weaponMultiplier": 0.7 },
+        "durationSeconds": 3
+      }
     }
   ],
   "tags": ["core", "melee"]

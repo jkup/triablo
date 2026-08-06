@@ -2,6 +2,6 @@
   "scenario": "skill-strike",
   "seed": 1,
   "ticks": 300,
-  "hash": "59b59d75a6013113",
+  "hash": "aa8bebbcbbce3038",
   "note": "Golden replay of the skill-effect executor: five casters run all eight migrated recipes against dummy formations (re-blessed by task 0360, which added the ice-lance lane — before it, ice-lance was never cast at runtime). A mismatch means cast/effect semantics changed — cast timing (wind-up, decision 0020), geometry resolution (inclusive hits, sweep arc, projectile corridor, burst-includes-struck-target, chain leaps; decisions 0018/0022), damage application via computeDamage, cooldown handling (decisions 0007/0020), or the hostility model (decision 0021) — or an involved skill's or monster's authored numbers changed."
 }
