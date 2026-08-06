@@ -40,12 +40,16 @@ weakest rung's weight, inside task 0370's "≤ 1/3" convention.
 
 ## The three rulings the ceilings forced
 
-1. **`life-regen` is authored fractionally (2 dp) across its whole ladder**, not
-   just at the bottom. Its per-mod ceiling spans 0.4171 → 4.1714 over item
-   levels 1 → 100, which admits four distinct integer maxima for nine rungs, so
-   integers cannot make a strictly rising ladder at all — the choice is not
-   "integer or fraction at the bottom", it is "fraction or no ladder".
-   `of-hunger`/`of-vigor` keep their gates.
+1. **A stat whose per-mod ceiling spans fewer distinct integers than the affix
+   has rungs is authored fractionally across its *whole* ladder**, at a
+   precision fine enough that every rung is strictly greater than the one below
+   — never integer at the top and fractional at the bottom, and never re-gated
+   to where an integer fits. That is the general rule; `life-regen` is today's
+   only case. Its per-mod ceiling spans **0.4171 → 4.1714** over item levels
+   **1 → 100** (per mod, nine-slot set), which admits four integer maxima for
+   nine rungs, so the choice was never "integer or fraction at the bottom", it
+   was "fraction or no ladder". Two decimals suffice; `of-hunger`/`of-vigor`
+   keep their gates.
 2. **Where the ceiling admits only `max = 1` for an integer-authored stat, the
    tier is a fixed `1–1` roll** (decision 0015's fixed case), never a range that
    can roll 0 and never a lone fractional rung inside an integer ladder. Three
@@ -74,7 +78,29 @@ is the point: `runed` now rolls up to **190 intelligence** and `of-the-wolf` up
 to **+190% attack speed** at item level 100, because `intelligence` is priced
 through a rate-1 derivation into `crit-damage` (a percent-points stat, ceiling
 200) and `attack-speed` is a concentrated axis carrying the whole ×7 offence
-target. Both are legal and both read absurd. That is a pricing-units question
-for a follow-up against decision 0055/0044 §3, not something to paper over by
-authoring one affix further under its ceiling than its neighbours — revisit the
-fill only after the units are settled.
+target. Both are legal and both read absurd.
+
+**Per-mod is the wrong unit to be alarmed in; here is the stacked one.** Every
+(slot, stat, mode) the authored pool can stack, worst case, measured at **item
+level 100**, on **one item**, from the **strongest unlocked tier** of each
+distinct eligible affix, capped at `perKindAffixCap` = 3 a side (decision 0014).
+Six exist; these are the numbers a ceiling review needs:
+
+| slot | pair | sources | worst on one item | per-slot ceiling | % |
+|---|---|---|---|---|---|
+| `chest` | `max-life/flat` | 3 — `undying`(p) + `vital`(p) + `of-the-bear`(s) | 204 | 216.9107 | 94.0% |
+| `main-hand` | `attack-speed/increased` | 2 — `swift`(p) + `of-the-wolf`(s) | **+380%** | 6.0 | 63.3% |
+| `hands` | `attack-speed/increased` | 2 — `swift`(p) + `of-the-wolf`(s) | **+380%** | 6.0 | 63.3% |
+| `off-hand` | `crit-damage/flat` | 2 — `runed`(p, via rate-1 intelligence) + `of-ruin`(s) | **380 points** | 600 | 63.3% |
+| `legs` | `resist-lightning/flat` | 2 — `storm-warded`(p) + `of-the-storm`(s) | 46 | 75 | 61.3% |
+| `ring` | `max-life/flat` | 2 — `vital`(p) + `of-the-bear`(s) | 136 | 216.9107 | 62.7% |
+
+`chest`/`max-life` at 94% is the only row near its ceiling and is why the fill
+is 0.95 rather than 1. The two 63.3% rows are the ones to argue with: +380%
+attack speed and 380 crit-damage points on a single item are *comfortably legal*
+— `budget.ts:455` prices `attack-speed` at `TARGET.offence - 1` concentrated,
+which permits **+600% on one slot** — so the pool is not the offender and
+trimming an affix would only hide it. This is a pricing-units question for a
+follow-up against decisions 0055 and 0044 §3; revisit the fill only after the
+units are settled, and re-measure this table when they are, because it is the
+table that moves.
