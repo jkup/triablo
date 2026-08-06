@@ -32,13 +32,22 @@
 > 3. **`packages/client/src/game.test.ts` is missing from Files in scope, and
 >    this task cannot pass without it.** That file pins
 >    `expect(combatant?.maxLife).toBe(PLAYER_STATS.life)` (200) at
->    `game.test.ts:116`; the spawn grant makes it 224, so the assertion fails.
+>    `game.test.ts:115`; the spawn grant makes it 224, so the assertion fails.
 >    Measured, by calling the real functions: `maxLifeGrantForLevel(5)` is 24,
 >    and `makeCombatant('avatar', 5, PLAYER_STATS, levelStatMods(5))` returns
 >    `maxLife` 224 with only `life` and `maxLife` differing from today's avatar.
 >    Add `packages/client/src/game.test.ts` to Files in scope and narrow that one
 >    assertion to 224. **The pinned `systemNames` list in the same file still
 >    must not change** — the rest of the Out of scope entry stands.
+>
+> 4. **"the second (and last budgeted) re-bless" is now wrong about *last*.**
+>    The Goal below says this task pays the last budgeted re-bless of
+>    `dungeon-crawl.seed1.json`. Two more were minted on 2026-08-06: task
+>    **0750** (loot drops) and task **0760** (the cleared latch) each pay one,
+>    making four in the chain — 0680, 0730, 0750, 0760. Nothing about *your*
+>    work changes: the constraint that actually binds is still "exactly one
+>    replay file moves in this PR, and it is this one". Read "second of four
+>    planned" wherever the file says "last".
 >
 > One thing that does **not** change: the `maxLife - life === 141` behaviour
 > proof below still holds at seed 1, because no level-up happens during that

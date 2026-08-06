@@ -77,7 +77,8 @@ After this task the audit prints `CLEAN`, item level means something across
 its whole legal 1–100 range, and task 0620 can turn the budget check on
 without the gate going red.
 
-This supersedes task **0610** (`tasks/open/0610-recost-affix-pool.md`), which
+This supersedes task **0610** (`tasks/done/0610-recost-affix-pool.md`, moved
+out of the open queue on 2026-08-06 precisely so nobody picks it up), which
 was written against 0600's now-miscalibrated ceilings and explicitly excluded
 the extension. Do not work that file.
 

@@ -63,11 +63,17 @@ gated by cooldown alone):
 
 Two facts worth knowing before you plan anything:
 
-- **The 0007 taxonomy is not a field.** `SkillSchema`
-  (`packages/content/src/schemas/index.ts:141-159`) has `resourceCost` and
-  `cooldownSeconds` and no `role`/`kind` at all, so "basic / core / cooldown"
-  is derived from the pair, not authored. Whether it *should* become a field is
-  one of the questions in front of you, not something to change here.
+- **The 0007 taxonomy is authored, but only as a convention nothing enforces.**
+  All eight skills carry their role as the **first entry of `tags`** — cleave
+  `["basic", "melee", "area"]`, rend `["core", "melee"]`, ravage
+  `["cooldown", "melee"]`, and so on, and every one agrees with its
+  `(resourceCost, cooldownSeconds)` pair. But `SkillSchema`
+  (`packages/content/src/schemas/index.ts:141-159`) types `tags` as
+  `z.array(IdSchema)` with no enum and no position rule, there is no
+  `role`/`kind` field, and **nothing in `packages/` reads `.tags` at all**
+  (grep is empty outside tests). So the taxonomy is a convention held up by
+  authoring discipline, not a contract. Whether it should become a typed field
+  is one of the questions in front of you — do not change it here.
 - **Only the barbarian is playable.** The client binds keys 1/2/3 to rend,
   cleave and ground-stomp (decision 0033, `packages/client/src/game.ts:124-128`),
   and the avatar's stats are the barbarian-flavoured slice statline of decision
@@ -152,8 +158,11 @@ Match 0650's structure; these are the sections this subject needs.
 
 ## Acceptance criteria
 
-- [ ] `git status --porcelain` shows exactly one modified file: this one. No
-      `packages/` change, no `docs/` change, no new file.
+- [ ] `git diff --stat main -- ':!tasks'` is empty — the whole diff is this
+      task file. (Both model tasks use exactly this check;
+      `git status --porcelain` is the wrong instrument because it does not
+      survive the file's move to `tasks/done/`.) No `packages/` change, no
+      `docs/` change, no new file.
 - [ ] `npm run verify` passes (it must, since nothing changed — run it anyway
       to prove no stray edit escaped).
 - [ ] The Outcome contains all nine sections above, in order.

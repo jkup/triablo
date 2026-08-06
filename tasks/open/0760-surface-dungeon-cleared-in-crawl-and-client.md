@@ -120,6 +120,11 @@ and a second one would just double-report the same failure.
 - `packages/client/main.ts:168-172` appends the fact to the existing status
   string when `cleared` is true — plain text, in the existing element, in the
   existing sentence shape. Nothing else in `main.ts` changes.
+- **Task 0780 extends the same `GameStatus` interface** (with the player's
+  level and XP) and edits the same status string. It is not a dependency —
+  neither task touches the other's fields — but if it has landed first,
+  **extend** its shape and its string rather than replacing them. Rebase onto
+  `main` before opening the PR.
 
 ### 4. Client: the pinned system list
 
@@ -190,8 +195,13 @@ After this task:
       with `'dungeon-cleared'` last.
 - [ ] `npm run typecheck` passes, which covers `main.ts` (the root tsconfig
       includes `packages/**/*.ts`).
-- [ ] `npm run dev`, clear the dungeon, and state in the Outcome the exact
-      status-line text you saw once it cleared.
+- [ ] Test (client): the exact status-line string. `main.ts` composes it from
+      `gameStatus`'s fields, so assert the *fields* — a `gameStatus` result with
+      `cleared: true` carries `clearedAtTick` equal to the latch tick and leaves
+      `playerLife` and `monstersRemaining` reading exactly what they read
+      before. Then quote the composed string verbatim in the Outcome's Owner
+      playtest bullet, copied from your `main.ts` diff rather than from a
+      screen. **Running the page is not an agent deliverable — see the Notes.**
 - [ ] `npm run replay:check` is green after blessing and the `note` explains
       the change per Requirement 6.
 - [ ] The Outcome records the before hash (task 0750's) and the after hash with
@@ -214,6 +224,17 @@ After this task:
   census is the rule and the system already implements it — you are registering
   it, not reimplementing it.
 - **The third trap.** Blessing early. Reproduce the eight death ticks first.
+- **You cannot look at the page, and this task does not ask you to.** There is
+  no browser automation in this repo — no jsdom, playwright or puppeteer in
+  `package.json`, vitest's `environment` is `node` (`vitest.config.ts`),
+  `packages/client/main.ts` has no test file and sits outside the coverage
+  `include` (`packages/*/src/**`), and `npm run shot` rasterizes a `Scene`, not
+  DOM text. So `main.ts` is covered by `npm run typecheck` and by the
+  `gameStatus` unit test behind it, and the visual confirmation is an **Owner
+  playtest** bullet in your Outcome, in the shape task 0350 used
+  (`tasks/done/0350-client-playable-input.md:190-191`). Do not write "I ran
+  `npm run dev` and saw…" — an unrunnable acceptance criterion gets satisfied
+  by invention, which is the failure this note exists to prevent.
 - Tasks 0560 and 0750 must both be on `main` first. 0750 is a dependency for
   file ownership as much as for content: it is the previous re-bless of the
   same replay and the previous edit of the same four source files, and two PRs
@@ -231,3 +252,9 @@ After this task:
   because `<state the DungeonProgress reason and both hashes>`
 - **Scope deviations:**
 - **Follow-ups worth a new task:**
+- **Owner playtest:** confirming the status line on screen is the owner's to
+  run: `npm run dev`, clear the dungeon, and the line should read
+  `<quote the exact string your main.ts composes when cleared is true>`. The
+  headless bot reaches the latch at tick 1466, which is 48.9 s at 30 Hz — a
+  useful order-of-magnitude for how long a clear takes, though a human plays
+  their own route.

@@ -268,13 +268,30 @@ leaked into combat or a component write moved a timer. Find it before blessing.
   as landed — you are registering into the system order they built.
 - **You do not need to write any rendering code for a human to see the drops.**
   `buildScene` emits a sprite for every entity carrying core `Position`
-  (`packages/client/src/scene.ts:463-490`), with `lifeFrac: null` when there is
-  no `Combatant` and a colour seeded from the entity id when no component
-  carries a string `monsterId` — decision 0027's cosmetic exception. A
-  `GroundItem` entity therefore draws as a small unlabelled circle on the floor
-  for free. `cameraFor` follows the `PlayerControlled` entity (decision 0033),
-  so eight new positioned entities cannot move the camera. Confirm this by
-  running `npm run dev`, and say in the Outcome what you saw.
+  (`packages/client/src/scene.ts:463-496`), so a `GroundItem` entity draws for
+  free. Read the four specifics before you predict what it looks like, because
+  the obvious guesses are wrong:
+  - **Radius 10 px, the same as a combatant's** — `Math.round(PIXELS_PER_UNIT *
+    0.4)` at `scene.ts:475`. Drops are not smaller than monsters.
+  - **No life bar.** `lifeFrac` is `null` with no `Combatant` (`scene.ts:395`),
+    and both back ends skip the bar on null.
+  - **Labelled with the entity id.** `scene.ts:491` sets `label:
+    String(entity)`, and `rasterizeScene` draws it under the circle
+    (`raster.ts:226-231`), as does the canvas drawer (`main.ts:63-67`).
+  - **All eight drops share one colour.** `readColorSeed`
+    (`scene.ts:221-226`) returns a string only for a `monsterId` field, and a
+    `RolledItem` carries `baseId`, not `monsterId` — so the cosmetic fallback
+    at `scene.ts:403-409` seeds them `component:<first component id>` (ids
+    arrive sorted). The `entity:${entity}` branch at `scene.ts:490` is reached
+    only by an entity carrying no components at all, which a `GroundItem`
+    never is.
+
+  `cameraFor` follows the `PlayerControlled` entity (decision 0033,
+  `scene.ts:337-341`), so eight new positioned entities cannot move the camera.
+  Net result: eight identically-coloured, id-labelled, monster-sized circles on
+  the floor. That is deliberately plain — making them *read* as loot extends
+  `buildScene`'s contract and is out of scope (see above). **Seeing it is the
+  owner's to do, not yours** — see the Outcome note below.
 - **No dry-pool risk at these item levels.** Measured across the authored
   affix pool (22 affixes): at item levels 1–5 every slot the shipped tables
   can drop into has **≥3 eligible prefixes and ≥3 eligible suffixes**
@@ -304,3 +321,12 @@ leaked into combat or a component write moved a timer. Find it before blessing.
   because `<state the new-entities + new-rng-draws reason and both hashes>`
 - **Scope deviations:**
 - **Follow-ups worth a new task:**
+- **Owner playtest:** *(the shape task 0350 used —
+  `tasks/done/0350-client-playable-input.md:190-191`)* seeing the drops on
+  screen is the owner's to run: `npm run dev`, clear a room, and eight circles
+  should be left behind. **You cannot run this and must not claim to have.**
+  There is no browser automation in this repo — no jsdom, playwright or
+  puppeteer in `package.json`, vitest's `environment` is `node`
+  (`vitest.config.ts`), and `npm run shot` rasterizes a `Scene`, not a live
+  page. What you *can* do, and must, is state here the eight drop positions
+  from the verbose trace so the owner knows which tiles to look at.
