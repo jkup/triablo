@@ -54,10 +54,12 @@ question with tradeoffs rather than one preferred design, a dependency-ordered
 cut list, an explicit owner-decides / implementer-chooses split, and one
 collected list of owner questions at the end.
 
-0570's two integrator correction cycles all landed on places where it
-**asserted** instead of **measuring** — a hash claim, a multiplier ratio, a
-pool-depth count. 0650 caught two wrong numbers in its own task file's prompt by
-recomputing them. That is the bar. Every number in your plan must come from
+0570's single integrator pass applied four corrections
+(`tasks/done/0570-power-budgets-scouting.md:292`), and **three of the four were
+places where it asserted instead of measuring** — a false hash claim, a
+units-mismatched ratio, and a miscounted pool depth. (The fourth was a different
+class: a decision it had misframed.) 0650 caught two wrong numbers in its own
+task file's prompt by recomputing them. That is the bar. Every number in your plan must come from
 running something, and this file's own numbers are fair game: if one of them is
 wrong, say so in your Outcome so the next planner does not copy it forward.
 
@@ -143,17 +145,31 @@ the price of a player-only component today.
 
 ## Out of scope
 
-- **Any change under `packages/`, `docs/`, or `docs/decisions/`.** If the plan
-  concludes an owner-level question blocks everything, it says so in section 10
-  — surfacing that is the deliverable, not a failure.
+- **Any *committed* change under `packages/`, `docs/`, or `docs/decisions/`.**
+  The whole diff is this file. If the plan concludes an owner-level question
+  blocks everything, it says so in section 10 — surfacing that is the
+  deliverable, not a failure.
+
+  **This bar is on the commit, not on your working tree.** Section 2 requires
+  hashes you can only get by temporarily editing `packages/`, and that is how
+  this repo measures: `tasks/done/0650-progression-scouting.md:105-107` told its
+  worker to "Reproduce measurements with a throwaway script if it helps … but
+  **commit nothing**", and that worker's Outcome (`:542-545`) records "Three
+  throwaway edits to `packages/core/src/combat/damage.ts` were made *to measure*
+  replay cost … and reverted; `npm run replay:check` is green on the committed
+  tree". Do exactly that: edit, measure, paste the output, revert. The
+  acceptance criterion is `git diff --stat main -- ':!tasks'` being empty at
+  commit time, and nothing else.
 - **Any change to another task file**, including 0420, 0590, 0640, 0690 and
   0750. You do not get to edit them; you produce the plan and the questions, and
   the planner re-cuts from there. Where one of them is wrong or stale, say so in
   your Outcome and let the planner amend it.
 - **Minting a decision number.** Name which entries each future task must mint;
-  do not write one. The highest on `main` is **0066** and **0067 is reserved**
-  for a task in flight — numbers drift, so a future task checks before
-  committing rather than trusting this sentence.
+  do not write one. The highest on `main` is **0066**, and **0067 is free** — it
+  was reserved for task 0680's worker, which ended up needing no entry
+  (`tasks/done/0680-wire-progression-into-crawl-and-client.md:244`). Numbers
+  drift: a future task checks `docs/decisions/` on `main` and the open PRs when
+  it starts, rather than trusting this sentence.
 - **Deciding what the owner owns.** Whether there is an inventory, what picks an
   item up, whether equipping is instant, whether a swap heals — these are design
   choices. Present the candidates with their consequences and route the choice
@@ -221,10 +237,20 @@ component is lost across a save.
 
 ### 3. Recompute: how `itemMods` reaches `computeStats`, and when
 
-This is the section the whole task turns on. `Combatant` stores derived
-numbers — `maxLife`, `armor`, `damage`, `moveSpeed`, `attackIntervalTicks` —
-and nothing else. `computeStats` (`packages/core/src/combat/stats.ts`) is the
-pure fold, decision 0005; `makeCombatant` is its only combat caller.
+This is the section the whole task turns on. `computeStats`
+(`packages/core/src/combat/stats.ts`) is the pure fold, decision 0005;
+`makeCombatant` is its only combat caller, and it writes an eleven-field
+`Combatant` (`packages/core/src/combat/components.ts:31-58`) that mixes three
+different kinds of field:
+
+| kind | fields | what a recompute owes it |
+|---|---|---|
+| **derived from stats** | `maxLife`, `damage`, `armor`, `moveSpeed`, `attackIntervalTicks` | these are the ones gear should move |
+| **volatile combat state** | `life`, `damageDealt`, `ticksUntilAttack` | these must survive a recompute, and a rebuild destroys all three |
+| **identity, fixed at spawn** | `monsterId`, `damageType`, `level` | unchanged by gear; note `level` here is the *attacker* level of decision 0004, not `Progression.level` |
+
+Reproduce that split from the interface before you use it — the middle row is
+where this goes wrong.
 
 **The trap, and it is the reason a naive equip system is wrong.** The obvious
 implementation is "on equip, rebuild the `Combatant` with the new mods". Ground
@@ -254,8 +280,21 @@ For each: what it costs, what it moves, which decisions it must supersede, and
 whether it can be made opt-in the way 0420's `LootSource` and 0410's
 `ResourcePool` are.
 
-State plainly whether stats recompute **on equip** or **at spawn only**, with
-the tradeoff, and route the choice to section 10 if it is the owner's.
+**The recompute question goes to section 10 unconditionally** — "does equipping
+change your stats immediately, or only on the next spawn" is the feel of the
+game, and decision 0060's ruling that a level-up heals is the owner having
+already taken the adjacent question. So this section owes two separate things
+and must not merge them:
+
+- a **recommendation** with a yes/no on recompute-on-equip versus spawn-only,
+  defended from the costs above — not "it depends"; and
+- the **question, still open**, in section 10, phrased so a sentence answers it.
+
+Recommending and deferring are compatible here, and the acceptance criteria
+require both. This differs from sections 4 and 5, which carry a
+do-not-collapse guard: there the models are genuinely balanced, here the
+engineering cost is lopsided enough that a recommendation is useful and only
+the ruling is withheld.
 
 ### 4. Pickup: what picks an item up, and what that implies for input
 
@@ -325,14 +364,15 @@ kill.
 Wiring gear is not one behaviour change; it is the trigger for several already
 built and dormant. Enumerate them with their replay consequence:
 
-- **`attack-speed`.** `tasks/open/0640` explicitly defers "recomputing the
-  interval when gear changes" to "the equipping task — that is this chain", and
-  its "Replay neutrality" section ends "The first entity that actually carries
-  attack-speed moves every replay it appears in. That belongs to the equipping
-  task." Ground truth 6 shows +28% attack-speed changing nothing today. Say what
-  it does after 0640, in ticks, using 0640's own table.
+- **`attack-speed`.** `tasks/open/0640:34-36` puts "Recomputing the interval
+  when gear changes" out of its own scope, and its Replay-neutrality section
+  (`:119-120`) ends: "The first entity that actually carries attack-speed moves
+  every replay it appears in. That belongs to the equipping task." **This chain
+  is that task** — 0640 names no other, and no other exists. Ground truth 6
+  shows +28% attack-speed changing nothing today. Say what it does after 0640,
+  in ticks, using 0640's own table (`:82-90`).
 - **Crit.** Decision 0064's conversion is live and every combatant converts to
-  `critChance 0`. `packages/core/src/combat/systems.test.ts:345` already carries
+  `critChance 0`. `packages/core/src/combat/systems.test.ts:344-346` already carries
   the comment that this "moves every replay containing it — that cost belongs to
   the equipping task". The specific hazard: `Rng.chance` short-circuits at
   `p <= 0`, so the first entity with a crit chance in `(0, 1)` **consumes an rng
@@ -389,9 +429,23 @@ one-line count.
 At minimum this list must contain: whether v1 has an inventory (§5); what picks
 an item up (§4); whether stats recompute on equip or at spawn only (§3);
 whether an equip may heal, given decision 0060 (§3); whether `levelRequirement`
-gates at runtime in this chain or later (§6); and where in the phase order the
-client surface sits (§4). Anything you marked `ASSUMED` anywhere in the document
-appears here too.
+gates at runtime in this chain or later (§6); where in the phase order the
+client surface sits (§4); and **handedness** (below). Anything you marked
+`ASSUMED` anywhere in the document appears here too.
+
+**Handedness — surface it, do not decide it.** `ItemBaseSchema`
+(`packages/content/src/schemas/index.ts:27-38`) carries `slot` and `itemClass`
+as two independent fields with no cross-constraint, and `ITEM_CLASSES`
+(`packages/content/src/schemas/common.ts:32-44`) includes `bow`, `staff` and
+`shield`. Confirm by reading them, and check what the eleven shipped bases
+actually use — a two-handed weapon occupying both `main-hand` and `off-hand` is
+a real equip-chain question that nothing in the repo answers, and it is the kind
+of rule that is cheap now and a migration later. Note whether the data even
+reaches core: `RolledItem` and `LootItemBase` (§6) carry `slot` but not
+`itemClass`, which is the same missing-data-path shape as `levelRequirement`.
+**Ask the question; do not invent a two-hand rule**, and do not let it grow into
+a slot-conflict design (two rings, off-hand blocking) — `tasks/open/0590`'s Out
+of scope already parks that whole family.
 
 ## Number discipline
 
@@ -409,9 +463,13 @@ nothing** outside this file.
 
 ## Acceptance criteria
 
-- [ ] `git diff --stat main -- ':!tasks'` is empty — the whole diff is this task
-      file moving to `tasks/done/` with its Outcome filled in. No `packages/`
-      change, no `docs/` change, no new file, no decision entry.
+- [ ] `git diff --stat main -- ':!tasks'` is empty **at commit time** — the whole
+      diff is this task file moving to `tasks/done/` with its Outcome filled in.
+      No committed `packages/` change, no `docs/` change, no new file, no
+      decision entry. Temporary edits made to produce section 2's hashes are
+      expected and must be reverted before you commit; say in your Outcome which
+      files you touched and that you reverted them, as
+      `tasks/done/0650-progression-scouting.md:542-545` does.
 - [ ] `npm run verify` passes (it must, since nothing changed — run it anyway to
       prove no stray edit escaped).
 - [ ] The Outcome contains all ten numbered sections, in order.
@@ -423,10 +481,13 @@ nothing** outside this file.
       equivalent fields on `Combatant` — and states how many of the six goldens
       each moves. "Per CLAUDE.md, five of six" without a measurement fails this
       criterion.
-- [ ] **Section 3 gives a yes/no on recompute-on-equip versus spawn-only**, and
-      explicitly answers all four consequences of the rebuild trap (`life`,
-      `damageDealt`, `ticksUntilAttack`, and the missing stored base statline).
-      "It depends" fails this criterion.
+- [ ] **Section 3 gives a yes/no recommendation on recompute-on-equip versus
+      spawn-only** — "it depends" fails — **and still routes the ruling to
+      section 10**, where it appears as an open question. Both, not either.
+      Section 3 also explicitly answers all four consequences of the rebuild
+      trap (`life`, `damageDealt`, `ticksUntilAttack`, and the missing stored
+      base statline), and its `Combatant` field table matches the interface at
+      `packages/core/src/combat/components.ts:31-58`.
 - [ ] Sections 4 and 5 each present **at least two** models with tradeoffs and
       do **not** collapse into a single recommendation; the choice is routed to
       section 10.
@@ -441,7 +502,9 @@ nothing** outside this file.
       enough that an implementer could start without reading this plan's
       sources again, and every task carries a replay-impact line.
 - [ ] Section 10 is a single list of one-sentence-answerable questions, **each
-      with a recommendation**, and ends with a count.
+      with a recommendation**, and ends with a count. It includes the handedness
+      question, phrased as a question — a section 10 that *rules* on two-handed
+      weapons instead of asking about them fails this criterion.
 - [ ] Every number carries a `MEASURED` / `DERIVED` / `ASSUMED` label and every
       `ASSUMED` one appears in section 10.
 
