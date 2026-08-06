@@ -244,9 +244,25 @@ console.log(bad === 0 ? 'CLEAN' : `${bad} violations`)
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+*Closed without implementation. Filed by the planner, 2026-08-06.*
 
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **What changed:** Nothing in the repo. This task was superseded on
+  2026-08-05 (see the banner at the top of this file) and its work was absorbed
+  whole into task **0710** (`0710-recost-and-extend-affix-ladder.md`; open when
+  this was filed, in `tasks/done/` once PR #92 lands), which re-costs
+  the pool onto the recalibrated ceilings **and** extends every tier ladder to
+  item level 100 in one pass. 0710 carries this file's audit instrument, its
+  attribute-derivation trap, its per-slot stacking trap, and the ceiling table
+  recomputed against decision 0052's measuring stick. Decision **0053** is the
+  reason the two jobs are one: extending a ladder renumbers tiers, so doing them
+  separately means editing all 22 affix files twice.
+- **Why it is being moved to `done/` rather than left in `open/`:** it had sat
+  in `tasks/open/` since being superseded, where every dispatch pass and every
+  planner pass re-read it and had to re-derive that it must not be worked. A
+  file whose own header says "do not work this file" does not belong in the
+  available queue. The banner and the full body are preserved verbatim above
+  for provenance, and the number 0610 is retired — not reused.
+- **Replays re-blessed:** none.
+- **Scope deviations:** none — no code, content, or docs were touched.
+- **Follow-ups worth a new task:** none. `0710` is the successor;
+  `0620-budget-invariant-executable.md` remains blocked on it.
