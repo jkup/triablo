@@ -5,18 +5,22 @@ import {
   attackSystem,
   buildDungeon,
   Combatant,
+  createXpAwardSystem,
   deathSystem,
   defineComponent,
   DungeonMap,
   Faction,
   makeCombatant,
+  makeProgression,
   MELEE_RANGE_TILES,
   MoveOrder,
   moveOrderSystem,
   PlayerControlled,
   populateDungeon,
   Position,
+  Progression,
   tileOf,
+  xpToNextLevel,
 } from '@triablo/core'
 import type { CombatantBaseStats, System, World } from '@triablo/core'
 
@@ -34,6 +38,17 @@ import type { Scenario } from '../scenario'
  * hand-derived waypoint list room by room on `MoveOrder`s, kills every
  * authored monster through the real combat systems (auto-attack in melee,
  * decision 0029 — no skills), and must end standing on the exit tile.
+ *
+ * It also carries `Progression` (task 0680), so every kill pays XP through
+ * `xpAwardSystem` — registered between `attack` and `death` because the reaper
+ * destroys a corpse in the same tick the fatal hit lands and `query` skips it
+ * from that moment (decision 0057). The award is pure integer arithmetic and
+ * draws no rng, and it never writes `Combatant` — `Combatant.level` is the
+ * *attacker* level of decision 0004's armor curve, a different quantity from
+ * the character level (decisions 0051/0057), so the whole combat trace above is
+ * unchanged by it. Progression is reported, not asserted: the crawl's contract
+ * is clearing the dungeon, and pinning an XP total here would make every
+ * balance retune a scenario failure.
  *
  * The invariants are the contract and may not be edited to make a run pass:
  * the avatar survives, life stays in bounds for everyone, the monster count
@@ -406,6 +421,12 @@ function crawlReport(world: World): Record<string, string | number> {
   const record = recordRow?.[1]
   const map = world.query(DungeonMap)[0]
   const avatarRow = world.query(PlayerControlled, Combatant, Position)[0]
+  // Queried separately rather than widened onto `avatarRow`: that row's shape
+  // is the same `(PlayerControlled, Combatant, Position)` the invariants use,
+  // and keeping it identical means a reader comparing the two sees one avatar
+  // lookup, not two that differ by a component for no stated reason.
+  const progression = world.query(Progression, PlayerControlled)[0]?.[1]
+  const xpCost = progression === undefined ? null : xpToNextLevel(progression.level)
 
   return {
     monstersRemaining: monsters.length,
@@ -421,6 +442,16 @@ function crawlReport(world: World): Record<string, string | number> {
     exitTile: map === undefined ? 'no DungeonMap' : `(${map[1].exit.x}, ${map[1].exit.y})`,
     lastMonsterDeathTick: record?.lastKillTick ?? 'missing',
     waypointsReached: record === undefined ? 'missing' : `${record.waypointIndex}/${WAYPOINTS.length}`,
+    avatarLevel: progression?.level ?? 'missing',
+    // `xp` is progress toward the *next* level, not a lifetime total (decision
+    // 0049), so it is reported as a bar like `avatarLife` — a bare number would
+    // read as a total and be wrong the moment the avatar levels.
+    avatarXp:
+      progression === undefined
+        ? 'missing'
+        : xpCost === null
+          ? `${progression.xp} (at cap)`
+          : `${progression.xp}/${xpCost}`,
   }
 }
 
@@ -458,6 +489,12 @@ export const dungeonCrawl: Scenario = {
     world.add(avatar, Position, { x: populated.entrance.x, y: populated.entrance.y })
     world.add(avatar, PlayerControlled, {})
     world.add(avatar, Faction, { id: PLAYER_FACTION })
+    // The character level starts where the attacker level does (5, decision
+    // 0030) and then diverges: this one climbs on kills, `Combatant.level`
+    // above never moves. Two fields on purpose — mirroring them would grant
+    // combat power through decision 0004's armor curve, which decision 0051
+    // does not license (a level grants +6 max-life, at the computeStats seam).
+    world.add(avatar, Progression, makeProgression(PLAYER_LEVEL))
 
     const monitor = world.spawn()
     world.add(monitor, CrawlRecord, {
@@ -481,11 +518,16 @@ export const dungeonCrawl: Scenario = {
 
     // Registration order is execution order: commanded movement settles first
     // (moveOrder before approach — the documented convention), the AI reacts,
-    // attacks resolve in ascending entity order, the reaper runs, and the bot
-    // observes the post-death world to decide next tick's order.
+    // attacks resolve in ascending entity order, the corpses are paid out, the
+    // reaper runs, and the bot observes the post-death world to decide next
+    // tick's order. `xp-award` MUST sit between `attack` and `death`: it finds
+    // corpses with `query`, and `deathSystem` destroys them in the same tick
+    // the fatal hit lands (decision 0057). No tier argument — the difficulty
+    // tier system does not exist yet and tier 1 is the identity.
     world.addSystem(moveOrderSystem)
     world.addSystem(approachSystem)
     world.addSystem(attackSystem)
+    world.addSystem(createXpAwardSystem())
     world.addSystem(deathSystem)
     world.addSystem(crawlBotSystem)
   },
