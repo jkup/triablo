@@ -129,9 +129,57 @@ the veto path stays open after play.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** `rend.json`'s `melee-hit` now carries the specified
+  `status` rider (`dot`, physical, `weaponMultiplier` 0.7, 3 s) — data only,
+  no code touched. Decision **0065** records the numbers with their measuring
+  stick (level-1 caster, weaponDamage 10, no mods/crit; zombie armor 3 and
+  grave-hulk armor 8; total-per-cast units per decision 0036) and the owner's
+  veto hook.
 
-- **What changed:**
-- **Replays re-blessed:**
-- **Scope deviations:**
+  Observed, not inferred. `sim run skill-strike --seed 1 --verbose` (and seed
+  7, identical) traces at tick 24:
+  `rend: skill-caster applies a physical dot on grave-hulk (6) — total 4 over
+  90 ticks (0.0444/tick, final 0.0484)` — application only, **no** per-tick
+  status lines, because skill-strike does not register `statusTickSystem`.
+  Every invariant passed unmodified and `melee-primary` still reports exactly
+  36 damage, confirming the task's no-ticking analysis.
+
+  Ticking was proved separately against the *shipped* rend JSON in a scratch
+  world registering the client's system set (`skillCast → skillResolve →
+  projectile → statusTick → death`): vs a zombie, `hits ... for 11` at tick
+  15, then 89 ticks of 0.0555 and a final 0.0605 at tick 104, ending at 28/44
+  — 16 total taken, `damageDealt` 16, `StatusEffects` removed on expiry.
+  Exactly the arithmetic in the requirements, to the quantum.
+
+- **Replays re-blessed:** `packages/sim/replays/skill-strike.seed1.json` only
+  (`59b59d75a6013113` → `aa8bebbcbbce3038`). Cause is component data, not
+  behavior: the scenario embeds registry recipes, so rend's rider enters the
+  pinned world and its casts now attach a `StatusEffects` component to the
+  melee dummy. No life total in that scenario moved. The other five replays
+  (including `status-dot` and `dungeon-crawl`) are byte-untouched; `git diff
+  main -- packages/sim/src` is empty.
+
+- **Scope deviations:** none. One JSON block, one replay hash, one decision
+  entry. `statusTickSystem` was not registered in skill-strike, its worked
+  table was not edited, and no other skill received a rider.
+
 - **Follow-ups worth a new task:**
+  - **Rider budget across the kit.** 0065 sets one skill's numbers against one
+    stick; a second rider (ravage bleed, spark burn, ice-lance chill-as-DoT)
+    should not be guessed per-skill. Worth a balance-role task that defines
+    what fraction of a skill's total damage a rider may carry, measured on the
+    monster band, before any second rider ships.
+  - **The player can't see the bleed.** The client applies and ticks it, but
+    nothing in the HUD or scene says a target is bleeding — pillar 1 ("combat
+    is readable at a glance") wants a status indicator on the target. Client
+    lane, needs `StatusEffects` exposed to the render read path.
+  - **skill-strike's ticking blind spot.** It now carries a rider it never
+    ticks, which is correct today but means the scenario cannot catch a
+    regression in rend's *bleed* damage. Either status-dot grows a lane that
+    reads the shipped rend recipe, or a new scenario does — the seam is
+    covered by scenario-local recipes only, so shipped rider numbers have no
+    golden of their own.
+  - **DoT and crit/resistance.** 0036 forecloses both; the first elemental
+    rider (burn/frost) will force the question of whether a DoT's total is
+    mitigated by resistance at application. Needs its own decision before
+    that content lands.
