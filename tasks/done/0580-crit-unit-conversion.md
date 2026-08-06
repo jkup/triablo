@@ -266,9 +266,88 @@ is expected, which is the bug this spec prevents.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
 - **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
+
+  `toDamageAttacker(weaponDamage, level, stats?, mods?)` — one exported pure
+  function beside `makeCombatant` in `packages/core/src/combat/components.ts` —
+  is now the single boundary between content units (percent points) and engine
+  units (clamp01 probability, plain multiplier). It applies §4's two formulas
+  verbatim, defaults `mods` to the neutral record, and **stores nothing**. Both
+  direct-hit call sites build their `DamageAttacker` through it:
+  `attackSystem` (`combat/systems.ts`) and `applyHit` (`skills/systems.ts`).
+  `applyDot`'s literals are untouched and gained a comment naming decision 0036
+  as the reason they are deliberately *not* routed through the converter.
+  Re-exported from `packages/core/src/index.ts`. Decision **0064** records both
+  formulas, the no-storage ruling with its hash reasoning, the ×0 ruling, the
+  `Math.max(1, ...)` guard ruling, both rng-draw corollaries on the open
+  interval, and that 0036 still governs DoT riders.
+
+  `npm run verify` green: 37 test files, 626 tests, 8 smoke scenarios × 20
+  seeds, 6 replays ok.
+
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is
+  empty — all six goldens byte-unchanged, and `replay:check` reports `ok` for
+  each. The four-part proof, each part checked rather than asserted:
+
+  1. **Identical numeric inputs.** The pin test
+     `'a gearless combatant converts to critChance 0 and critDamage 1, the
+     pre-wiring literals'` asserts `toEqual` against the exact attacker record
+     both sites wrote by hand (`{ weaponDamage: 5, mods: { flat: 0,
+     increased: 0, more: [] }, critChance: 0, critDamage: 1, level: 1 }`).
+  2. **No rng draw.** `Rng.chance(0)` returns before `next()`. Proven with
+     `rng.getState()` as an exact draw counter in
+     `'draws nothing at 0 crit-chance points'`, and end-to-end in
+     `'draws no rng while gearless combatants trade blows (decision 0064)'`
+     (30 ticks of melee, state deep-equal) and
+     `'a DoT rider stays rng-silent (decision 0036)'`.
+  3. **`isCrit` false**, so `afterCrit === afterSkill` — no float path changes;
+     the pre-mitigation figures in both verbose traces are unchanged (below).
+  4. **No component gained a key.** `Combatant`'s field list is byte-identical
+     to `main`: `git show main:packages/core/src/combat/components.ts | sed -n
+     '/^export interface Combatant {/,/^}/p'` diffed against the branch's is
+     empty, and `git diff main -- packages/core/src/combat/components.ts`
+     touches only two hunks — the import line and everything *after*
+     `makeCombatant`. Independently reproduced why this matters: a one-entity
+     world holding the zombie statline at level 2 hashes `ece5348df46ce0d3`
+     bare and `5cceab71795eecbc` with `critChance: 0, critDamage: 1` added, so
+     the widening path would have moved five of six goldens.
+
+  Scenario traces are identical to `main`'s, byte for byte (`diff` clean on
+  both, captured before and after the change):
+  `npm run sim -- run skill-strike --seed 1 --verbose` → 300 ticks, state hash
+  `59b59d75a6013113`; `npm run sim -- run duel --seed 1 --verbose` → identical
+  output including every per-hit pre-mitigation figure.
+
+- **Scope deviations:** none. The decision landed as **0064**, not the 00XX the
+  "Files in scope" hint implies — that hint's "highest on `main` is 0044" was
+  stale; the highest at branch time was 0063 and 0064 was reserved for this
+  task (task 0450's protocol). No `Equipment` component, no equip command, no
+  caller passes a non-empty `mods` list; `applyDot` untouched except for the
+  explanatory comment; no replay re-blessed. Two additions inside the files
+  already in scope, both in service of the acceptance criteria: `expectedHit`
+  in `combat/systems.test.ts` now builds its attacker through the converter (so
+  the test helper and the system cannot drift apart), and
+  `combat/systems.test.ts` gained the gearless rng-silence test above.
+
+  The converter's `mods` parameter is unused by production code today — it is
+  there so the whole attacker literal, not just its crit half, has one home.
+  It is covered by a test.
+
 - **Follow-ups worth a new task:**
+  - **The equipping task owns the first re-bless.** The moment an entity
+    carries `crit-chance` strictly inside (0, 100) points, every hit consumes
+    one rng draw and every replay containing that entity moves. Budget it
+    there. Note the cliff: at ≥ 100 points the draw disappears again.
+  - **Crit's eventual home is a separate component**, added only to entities
+    that carry it (0036's "absence is the clean state"), never a widened
+    `Combatant`. Decision 0064 records the hashes.
+  - **Task 0630 (resistances) wants a defender-side twin** —
+    `toDamageDefender(...)` at these same two sites. The converter's shape
+    (positional required args, optional stat block) leaves room for it; note
+    that `computeDamage` already consumes resistances in *points* (0–100), so
+    that twin needs no divisor and should say so.
+  - **Task 0640 (attack-speed)** is percent points too, but its consumer is an
+    integer tick count, so it needs a rounding ruling under 0001 — it cannot
+    reuse this entry's "no second quantization" clause unexamined.
+  - **DoT crit remains foreclosed.** If riders should ever crit, that is a
+    superseding entry for 0036, not an edit to `applyDot`'s literals.

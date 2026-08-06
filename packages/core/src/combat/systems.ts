@@ -28,7 +28,7 @@ import { Faction } from '../skills/components'
 import { TICK_HZ } from '../time'
 import { Grid } from '../world/grid'
 import { DungeonMap } from '../world/populate'
-import { Combatant, Position } from './components'
+import { Combatant, Position, toDamageAttacker } from './components'
 import { computeDamage } from './damage'
 
 /** Melee reach: attack (and stop approaching) at Euclidean distance ≤ this. Decision 0010. */
@@ -293,13 +293,10 @@ export const attackSystem: System = {
       combatant.ticksUntilAttack = combatant.attackIntervalTicks
 
       const result = computeDamage(
-        {
-          weaponDamage: combatant.damage,
-          mods: { flat: 0, increased: 0, more: [] },
-          critChance: 0,
-          critDamage: 1,
-          level: combatant.level,
-        },
+        // Content units → engine units, at the boundary (decision 0064). No
+        // stat block is passed yet: nothing equips gear, so this converts to
+        // critChance 0 / critDamage 1 — the literals this site used before.
+        toDamageAttacker(combatant.damage, combatant.level),
         { armor: target.combatant.armor, resistances: {} },
         { weaponMultiplier: 1, damageType: combatant.damageType },
         world.rng,

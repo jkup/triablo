@@ -42,7 +42,7 @@
 
 import type { EntityId, System, World } from '../ecs'
 import type { Combatant as CombatantValue, Position as PositionValue } from '../combat/components'
-import { Combatant, Position } from '../combat/components'
+import { Combatant, Position, toDamageAttacker } from '../combat/components'
 import { computeDamage } from '../combat/damage'
 import { STAT_SCALE } from '../combat/stats'
 import { TICK_HZ } from '../time'
@@ -124,13 +124,11 @@ function applyHit(
   status: DotStatusSpec | undefined,
 ): void {
   const result = computeDamage(
-    {
-      weaponDamage: attacker.weaponDamage,
-      mods: { flat: 0, increased: 0, more: [] },
-      critChance: 0,
-      critDamage: 1,
-      level: attacker.level,
-    },
+    // Content units → engine units, at the boundary (decision 0064). The
+    // caster snapshot carries no stat block yet, so this converts to
+    // critChance 0 / critDamage 1 — the literals this site used before, and
+    // therefore still no rng draw (`Rng.chance` short-circuits at p ≤ 0).
+    toDamageAttacker(attacker.weaponDamage, attacker.level),
     { armor: targetCombatant.armor, resistances: {} },
     { weaponMultiplier: payload.weaponMultiplier, damageType: payload.type },
     world.rng,
@@ -190,6 +188,11 @@ function applyDot(
   if (status.durationTicks < 1) return // zero-duration rider: nothing to tick
   const result = computeDamage(
     {
+      // Deliberately NOT routed through `toDamageAttacker` (decision 0064's
+      // boundary): decision 0036 forecloses DoT crit until a superseding
+      // entry, so a rider crits neither by rolling again nor by inheriting the
+      // direct hit's result. These two literals are the rule, and they are
+      // what keeps the rider rng-silent. Changing them supersedes 0036.
       weaponDamage: attacker.weaponDamage,
       mods: { flat: 0, increased: 0, more: [] },
       critChance: 0,
