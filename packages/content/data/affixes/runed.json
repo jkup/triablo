@@ -5,16 +5,52 @@
   "slots": ["head", "amulet", "off-hand"],
   "tiers": [
     {
-      "tier": 2,
+      "tier": 8,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 2, "max": 4 }]
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 10, "max": 19 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 20,
+      "weight": 69,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 26, "max": 51 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 47,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 52, "max": 103 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 33,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 60, "max": 120 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 22,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 69, "max": 138 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 15,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 78, "max": 155 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 90,
+      "weight": 10,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 86, "max": 172 }]
     },
     {
       "tier": 1,
-      "itemLevel": 20,
-      "weight": 28,
-      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 5, "max": 9 }]
+      "itemLevel": 100,
+      "weight": 7,
+      "mods": [{ "stat": "intelligence", "mode": "flat", "min": 95, "max": 190 }]
     }
   ]
 }

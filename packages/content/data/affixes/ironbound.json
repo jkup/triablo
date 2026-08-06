@@ -5,16 +5,52 @@
   "slots": ["hands", "feet"],
   "tiers": [
     {
-      "tier": 2,
+      "tier": 8,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "armor", "mode": "flat", "min": 3, "max": 6 }]
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 1, "max": 2 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 20,
+      "weight": 69,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 4, "max": 7 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 47,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 7, "max": 14 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 33,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 8, "max": 16 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 22,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 9, "max": 18 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 15,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 11, "max": 21 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 90,
+      "weight": 10,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 12, "max": 23 }]
     },
     {
       "tier": 1,
-      "itemLevel": 20,
-      "weight": 30,
-      "mods": [{ "stat": "armor", "mode": "flat", "min": 7, "max": 12 }]
+      "itemLevel": 100,
+      "weight": 7,
+      "mods": [{ "stat": "armor", "mode": "flat", "min": 13, "max": 26 }]
     }
   ]
 }

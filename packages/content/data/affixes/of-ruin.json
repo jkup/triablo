@@ -5,22 +5,58 @@
   "slots": ["main-hand", "off-hand", "hands"],
   "tiers": [
     {
-      "tier": 3,
+      "tier": 9,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 4, "max": 8 }]
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 10, "max": 19 }]
+    },
+    {
+      "tier": 8,
+      "itemLevel": 15,
+      "weight": 69,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 22, "max": 43 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 35,
+      "weight": 47,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 39, "max": 77 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 33,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 52, "max": 103 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 22,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 60, "max": 120 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 15,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 69, "max": 138 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 10,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 78, "max": 155 }]
     },
     {
       "tier": 2,
-      "itemLevel": 15,
-      "weight": 50,
-      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 9, "max": 15 }]
+      "itemLevel": 90,
+      "weight": 7,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 86, "max": 172 }]
     },
     {
       "tier": 1,
-      "itemLevel": 35,
-      "weight": 18,
-      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 16, "max": 24 }]
+      "itemLevel": 100,
+      "weight": 5,
+      "mods": [{ "stat": "crit-damage", "mode": "flat", "min": 95, "max": 190 }]
     }
   ]
 }

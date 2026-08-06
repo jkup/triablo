@@ -5,22 +5,58 @@
   "slots": ["main-hand", "hands", "off-hand"],
   "tiers": [
     {
-      "tier": 3,
+      "tier": 9,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.03, "max": 0.05 }]
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.1, "max": 0.19 }]
+    },
+    {
+      "tier": 8,
+      "itemLevel": 15,
+      "weight": 69,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.22, "max": 0.43 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 35,
+      "weight": 47,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.39, "max": 0.77 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 33,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.52, "max": 1.03 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 22,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.6, "max": 1.2 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 15,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.69, "max": 1.38 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 10,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.78, "max": 1.55 }]
     },
     {
       "tier": 2,
-      "itemLevel": 15,
-      "weight": 55,
-      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.06, "max": 0.09 }]
+      "itemLevel": 90,
+      "weight": 7,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.86, "max": 1.72 }]
     },
     {
       "tier": 1,
-      "itemLevel": 35,
-      "weight": 20,
-      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.1, "max": 0.14 }]
+      "itemLevel": 100,
+      "weight": 5,
+      "mods": [{ "stat": "attack-speed", "mode": "increased", "min": 0.95, "max": 1.9 }]
     }
   ]
 }

@@ -5,16 +5,52 @@
   "slots": ["feet", "legs"],
   "tiers": [
     {
-      "tier": 2,
+      "tier": 8,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.03, "max": 0.05 }]
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.005, "max": 0.009 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 20,
+      "weight": 69,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.012, "max": 0.024 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 47,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.025, "max": 0.049 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 33,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.029, "max": 0.057 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 22,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.033, "max": 0.065 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 15,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.037, "max": 0.073 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 90,
+      "weight": 10,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.041, "max": 0.081 }]
     },
     {
       "tier": 1,
-      "itemLevel": 20,
-      "weight": 25,
-      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.06, "max": 0.09 }]
+      "itemLevel": 100,
+      "weight": 7,
+      "mods": [{ "stat": "move-speed", "mode": "increased", "min": 0.045, "max": 0.09 }]
     }
   ]
 }
