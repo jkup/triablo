@@ -159,11 +159,41 @@ the veto path stays open after play.
   (including `status-dot` and `dungeon-crawl`) are byte-untouched; `git diff
   main -- packages/sim/src` is empty.
 
+- **Acceptance criterion 5 was met in intent, but its command is broken.**
+  Disclosed here because the first draft of this Outcome reported it as a
+  clean pass, which it was not. `npm run test -- game` expands to
+  `vitest run --coverage game`, and the coverage thresholds are global: they
+  are evaluated over the whole repo even when the run is filtered to one
+  file, so every unfiltered-file's source counts as uncovered and the run
+  exits 1 on `Coverage for lines (~34–35%) does not meet global threshold
+  (80%)`. This fails identically on `main` with no change applied (the
+  integrator reproduced it at `origin/main`: exit 1, 34.19%), so it is not a
+  defect this task introduced and not something to fix from this lane —
+  thresholds are guard-protected and lowering them is explicitly not an
+  agent's call.
+
+  What was actually run instead: `npx vitest run game` → **6 tests passed
+  (1 file, `packages/client/src/game.test.ts`)**, with no client file edited.
+  That is the substance criterion 5 asks for — the browser world applies
+  *and* ticks rend's bleed (0530) and the client tests' assertions absorb the
+  faster kills. The full suite also passes under `npm run verify`, where the
+  unfiltered run makes the thresholds meaningful again (616 tests, exit 0).
+
 - **Scope deviations:** none. One JSON block, one replay hash, one decision
-  entry. `statusTickSystem` was not registered in skill-strike, its worked
-  table was not edited, and no other skill received a rider.
+  entry, plus this Outcome amendment after review. `statusTickSystem` was not
+  registered in skill-strike, its worked table was not edited, and no other
+  skill received a rider.
 
 - **Follow-ups worth a new task:**
+  - **Stop writing `npm run test -- <pattern>` into acceptance criteria.** It
+    cannot pass on any branch: the `test` script carries `--coverage`, and the
+    global thresholds are checked against a filtered run's coverage, so any
+    subset exits 1 no matter how green the tests are. Future task files should
+    say `npx vitest run <pattern>` (or require the full `npm run verify`)
+    where they want a single suite. This trap will recur for anyone who copies
+    criterion 5's phrasing, and it costs an agent a real debugging cycle each
+    time. Fixing the phrasing in `CLAUDE.md`'s "useful subsets" list is a
+    gate-change-labeled edit, so it needs the owner, not this lane.
   - **Rider budget across the kit.** 0065 sets one skill's numbers against one
     stick; a second rider (ravage bleed, spark burn, ice-lance chill-as-DoT)
     should not be guessed per-skill. Worth a balance-role task that defines
