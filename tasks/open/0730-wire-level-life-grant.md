@@ -5,6 +5,50 @@
 - **Priority:** 3
 - **Depends on:** 0720-level-life-grant.md, 0670-xp-award-system.md, 0680-wire-progression-into-crawl-and-client.md
 
+> ### Amended 2026-08-06 — decision 0060 settled the heal; and game.test.ts is in scope
+>
+> This file was written in commit `db3ce8e`. Decision **0060** ("A level-up fully
+> heals", owner, 2026-08-05) landed afterwards in `9dc4daa` and settles a
+> question this file still asks the implementer to decide. Three corrections;
+> nothing else below changes.
+>
+> 1. **The current-life ruling is no longer yours to choose.** Requirement 2
+>    says "The recommended ruling: raise `life` by the same delta" and tells you
+>    to pick. Decision 0060 picked, and it picked the *other* option: **a
+>    level-up restores the character to full life**, deliberately making the
+>    level-up a combat resource. 0060's Consequences say the dispatcher
+>    recommended the delta option "and the owner overruled it — so the
+>    interaction is intended, not an oversight". Implement the full heal. Do not
+>    re-litigate it, and do not implement the delta.
+>
+> 2. **Do not mint a decision entry for the heal.** 0060 *is* that entry. The
+>    `docs/decisions/` file this task still owes records only what 0060 does not:
+>    where the grant is applied and why not in a separate reconciling system
+>    (the state a reconciler would need), that spawn and level-up must agree,
+>    and the confirmation that no combat field other than life moved. It must
+>    cite 0060 rather than restate it. Check the highest number on `main` first —
+>    0064, 0065, 0066 and 0067 are reserved by agents in flight.
+>
+> 3. **`packages/client/src/game.test.ts` is missing from Files in scope, and
+>    this task cannot pass without it.** That file pins
+>    `expect(combatant?.maxLife).toBe(PLAYER_STATS.life)` (200) at
+>    `game.test.ts:116`; the spawn grant makes it 224, so the assertion fails.
+>    Measured, by calling the real functions: `maxLifeGrantForLevel(5)` is 24,
+>    and `makeCombatant('avatar', 5, PLAYER_STATS, levelStatMods(5))` returns
+>    `maxLife` 224 with only `life` and `maxLife` differing from today's avatar.
+>    Add `packages/client/src/game.test.ts` to Files in scope and narrow that one
+>    assertion to 224. **The pinned `systemNames` list in the same file still
+>    must not change** — the rest of the Out of scope entry stands.
+>
+> One thing that does **not** change: the `maxLife - life === 141` behaviour
+> proof below still holds at seed 1, because no level-up happens during that
+> run. Measured with the real `xpForKill`, the eight kills are worth
+> `14 + 14 + 11 + 12 + 11 + 32 + 12 + 13 = 119` XP at tier 1, against
+> `xpToNextLevel(5) = 500`, so `grantXp({ level: 5, xp: 0 }, 119)` returns
+> `{ level: 5, xp: 119 }`. The full heal never fires in the crawl — which means
+> the sim run is **not** evidence that you implemented it. The unit tests in
+> Acceptance are the only proof of the heal, so write them against 0060.
+
 ## Goal
 
 Task 0720 lands decision 0051's +6 max-life per level as a pure function that
