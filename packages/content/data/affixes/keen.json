@@ -5,22 +5,58 @@
   "slots": ["main-hand"],
   "tiers": [
     {
-      "tier": 3,
+      "tier": 9,
       "itemLevel": 1,
       "weight": 100,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 1, "max": 1 }]
+    },
+    {
+      "tier": 8,
+      "itemLevel": 15,
+      "weight": 69,
       "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 1, "max": 2 }]
     },
     {
-      "tier": 2,
-      "itemLevel": 15,
-      "weight": 60,
+      "tier": 7,
+      "itemLevel": 40,
+      "weight": 47,
       "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 2, "max": 4 }]
     },
     {
-      "tier": 1,
-      "itemLevel": 40,
-      "weight": 20,
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 33,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 3, "max": 5 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 22,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 3, "max": 6 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 15,
       "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 4, "max": 7 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 10,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 4, "max": 8 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 90,
+      "weight": 7,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 5, "max": 9 }]
+    },
+    {
+      "tier": 1,
+      "itemLevel": 100,
+      "weight": 5,
+      "mods": [{ "stat": "crit-chance", "mode": "flat", "min": 5, "max": 10 }]
     }
   ]
 }

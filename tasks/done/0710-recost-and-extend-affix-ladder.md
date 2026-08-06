@@ -485,9 +485,398 @@ you did. A generated file nobody read is how a plausible-but-wrong pool ships.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
-- **What changed:**
-- **Replays re-blessed:** none | `<file>` because `<behavior change>`
-- **Scope deviations:**
+- **What changed:** all 22 affix files rewritten from the ladder rule, plus
+  `docs/decisions/0066-affix-tier-ladder-shape.md`. 53 tier entries became 185
+  (13 affixes x 8 rungs + 9 affixes x 9 rungs); every ladder now tops out at a
+  gate of item level 100. Every tier's `max` is `floor(0.95 x per-mod ceiling at
+  that tier's own gate)` at the stat's authoring precision, with `min =
+  round(max / 2)`; `move-speed` is the one exception at `fill = 1` so its top
+  rung is exactly 0.09, the ratification decisions 0062/0063 designed the +81%
+  nominal full-set anchor to produce. Weight schedule (weakest rung first) is
+  `100, 69, 47, 33, 22, 15, 10, 7, 5` for every affix.
+- **Replays re-blessed:** none. `git diff --stat packages/sim/replays/` is empty
+  and `npm run replay:check` reports 6/6 ok — no golden replay rolls an item,
+  and `rollItem` takes the same number of draws whatever the ladder's depth.
+- **Scope deviations:** none. Exactly 22 `M` lines under
+  `packages/content/data/affixes/`, one new file under `docs/decisions/`, and
+  this task file moved to `tasks/done/`. `packages/core/src/loot/budget.ts` was
+  read, never edited. The audit instrument, the generator and the evidence
+  scripts all live outside the repo, per the task's instruction.
 - **Follow-ups worth a new task:**
+  - **`loot-smoke`'s `ITEM_LEVELS` stop at 50**, so of the six new gates only
+    the item-level-50 rung is ever executed; tiers 1-5 (gates 60-100) validate
+    but never appear in a trace. Task **0620** already owns this — it needs an
+    item level above 100's gate in that array, or the extension is untested
+    content.
+  - **Attribute pricing units.** `intelligence` derives into `crit-damage` at
+    rate 1, and `crit-damage` is a percent-points stat with a 200-point ceiling,
+    so `runed`'s item-level-100 rung is a legal **95-190 intelligence**. The
+    arithmetic is right and the unit is silly. A follow-up against decision 0044
+    §3 / 0055 should decide whether an attribute's ceiling is its target's
+    ceiling divided by the derivation rate, or something that keeps attributes on
+    an attribute-shaped scale.
+  - **`attack-speed` is a concentrated axis carrying the whole x7 offence
+    target**, so one mod may legally reach **+190%** and `swift` + `of-the-wolf`
+    on one main-hand reach +380%. Nothing consumes `attack-speed` yet (tasks
+    0630/0640); whoever wires it should re-read this ceiling before shipping,
+    because the pool is now authored right up against it.
+  - **`life-regen` is a three-slot axis with a nine-slot target**, the exact
+    framing problem decision 0062 named as the thing to revisit after
+    `move-speed`. It is why the two `of-hunger`/`of-vigor` tier-1 rows had to be
+    trimmed x1.77 rather than re-gated. Re-expressing axis targets over the slots
+    that can actually carry them is the shared fix.
+  - **Affix breadth is still nine slots x three eligible prefixes** (decision
+    0053's last paragraph, decision 0044 §4): a 6-affix rare is close to the
+    whole eligible pool, so the new rungs add depth without adding variety.
+
+### Audit: before
+
+```
+MOD  brutal T3 @1: damage/flat 6 > 3.6
+MOD  brutal T2 @15: damage/flat 12 > 8.1818
+MOD  brutal T1 @35: damage/flat 20 > 14.7273
+MOD  fell T3 @1: crit-chance/flat 2 > 1.1111
+MOD  fell T2 @15: crit-chance/flat 4 > 2.5253
+MOD  fell T1 @35: crit-chance/flat 7 > 4.5455
+MOD  ironbound T2 @1: armor/flat 6 > 2.7412
+MOD  ironbound T1 @20: armor/flat 12 > 7.4759
+MOD  keen T3 @1: crit-chance/flat 2 > 1.1111
+MOD  keen T2 @15: crit-chance/flat 4 > 2.5253
+MOD  keen T1 @40: crit-chance/flat 7 > 5.0505
+MOD  lithe T2 @1: crit-chance/flat 2 > 1.1111
+MOD  lithe T1 @20: crit-chance/flat 4.5 > 3.0303
+MOD  of-embers T3 @1: resist-fire/flat 6 > 2.5
+MOD  of-embers T2 @15: resist-fire/flat 12 > 5.6818
+MOD  of-embers T1 @35: resist-fire/flat 18 > 10.2273
+MOD  of-haste T2 @1: move-speed/increased 0.05 > 0.009
+MOD  of-haste T1 @20: move-speed/increased 0.09 > 0.0245
+MOD  of-hunger T3 @1: life-regen/flat 2 > 0.4171
+MOD  of-hunger T2 @15: life-regen/flat 4 > 0.948
+MOD  of-hunger T1 @35: life-regen/flat 7 > 1.7065
+MOD  of-the-bear T2 @1: max-life/flat 24 > 7.2304
+MOD  of-the-bear T1 @25: max-life/flat 48 > 23.0057
+MOD  of-the-plague T2 @1: resist-poison/flat 8 > 2.5
+MOD  of-the-plague T1 @22: resist-poison/flat 15 > 7.2727
+MOD  of-the-stag T2 @1: move-speed/increased 0.05 > 0.009
+MOD  of-the-stag T1 @20: move-speed/increased 0.09 > 0.0245
+MOD  of-the-storm T2 @1: resist-lightning/flat 8 > 2.5
+MOD  of-the-storm T1 @22: resist-lightning/flat 15 > 7.2727
+MOD  of-the-tide T2 @1: resist-cold/flat 8 > 2.5
+MOD  of-the-tide T1 @22: resist-cold/flat 15 > 7.2727
+MOD  of-vigor T3 @1: life-regen/flat 2 > 0.4171
+MOD  of-vigor T2 @15: life-regen/flat 4 > 0.948
+MOD  of-vigor T1 @35: life-regen/flat 7 > 1.7065
+MOD  stalwart T2 @1: armor/flat 6 > 2.7412
+MOD  stalwart T1 @20: armor/flat 12 > 7.4759
+MOD  storm-warded T2 @1: resist-lightning/flat 8 > 2.5
+MOD  storm-warded T1 @22: resist-lightning/flat 15 > 7.2727
+MOD  undying T2 @1: max-life/flat 24 > 7.2304
+MOD  undying T1 @25: max-life/flat 48 > 23.0057
+MOD  vital T2 @1: max-life/flat 16 > 7.2304
+MOD  vital T1 @20: max-life/flat 36 > 19.7192
+SLOT amulet @1+: resist-cold|flat worst 8 > 7.5
+SLOT amulet @1+: life-regen|flat worst 2 > 1.2514
+SLOT chest @1+: max-life|flat worst 64 > 21.6911
+SLOT chest @1+: resist-cold|flat worst 8 > 7.5
+SLOT chest @1+: life-regen|flat worst 2 > 1.2514
+SLOT feet @1+: move-speed|increased worst 0.05 > 0.027
+SLOT feet @1+: resist-poison|flat worst 8 > 7.5
+SLOT feet @1+: resist-lightning|flat worst 8 > 7.5
+SLOT feet @1+: max-life|flat worst 24 > 21.6911
+SLOT hands @1+: move-speed|increased worst 0.05 > 0.027
+SLOT head @1+: resist-poison|flat worst 8 > 7.5
+SLOT head @1+: move-speed|increased worst 0.05 > 0.027
+SLOT head @1+: resist-lightning|flat worst 8 > 7.5
+SLOT legs @1+: move-speed|increased worst 0.05 > 0.027
+SLOT legs @1+: resist-poison|flat worst 8 > 7.5
+SLOT legs @1+: resist-lightning|flat worst 16 > 7.5
+SLOT legs @1+: max-life|flat worst 24 > 21.6911
+SLOT main-hand @1+: life-regen|flat worst 2 > 1.2514
+SLOT off-hand @1+: life-regen|flat worst 2 > 1.2514
+SLOT off-hand @1+: resist-lightning|flat worst 8 > 7.5
+SLOT ring @1+: max-life|flat worst 40 > 21.6911
+SLOT ring @1+: resist-cold|flat worst 8 > 7.5
+SLOT ring @1+: life-regen|flat worst 2 > 1.2514
+SLOT ring @1+: resist-lightning|flat worst 8 > 7.5
+LADDER brutal: top gate 35 != 100
+LADDER fell: top gate 35 != 100
+LADDER ironbound: top gate 20 != 100
+LADDER keen: top gate 40 != 100
+LADDER lithe: top gate 20 != 100
+LADDER of-embers: top gate 35 != 100
+LADDER of-haste: top gate 20 != 100
+LADDER of-hunger: top gate 35 != 100
+LADDER of-ruin: top gate 35 != 100
+LADDER of-the-bear: top gate 25 != 100
+LADDER of-the-plague: top gate 22 != 100
+LADDER of-the-stag: top gate 20 != 100
+LADDER of-the-storm: top gate 22 != 100
+LADDER of-the-tide: top gate 22 != 100
+LADDER of-the-wolf: top gate 35 != 100
+LADDER of-vigor: top gate 35 != 100
+LADDER runed: top gate 20 != 100
+LADDER stalwart: top gate 20 != 100
+LADDER storm-warded: top gate 22 != 100
+LADDER swift: top gate 35 != 100
+LADDER undying: top gate 25 != 100
+LADDER vital: top gate 20 != 100
+88 violations
+```
+
+### Audit: after
+
+```
+CLEAN
+```
+
+### Per-affix rung counts
+
+Every affix's top gate is item level 100, every tier number is unique and <= 10.
+
+| rungs | affixes |
+|---|---|
+| 9 (old 3-tier: T1->T7, T2->T8, T3->T9, new T1-T6 at gates 100/90/80/70/60/50) | `brutal`, `fell`, `keen`, `of-embers`, `of-hunger`, `of-ruin`, `of-the-wolf`, `of-vigor`, `swift` |
+| 8 (old 2-tier: T1->T7, T2->T8, new T1-T6 at the same six gates) | `ironbound`, `lithe`, `of-haste`, `of-the-bear`, `of-the-plague`, `of-the-stag`, `of-the-storm`, `of-the-tide`, `runed`, `stalwart`, `storm-warded`, `undying`, `vital` |
+
+### Decision 0053's extension, measured
+
+Tier entries unlocked, of 185 (was 53 of 53):
+
+| item level | 1 | 20 | 40 | 60 | 100 |
+|---|---|---|---|---|---|
+| before | 22 | 38 | 53 | 53 | 53 |
+| after | 22 | 38 | 53 | **97** | **185** |
+
+The last three are now strictly increasing, which is what 0053 asked for.
+
+### The move-speed boundary, verified rather than assumed
+
+```
+move-speed@100 ceiling 0.09 (bits 8.99999999999999966693e-2), authored 0.09, equal=true, over=false
+```
+
+`maxAtItemLevel` quantizes `0.81 / 9 / 3` to the double `0.09`,
+`budgetedContributions` quantizes the authored `0.09` to the same double, and
+the check is a strict `>`. Exactly-on-the-ceiling is legal, and decision 0066
+records that it was authored there knowingly (0062/0063 chose +81% to land
+there). Move-speed's per-slot exposure is one source per slot, so nothing
+stacks onto that boundary.
+
+### `npm run sim -- run loot-smoke --seed 1 --verbose`
+
+```
+scenario     loot-smoke
+seed         1
+ticks        1
+invariants   loot-volume, no-duplicate-affixes, affix-slots-and-gates,
+             mod-values-within-tier-ranges, rarity-budgets-decision-0014,
+             implicits-within-base-ranges
+result       PASS (all invariants)
+
+  basesRolled          11
+  affixPoolSize        22
+  totalItems           88
+  magicItems           44
+  rareItems            44
+  totalAffixesRolled   270
+  distinctAffixesSeen  22
+
+  ticks completed  1
+  state hash       94c7e6832f6b570d
+```
+
+All 22 affixes were seen rolling. Note the trace only reaches tier 6 — the
+item-level-50 rung — because `ITEM_LEVELS` stops at 50; see the follow-ups.
+
+### Every changed tier
+
+Old tier number -> new, and before -> after for `min`, `max` and `weight`. A
+`-` on the left is a rung that did not exist. All 185 rows.
+
+| file | tier | gate | stat | min | max | weight |
+|---|---|---|---|---|---|---|
+| `brutal` | T3 → T9 | 1 | damage/flat | 3 → 2 | 6 → 3 | 100 → 100 |
+| `brutal` | T2 → T8 | 15 | damage/flat | 7 → 4 | 12 → 7 | 50 → 69 |
+| `brutal` | T1 → T7 | 35 | damage/flat | 13 → 7 | 20 → 13 | 18 → 47 |
+| `brutal` | — → T6 | 50 | damage/flat | — → 9 | — → 18 | — → 33 |
+| `brutal` | — → T5 | 60 | damage/flat | — → 11 | — → 21 | — → 22 |
+| `brutal` | — → T4 | 70 | damage/flat | — → 12 | — → 24 | — → 15 |
+| `brutal` | — → T3 | 80 | damage/flat | — → 14 | — → 27 | — → 10 |
+| `brutal` | — → T2 | 90 | damage/flat | — → 16 | — → 31 | — → 7 |
+| `brutal` | — → T1 | 100 | damage/flat | — → 17 | — → 34 | — → 5 |
+| `fell` | T3 → T9 | 1 | crit-chance/flat | 1 → 1 | 2 → 1 | 100 → 100 |
+| `fell` | T2 → T8 | 15 | crit-chance/flat | 2 → 1 | 4 → 2 | 50 → 69 |
+| `fell` | T1 → T7 | 35 | crit-chance/flat | 4 → 2 | 7 → 4 | 18 → 47 |
+| `fell` | — → T6 | 50 | crit-chance/flat | — → 3 | — → 5 | — → 33 |
+| `fell` | — → T5 | 60 | crit-chance/flat | — → 3 | — → 6 | — → 22 |
+| `fell` | — → T4 | 70 | crit-chance/flat | — → 4 | — → 7 | — → 15 |
+| `fell` | — → T3 | 80 | crit-chance/flat | — → 4 | — → 8 | — → 10 |
+| `fell` | — → T2 | 90 | crit-chance/flat | — → 5 | — → 9 | — → 7 |
+| `fell` | — → T1 | 100 | crit-chance/flat | — → 5 | — → 10 | — → 5 |
+| `ironbound` | T2 → T8 | 1 | armor/flat | 3 → 1 | 6 → 2 | 100 → 100 |
+| `ironbound` | T1 → T7 | 20 | armor/flat | 7 → 4 | 12 → 7 | 30 → 69 |
+| `ironbound` | — → T6 | 50 | armor/flat | — → 7 | — → 14 | — → 47 |
+| `ironbound` | — → T5 | 60 | armor/flat | — → 8 | — → 16 | — → 33 |
+| `ironbound` | — → T4 | 70 | armor/flat | — → 9 | — → 18 | — → 22 |
+| `ironbound` | — → T3 | 80 | armor/flat | — → 11 | — → 21 | — → 15 |
+| `ironbound` | — → T2 | 90 | armor/flat | — → 12 | — → 23 | — → 10 |
+| `ironbound` | — → T1 | 100 | armor/flat | — → 13 | — → 26 | — → 7 |
+| `keen` | T3 → T9 | 1 | crit-chance/flat | 1 → 1 | 2 → 1 | 100 → 100 |
+| `keen` | T2 → T8 | 15 | crit-chance/flat | 2 → 1 | 4 → 2 | 60 → 69 |
+| `keen` | T1 → T7 | 40 | crit-chance/flat | 4 → 2 | 7 → 4 | 20 → 47 |
+| `keen` | — → T6 | 50 | crit-chance/flat | — → 3 | — → 5 | — → 33 |
+| `keen` | — → T5 | 60 | crit-chance/flat | — → 3 | — → 6 | — → 22 |
+| `keen` | — → T4 | 70 | crit-chance/flat | — → 4 | — → 7 | — → 15 |
+| `keen` | — → T3 | 80 | crit-chance/flat | — → 4 | — → 8 | — → 10 |
+| `keen` | — → T2 | 90 | crit-chance/flat | — → 5 | — → 9 | — → 7 |
+| `keen` | — → T1 | 100 | crit-chance/flat | — → 5 | — → 10 | — → 5 |
+| `lithe` | T2 → T8 | 1 | dexterity/flat | 2 → 1 | 4 → 2 | 100 → 100 |
+| `lithe` | T1 → T7 | 20 | dexterity/flat | 5 → 3 | 9 → 5 | 28 → 69 |
+| `lithe` | — → T6 | 50 | dexterity/flat | — → 6 | — → 11 | — → 47 |
+| `lithe` | — → T5 | 60 | dexterity/flat | — → 7 | — → 13 | — → 33 |
+| `lithe` | — → T4 | 70 | dexterity/flat | — → 8 | — → 15 | — → 22 |
+| `lithe` | — → T3 | 80 | dexterity/flat | — → 9 | — → 17 | — → 15 |
+| `lithe` | — → T2 | 90 | dexterity/flat | — → 10 | — → 19 | — → 10 |
+| `lithe` | — → T1 | 100 | dexterity/flat | — → 11 | — → 21 | — → 7 |
+| `of-embers` | T3 → T9 | 1 | resist-fire/flat | 3 → 1 | 6 → 2 | 100 → 100 |
+| `of-embers` | T2 → T8 | 15 | resist-fire/flat | 7 → 3 | 12 → 5 | 48 → 69 |
+| `of-embers` | T1 → T7 | 35 | resist-fire/flat | 13 → 5 | 18 → 9 | 17 → 47 |
+| `of-embers` | — → T6 | 50 | resist-fire/flat | — → 6 | — → 12 | — → 33 |
+| `of-embers` | — → T5 | 60 | resist-fire/flat | — → 8 | — → 15 | — → 22 |
+| `of-embers` | — → T4 | 70 | resist-fire/flat | — → 9 | — → 17 | — → 15 |
+| `of-embers` | — → T3 | 80 | resist-fire/flat | — → 10 | — → 19 | — → 10 |
+| `of-embers` | — → T2 | 90 | resist-fire/flat | — → 11 | — → 21 | — → 7 |
+| `of-embers` | — → T1 | 100 | resist-fire/flat | — → 12 | — → 23 | — → 5 |
+| `of-haste` | T2 → T8 | 1 | move-speed/increased | 0.03 → 0.005 | 0.05 → 0.009 | 100 → 100 |
+| `of-haste` | T1 → T7 | 20 | move-speed/increased | 0.06 → 0.012 | 0.09 → 0.024 | 25 → 69 |
+| `of-haste` | — → T6 | 50 | move-speed/increased | — → 0.025 | — → 0.049 | — → 47 |
+| `of-haste` | — → T5 | 60 | move-speed/increased | — → 0.029 | — → 0.057 | — → 33 |
+| `of-haste` | — → T4 | 70 | move-speed/increased | — → 0.033 | — → 0.065 | — → 22 |
+| `of-haste` | — → T3 | 80 | move-speed/increased | — → 0.037 | — → 0.073 | — → 15 |
+| `of-haste` | — → T2 | 90 | move-speed/increased | — → 0.041 | — → 0.081 | — → 10 |
+| `of-haste` | — → T1 | 100 | move-speed/increased | — → 0.045 | — → 0.09 | — → 7 |
+| `of-hunger` | T3 → T9 | 1 | life-regen/flat | 1 → 0.2 | 2 → 0.39 | 100 → 100 |
+| `of-hunger` | T2 → T8 | 15 | life-regen/flat | 2 → 0.45 | 4 → 0.9 | 50 → 69 |
+| `of-hunger` | T1 → T7 | 35 | life-regen/flat | 4 → 0.81 | 7 → 1.62 | 18 → 47 |
+| `of-hunger` | — → T6 | 50 | life-regen/flat | — → 1.08 | — → 2.16 | — → 33 |
+| `of-hunger` | — → T5 | 60 | life-regen/flat | — → 1.26 | — → 2.52 | — → 22 |
+| `of-hunger` | — → T4 | 70 | life-regen/flat | — → 1.44 | — → 2.88 | — → 15 |
+| `of-hunger` | — → T3 | 80 | life-regen/flat | — → 1.62 | — → 3.24 | — → 10 |
+| `of-hunger` | — → T2 | 90 | life-regen/flat | — → 1.8 | — → 3.6 | — → 7 |
+| `of-hunger` | — → T1 | 100 | life-regen/flat | — → 1.98 | — → 3.96 | — → 5 |
+| `of-ruin` | T3 → T9 | 1 | crit-damage/flat | 4 → 10 | 8 → 19 | 100 → 100 |
+| `of-ruin` | T2 → T8 | 15 | crit-damage/flat | 9 → 22 | 15 → 43 | 50 → 69 |
+| `of-ruin` | T1 → T7 | 35 | crit-damage/flat | 16 → 39 | 24 → 77 | 18 → 47 |
+| `of-ruin` | — → T6 | 50 | crit-damage/flat | — → 52 | — → 103 | — → 33 |
+| `of-ruin` | — → T5 | 60 | crit-damage/flat | — → 60 | — → 120 | — → 22 |
+| `of-ruin` | — → T4 | 70 | crit-damage/flat | — → 69 | — → 138 | — → 15 |
+| `of-ruin` | — → T3 | 80 | crit-damage/flat | — → 78 | — → 155 | — → 10 |
+| `of-ruin` | — → T2 | 90 | crit-damage/flat | — → 86 | — → 172 | — → 7 |
+| `of-ruin` | — → T1 | 100 | crit-damage/flat | — → 95 | — → 190 | — → 5 |
+| `of-the-bear` | T2 → T8 | 1 | max-life/flat | 10 → 3 | 24 → 6 | 100 → 100 |
+| `of-the-bear` | T1 → T7 | 25 | max-life/flat | 25 → 11 | 48 → 21 | 45 → 69 |
+| `of-the-bear` | — → T6 | 50 | max-life/flat | — → 19 | — → 37 | — → 47 |
+| `of-the-bear` | — → T5 | 60 | max-life/flat | — → 22 | — → 43 | — → 33 |
+| `of-the-bear` | — → T4 | 70 | max-life/flat | — → 25 | — → 49 | — → 22 |
+| `of-the-bear` | — → T3 | 80 | max-life/flat | — → 28 | — → 56 | — → 15 |
+| `of-the-bear` | — → T2 | 90 | max-life/flat | — → 31 | — → 62 | — → 10 |
+| `of-the-bear` | — → T1 | 100 | max-life/flat | — → 34 | — → 68 | — → 7 |
+| `of-the-plague` | T2 → T8 | 1 | resist-poison/flat | 4 → 1 | 8 → 2 | 100 → 100 |
+| `of-the-plague` | T1 → T7 | 22 | resist-poison/flat | 9 → 3 | 15 → 6 | 30 → 69 |
+| `of-the-plague` | — → T6 | 50 | resist-poison/flat | — → 6 | — → 12 | — → 47 |
+| `of-the-plague` | — → T5 | 60 | resist-poison/flat | — → 8 | — → 15 | — → 33 |
+| `of-the-plague` | — → T4 | 70 | resist-poison/flat | — → 9 | — → 17 | — → 22 |
+| `of-the-plague` | — → T3 | 80 | resist-poison/flat | — → 10 | — → 19 | — → 15 |
+| `of-the-plague` | — → T2 | 90 | resist-poison/flat | — → 11 | — → 21 | — → 10 |
+| `of-the-plague` | — → T1 | 100 | resist-poison/flat | — → 12 | — → 23 | — → 7 |
+| `of-the-stag` | T2 → T8 | 1 | move-speed/increased | 0.03 → 0.005 | 0.05 → 0.009 | 100 → 100 |
+| `of-the-stag` | T1 → T7 | 20 | move-speed/increased | 0.06 → 0.012 | 0.09 → 0.024 | 25 → 69 |
+| `of-the-stag` | — → T6 | 50 | move-speed/increased | — → 0.025 | — → 0.049 | — → 47 |
+| `of-the-stag` | — → T5 | 60 | move-speed/increased | — → 0.029 | — → 0.057 | — → 33 |
+| `of-the-stag` | — → T4 | 70 | move-speed/increased | — → 0.033 | — → 0.065 | — → 22 |
+| `of-the-stag` | — → T3 | 80 | move-speed/increased | — → 0.037 | — → 0.073 | — → 15 |
+| `of-the-stag` | — → T2 | 90 | move-speed/increased | — → 0.041 | — → 0.081 | — → 10 |
+| `of-the-stag` | — → T1 | 100 | move-speed/increased | — → 0.045 | — → 0.09 | — → 7 |
+| `of-the-storm` | T2 → T8 | 1 | resist-lightning/flat | 4 → 1 | 8 → 2 | 100 → 100 |
+| `of-the-storm` | T1 → T7 | 22 | resist-lightning/flat | 9 → 3 | 15 → 6 | 30 → 69 |
+| `of-the-storm` | — → T6 | 50 | resist-lightning/flat | — → 6 | — → 12 | — → 47 |
+| `of-the-storm` | — → T5 | 60 | resist-lightning/flat | — → 8 | — → 15 | — → 33 |
+| `of-the-storm` | — → T4 | 70 | resist-lightning/flat | — → 9 | — → 17 | — → 22 |
+| `of-the-storm` | — → T3 | 80 | resist-lightning/flat | — → 10 | — → 19 | — → 15 |
+| `of-the-storm` | — → T2 | 90 | resist-lightning/flat | — → 11 | — → 21 | — → 10 |
+| `of-the-storm` | — → T1 | 100 | resist-lightning/flat | — → 12 | — → 23 | — → 7 |
+| `of-the-tide` | T2 → T8 | 1 | resist-cold/flat | 4 → 1 | 8 → 2 | 100 → 100 |
+| `of-the-tide` | T1 → T7 | 22 | resist-cold/flat | 9 → 3 | 15 → 6 | 30 → 69 |
+| `of-the-tide` | — → T6 | 50 | resist-cold/flat | — → 6 | — → 12 | — → 47 |
+| `of-the-tide` | — → T5 | 60 | resist-cold/flat | — → 8 | — → 15 | — → 33 |
+| `of-the-tide` | — → T4 | 70 | resist-cold/flat | — → 9 | — → 17 | — → 22 |
+| `of-the-tide` | — → T3 | 80 | resist-cold/flat | — → 10 | — → 19 | — → 15 |
+| `of-the-tide` | — → T2 | 90 | resist-cold/flat | — → 11 | — → 21 | — → 10 |
+| `of-the-tide` | — → T1 | 100 | resist-cold/flat | — → 12 | — → 23 | — → 7 |
+| `of-the-wolf` | T3 → T9 | 1 | attack-speed/increased | 0.03 → 0.1 | 0.05 → 0.19 | 100 → 100 |
+| `of-the-wolf` | T2 → T8 | 15 | attack-speed/increased | 0.06 → 0.22 | 0.09 → 0.43 | 55 → 69 |
+| `of-the-wolf` | T1 → T7 | 35 | attack-speed/increased | 0.1 → 0.39 | 0.14 → 0.77 | 20 → 47 |
+| `of-the-wolf` | — → T6 | 50 | attack-speed/increased | — → 0.52 | — → 1.03 | — → 33 |
+| `of-the-wolf` | — → T5 | 60 | attack-speed/increased | — → 0.6 | — → 1.2 | — → 22 |
+| `of-the-wolf` | — → T4 | 70 | attack-speed/increased | — → 0.69 | — → 1.38 | — → 15 |
+| `of-the-wolf` | — → T3 | 80 | attack-speed/increased | — → 0.78 | — → 1.55 | — → 10 |
+| `of-the-wolf` | — → T2 | 90 | attack-speed/increased | — → 0.86 | — → 1.72 | — → 7 |
+| `of-the-wolf` | — → T1 | 100 | attack-speed/increased | — → 0.95 | — → 1.9 | — → 5 |
+| `of-vigor` | T3 → T9 | 1 | life-regen/flat | 1 → 0.2 | 2 → 0.39 | 100 → 100 |
+| `of-vigor` | T2 → T8 | 15 | life-regen/flat | 2 → 0.45 | 4 → 0.9 | 50 → 69 |
+| `of-vigor` | T1 → T7 | 35 | life-regen/flat | 4 → 0.81 | 7 → 1.62 | 18 → 47 |
+| `of-vigor` | — → T6 | 50 | life-regen/flat | — → 1.08 | — → 2.16 | — → 33 |
+| `of-vigor` | — → T5 | 60 | life-regen/flat | — → 1.26 | — → 2.52 | — → 22 |
+| `of-vigor` | — → T4 | 70 | life-regen/flat | — → 1.44 | — → 2.88 | — → 15 |
+| `of-vigor` | — → T3 | 80 | life-regen/flat | — → 1.62 | — → 3.24 | — → 10 |
+| `of-vigor` | — → T2 | 90 | life-regen/flat | — → 1.8 | — → 3.6 | — → 7 |
+| `of-vigor` | — → T1 | 100 | life-regen/flat | — → 1.98 | — → 3.96 | — → 5 |
+| `runed` | T2 → T8 | 1 | intelligence/flat | 2 → 10 | 4 → 19 | 100 → 100 |
+| `runed` | T1 → T7 | 20 | intelligence/flat | 5 → 26 | 9 → 51 | 28 → 69 |
+| `runed` | — → T6 | 50 | intelligence/flat | — → 52 | — → 103 | — → 47 |
+| `runed` | — → T5 | 60 | intelligence/flat | — → 60 | — → 120 | — → 33 |
+| `runed` | — → T4 | 70 | intelligence/flat | — → 69 | — → 138 | — → 22 |
+| `runed` | — → T3 | 80 | intelligence/flat | — → 78 | — → 155 | — → 15 |
+| `runed` | — → T2 | 90 | intelligence/flat | — → 86 | — → 172 | — → 10 |
+| `runed` | — → T1 | 100 | intelligence/flat | — → 95 | — → 190 | — → 7 |
+| `stalwart` | T2 → T8 | 1 | armor/flat | 3 → 1 | 6 → 2 | 100 → 100 |
+| `stalwart` | T1 → T7 | 20 | armor/flat | 7 → 4 | 12 → 7 | 30 → 69 |
+| `stalwart` | — → T6 | 50 | armor/flat | — → 7 | — → 14 | — → 47 |
+| `stalwart` | — → T5 | 60 | armor/flat | — → 8 | — → 16 | — → 33 |
+| `stalwart` | — → T4 | 70 | armor/flat | — → 9 | — → 18 | — → 22 |
+| `stalwart` | — → T3 | 80 | armor/flat | — → 11 | — → 21 | — → 15 |
+| `stalwart` | — → T2 | 90 | armor/flat | — → 12 | — → 23 | — → 10 |
+| `stalwart` | — → T1 | 100 | armor/flat | — → 13 | — → 26 | — → 7 |
+| `storm-warded` | T2 → T8 | 1 | resist-lightning/flat | 4 → 1 | 8 → 2 | 100 → 100 |
+| `storm-warded` | T1 → T7 | 22 | resist-lightning/flat | 9 → 3 | 15 → 6 | 30 → 69 |
+| `storm-warded` | — → T6 | 50 | resist-lightning/flat | — → 6 | — → 12 | — → 47 |
+| `storm-warded` | — → T5 | 60 | resist-lightning/flat | — → 8 | — → 15 | — → 33 |
+| `storm-warded` | — → T4 | 70 | resist-lightning/flat | — → 9 | — → 17 | — → 22 |
+| `storm-warded` | — → T3 | 80 | resist-lightning/flat | — → 10 | — → 19 | — → 15 |
+| `storm-warded` | — → T2 | 90 | resist-lightning/flat | — → 11 | — → 21 | — → 10 |
+| `storm-warded` | — → T1 | 100 | resist-lightning/flat | — → 12 | — → 23 | — → 7 |
+| `swift` | T3 → T9 | 1 | attack-speed/increased | 0.03 → 0.1 | 0.05 → 0.19 | 100 → 100 |
+| `swift` | T2 → T8 | 15 | attack-speed/increased | 0.06 → 0.22 | 0.09 → 0.43 | 55 → 69 |
+| `swift` | T1 → T7 | 35 | attack-speed/increased | 0.1 → 0.39 | 0.14 → 0.77 | 20 → 47 |
+| `swift` | — → T6 | 50 | attack-speed/increased | — → 0.52 | — → 1.03 | — → 33 |
+| `swift` | — → T5 | 60 | attack-speed/increased | — → 0.6 | — → 1.2 | — → 22 |
+| `swift` | — → T4 | 70 | attack-speed/increased | — → 0.69 | — → 1.38 | — → 15 |
+| `swift` | — → T3 | 80 | attack-speed/increased | — → 0.78 | — → 1.55 | — → 10 |
+| `swift` | — → T2 | 90 | attack-speed/increased | — → 0.86 | — → 1.72 | — → 7 |
+| `swift` | — → T1 | 100 | attack-speed/increased | — → 0.95 | — → 1.9 | — → 5 |
+| `undying` | T2 → T8 | 1 | max-life/flat | 10 → 3 | 24 → 6 | 100 → 100 |
+| `undying` | T1 → T7 | 25 | max-life/flat | 25 → 11 | 48 → 21 | 30 → 69 |
+| `undying` | — → T6 | 50 | max-life/flat | — → 19 | — → 37 | — → 47 |
+| `undying` | — → T5 | 60 | max-life/flat | — → 22 | — → 43 | — → 33 |
+| `undying` | — → T4 | 70 | max-life/flat | — → 25 | — → 49 | — → 22 |
+| `undying` | — → T3 | 80 | max-life/flat | — → 28 | — → 56 | — → 15 |
+| `undying` | — → T2 | 90 | max-life/flat | — → 31 | — → 62 | — → 10 |
+| `undying` | — → T1 | 100 | max-life/flat | — → 34 | — → 68 | — → 7 |
+| `vital` | T2 → T8 | 1 | vitality/flat | 2 → 1 | 4 → 1 | 100 → 100 |
+| `vital` | T1 → T7 | 20 | vitality/flat | 5 → 2 | 9 → 4 | 28 → 69 |
+| `vital` | — → T6 | 50 | vitality/flat | — → 5 | — → 9 | — → 47 |
+| `vital` | — → T5 | 60 | vitality/flat | — → 5 | — → 10 | — → 33 |
+| `vital` | — → T4 | 70 | vitality/flat | — → 6 | — → 12 | — → 22 |
+| `vital` | — → T3 | 80 | vitality/flat | — → 7 | — → 14 | — → 15 |
+| `vital` | — → T2 | 90 | vitality/flat | — → 8 | — → 15 | — → 10 |
+| `vital` | — → T1 | 100 | vitality/flat | — → 9 | — → 17 | — → 7 |

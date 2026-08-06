@@ -5,22 +5,58 @@
   "slots": ["amulet", "ring", "chest"],
   "tiers": [
     {
-      "tier": 3,
+      "tier": 9,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1, "max": 2 }]
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 0.2, "max": 0.39 }]
+    },
+    {
+      "tier": 8,
+      "itemLevel": 15,
+      "weight": 69,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 0.45, "max": 0.9 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 35,
+      "weight": 47,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 0.81, "max": 1.62 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 33,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.08, "max": 2.16 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 22,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.26, "max": 2.52 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 15,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.44, "max": 2.88 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 10,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.62, "max": 3.24 }]
     },
     {
       "tier": 2,
-      "itemLevel": 15,
-      "weight": 50,
-      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 2, "max": 4 }]
+      "itemLevel": 90,
+      "weight": 7,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.8, "max": 3.6 }]
     },
     {
       "tier": 1,
-      "itemLevel": 35,
-      "weight": 18,
-      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 4, "max": 7 }]
+      "itemLevel": 100,
+      "weight": 5,
+      "mods": [{ "stat": "life-regen", "mode": "flat", "min": 1.98, "max": 3.96 }]
     }
   ]
 }

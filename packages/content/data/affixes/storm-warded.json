@@ -5,16 +5,52 @@
   "slots": ["off-hand", "legs", "ring"],
   "tiers": [
     {
-      "tier": 2,
+      "tier": 8,
       "itemLevel": 1,
       "weight": 100,
-      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 4, "max": 8 }]
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 1, "max": 2 }]
+    },
+    {
+      "tier": 7,
+      "itemLevel": 22,
+      "weight": 69,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 3, "max": 6 }]
+    },
+    {
+      "tier": 6,
+      "itemLevel": 50,
+      "weight": 47,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 6, "max": 12 }]
+    },
+    {
+      "tier": 5,
+      "itemLevel": 60,
+      "weight": 33,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 8, "max": 15 }]
+    },
+    {
+      "tier": 4,
+      "itemLevel": 70,
+      "weight": 22,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 9, "max": 17 }]
+    },
+    {
+      "tier": 3,
+      "itemLevel": 80,
+      "weight": 15,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 10, "max": 19 }]
+    },
+    {
+      "tier": 2,
+      "itemLevel": 90,
+      "weight": 10,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 11, "max": 21 }]
     },
     {
       "tier": 1,
-      "itemLevel": 22,
-      "weight": 30,
-      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 9, "max": 15 }]
+      "itemLevel": 100,
+      "weight": 7,
+      "mods": [{ "stat": "resist-lightning", "mode": "flat", "min": 12, "max": 23 }]
     }
   ]
 }
