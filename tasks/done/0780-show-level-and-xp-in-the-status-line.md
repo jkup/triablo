@@ -198,6 +198,14 @@ see and rule on.
   Gate: `npm run verify` green — 37 test files, 632 tests passed; smoke 8
   scenarios × 20 seeds ok; `replay:check` **6/6 ok**.
 
+  Note on the acceptance criterion *"`world.systemNames` is unchanged from task
+  0680's list — assert it, do not merely avoid touching it"*: it was **already
+  satisfied on `main`** by `packages/client/src/game.test.ts:144`, so no
+  assertion this task could have added would ever have failed. It was met by
+  citing the existing pin rather than duplicating it. Anyone copying that
+  phrasing into a future task should aim it at something not already pinned, or
+  it asks for nothing.
+
 - **Replays re-blessed:** none — this task writes no world state.
   `git diff --stat packages/sim/ packages/core/ packages/content/` prints
   nothing at all (empty output, zero files changed), and `npm run replay:check`
@@ -230,10 +238,40 @@ see and rule on.
     client's own world: the eight authored Charnel Vaults monsters are worth
     `14+14+11+11+13+12+32+12 = 119` XP at tier 1 and 5→6 costs 500, so a full
     clear ends at `xp 119/500`. This task makes that visible rather than fixing
-    it (decision 0049 expects the curve to be retuned, and it is a one-line
-    balance change that moves no replay). Whether the answer is more content
-    per session, a lower `LEVEL_XP_STEP`, or the difficulty-tier multiplier is
-    an owner call — worth a task once he has seen the line.
+    it. Whether the answer is more content per session, a lower
+    `LEVEL_XP_STEP`, or the difficulty-tier multiplier is an owner call —
+    worth a task once he has seen the line.
+
+    **The retune is not replay-free, and whoever does it should budget for a
+    re-bless.** Decision 0049 calls a curve change "a one-line balance change
+    that moves no replay"; measured here, that is false for any change large
+    enough to matter. Setting `LEVEL_XP_STEP` from `100` to `23` in
+    `packages/core/src/progression/levels.ts` and nothing else fails
+    `npm run replay:check`:
+
+    ```
+    FAIL  dungeon-crawl.seed1.json  expected a3171faa7f656eed, got e2f9ad04f5b7120c
+    ```
+
+    That is necessary, not incidental. `Progression.xp` climbs to the same 119
+    under any curve, so the serialized component — and the hash — only moves
+    when a level-up actually fires mid-run; a level-up firing mid-run is
+    precisely the outcome the retune is for. With 119 XP available in the only
+    shipped dungeon, 5→6 becomes reachable exactly when `LEVEL_XP_STEP ≤ 23`
+    (`23 × 5 = 115 ≤ 119`, while `24 × 5 = 120 > 119`), so the threshold at
+    which the retune starts working and the threshold at which the golden
+    moves are the same number. A retune that moves no replay is a retune that
+    changed nothing the player can reach. The re-bless is expected and
+    explainable, which is what the crawl golden's own description already
+    anticipates ("retuning it lands here and is expected to be re-blessed with
+    the new total stated") — it is not a regression to hide.
+
+    Task **0790** (`tasks/open/0790-correct-the-xp-retune-is-free-claim.md`)
+    corrects the upstream copies of the same claim in decisions 0057 and 0049
+    and in the comment at `packages/core/src/progression/levels.ts:37-39`. Its
+    files-in-scope do not reach this file, hence this paragraph: without it,
+    the surviving uncorrected copy of a false claim would be attached to the
+    task a balance agent reads first when they come to retune XP.
   - **A death drops the level from the line entirely**, because `deathSystem`
     destroys the avatar entity and its `Progression` with it. If a death screen
     or run summary should ever say "you died at level 5", it needs the read
