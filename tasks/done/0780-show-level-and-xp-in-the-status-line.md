@@ -177,16 +177,88 @@ see and rule on.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** `GameStatus` gained `playerLevel: number | null` and
+  `playerXp: string | null`, both read from the avatar's `Progression`
+  component (never `Combatant.level`), with the denominator from
+  `xpToNextLevel` rather than a hand-inlined `100 × level`. `main.ts` states
+  them as one extra clause in the existing `·`-separated line. No component,
+  system, or scene artifact was touched: `world.systemNames` is asserted
+  unchanged from task 0680's nine-system list by the pre-existing
+  `createGame` test, and `scene.ts` / `raster.ts` / `effects.ts` / `png.ts`
+  are untouched, so the render-regression golden stayed byte-identical.
 
-- **What changed:**
-- **Replays re-blessed:** none — this task writes no world state. Paste the
-  empty `git diff --stat packages/sim/` as the proof.
-- **The cap format you chose:**
-- **Scope deviations:**
+  `git diff --stat` for the whole branch:
+
+  ```
+   packages/client/main.ts          |  11 ++--
+   packages/client/src/game.test.ts | 112 +++++++++++++++++++++++++++++++++++++++
+   packages/client/src/game.ts      |  34 ++++++++++++
+  ```
+
+  Gate: `npm run verify` green — 37 test files, 632 tests passed; smoke 8
+  scenarios × 20 seeds ok; `replay:check` **6/6 ok**.
+
+- **Replays re-blessed:** none — this task writes no world state.
+  `git diff --stat packages/sim/ packages/core/ packages/content/` prints
+  nothing at all (empty output, zero files changed), and `npm run replay:check`
+  reports all six goldens `ok`.
+
+- **The cap format you chose:** `` `${xp} (at cap)` ``, i.e. **`0 (at cap)`**
+  in practice, since `grantXp` pins `xp` to 0 at `MAX_CHARACTER_LEVEL`. This is
+  character-for-character the string task 0680 already gave the crawl report's
+  `avatarXp` (`packages/sim/src/scenarios/dungeon-crawl.ts:449-454`), so the
+  two surfaces that state this fact state it identically and a reader
+  comparing a browser session to a scenario report is not asked to learn two
+  vocabularies. It was adopted rather than invented, so **no `docs/decisions/`
+  entry was written** (0067 remains free): the ruling that a capped bar has no
+  denominator is decision 0049's, and repeating an existing convention in a
+  second caller is not a new judgment call. The literal substring `null` is
+  asserted absent from `playerXp`; with the naive
+  `` `${xp}/${xpToNextLevel(level)}` `` that assertion fails with
+  `expected '0/null' to be '0 (at cap)'` — verified by temporarily reverting
+  the cap branch.
+
+- **Scope deviations:** none. Only the three files in **Files in scope** were
+  edited. `main.ts` composes the progression clause once
+  (`playerLevel === null || playerXp === null ? '' : …`) and splices it into
+  both the alive and the `you died` branch, rather than duplicating it — that
+  is still "the status-line string only", and it is what guarantees neither
+  field can reach the page as the text `null`.
+
 - **Follow-ups worth a new task:**
+  - **A level-up is still unreachable in shipped content.** Verified from the
+    client's own world: the eight authored Charnel Vaults monsters are worth
+    `14+14+11+11+13+12+32+12 = 119` XP at tier 1 and 5→6 costs 500, so a full
+    clear ends at `xp 119/500`. This task makes that visible rather than fixing
+    it (decision 0049 expects the curve to be retuned, and it is a one-line
+    balance change that moves no replay). Whether the answer is more content
+    per session, a lower `LEVEL_XP_STEP`, or the difficulty-tier multiplier is
+    an owner call — worth a task once he has seen the line.
+  - **A death drops the level from the line entirely**, because `deathSystem`
+    destroys the avatar entity and its `Progression` with it. If a death screen
+    or run summary should ever say "you died at level 5", it needs the read
+    taken before the reaper (or a run-record component), not a change here.
+  - **`main.ts` has no automated coverage of any kind** — it sits outside the
+    coverage `include` and has no test file, so this line is guarded only by
+    `typecheck` plus the `gameStatus` tests behind it. Extracting the status
+    string into a pure composer in `packages/client/src/` would make the
+    sentence itself assertable; that is a small, separable task.
+  - Phase-5 UI proper (XP bar, level-up moment, character sheet) remains out
+    of scope and unbuilt, exactly as this task's scope section requires.
+
 - **Owner playtest:** confirming the line on screen is the owner's to run:
   `npm run dev`, kill something, and the status line should read
-  `<quote the exact string your main.ts composes>`. A full clear of
+
+  ```
+  tick 0 · life 200/200 · level 5 · xp 0/500 · 8/8 monsters remain
+  ```
+
+  at the start (that exact string was produced by evaluating `main.ts`'s own
+  expression against a real `createGame(registry, 1)` world headlessly — it is
+  derived from the source, not observed in a browser; no agent here can see the
+  page, and `npm run shot` rasterizes the `Scene`, not this DOM text). After a
+  bone-mage kill the `xp` clause reads `xp 13/500`; a full clear of
   charnel-vaults ends at `level 5 · xp 119/500` — the level does not move, and
-  that is decision 0049's curve, not a bug in this task.
+  that is decision 0049's curve, not a bug in this task. On death the line
+  becomes `tick <t> · you died · 3/8 monsters remain` (no level or XP clause,
+  because the avatar entity and its `Progression` are gone).
