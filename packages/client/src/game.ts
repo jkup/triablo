@@ -21,6 +21,7 @@ import {
   skillResolveSystem,
   statusTickSystem,
   World,
+  xpToNextLevel,
 } from '@triablo/core'
 import type { CombatantBaseStats, EntityId, Tile } from '@triablo/core'
 
@@ -159,12 +160,38 @@ export interface GameStatus {
   tick: number
   /** `life/maxLife`, or null once the avatar is dead. */
   playerLife: string | null
+  /**
+   * The *character* level from `Progression` — never `Combatant.level`, which
+   * is the attacker level in decision 0004's armor curve and stays at its
+   * spawn value (decision 0051). Null on the same terms as `playerLife`: the
+   * avatar is dead, or this world was assembled without `Progression`.
+   */
+  playerLevel: number | null
+  /**
+   * Progress toward the *next* level as a bar, e.g. `119/500` — `xp` is not a
+   * lifetime total (decision 0049), so a bare number would read as one and be
+   * wrong the moment the avatar levels. At `MAX_CHARACTER_LEVEL` there is no
+   * next level and `xpToNextLevel` returns null, so the bar has no
+   * denominator and the capped form `0 (at cap)` is reported instead — the
+   * same string the crawl scenario's `avatarXp` uses, so the two surfaces
+   * that state this fact state it identically. Null on the same terms as
+   * `playerLevel`.
+   */
+  playerXp: string | null
   monstersRemaining: number
 }
 
 /** Read the status line's facts from the live world. */
 export function gameStatus(world: World, player: EntityId): GameStatus {
   const combatant = world.get(player, Combatant)
+  // A dead avatar reports no progress, for the same reason it reports no life:
+  // deathSystem removes its Combatant, and a status line that kept counting XP
+  // for a corpse would be stating a fact about nobody.
+  const progression = combatant === undefined ? undefined : world.get(player, Progression)
+  // Runs every animation frame, including against a world assembled without
+  // progression at all — hence the undefined guard rather than an assertion.
+  const xpCost = progression === undefined ? null : xpToNextLevel(progression.level)
+
   let monstersRemaining = 0
   for (const [, fighter, faction] of world.query(Combatant, Faction)) {
     if (faction.id === MONSTER_FACTION && fighter.life > 0) monstersRemaining++
@@ -172,6 +199,13 @@ export function gameStatus(world: World, player: EntityId): GameStatus {
   return {
     tick: world.tick,
     playerLife: combatant === undefined ? null : `${combatant.life}/${combatant.maxLife}`,
+    playerLevel: progression?.level ?? null,
+    playerXp:
+      progression === undefined
+        ? null
+        : xpCost === null
+          ? `${progression.xp} (at cap)`
+          : `${progression.xp}/${xpCost}`,
     monstersRemaining,
   }
 }

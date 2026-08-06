@@ -6,12 +6,15 @@ import {
   CastState,
   Combatant,
   Faction,
+  makeProgression,
+  MAX_CHARACTER_LEVEL,
   PlayerControlled,
   Position,
   Progression,
   StatusEffects,
   tileOf,
   xpForKill,
+  xpToNextLevel,
 } from '@triablo/core'
 import type { EntityId, StatusEffectEntry, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
@@ -397,5 +400,114 @@ describe('createGame', () => {
     expect(quantaLost(second.lifeBefore, second.mage.life)).toBe(TEST_DOT_TOTAL_QUANTA)
     expect(first.world.get(first.entity, StatusEffects)).toBeUndefined()
     expect(second.world.get(second.entity, StatusEffects)).toBeUndefined()
+  })
+})
+
+/**
+ * The status line's progression half (task 0780). `main.ts` is DOM glue with
+ * no test of its own, so these are the assertions standing behind the text a
+ * human reads at `npm run dev`: the alive line composes to
+ * `tick <t> · life 200/200 · level 5 · xp 0/500 · 8/8 monsters remain`.
+ */
+describe('gameStatus progression', () => {
+  /** A one-tick, unavoidably lethal DoT — the shortest route to a real death. */
+  function lethalDot(life: number): StatusEffectEntry {
+    return { ...testDot(), remainingTicks: 1, finalTickAmount: life }
+  }
+
+  it('reports the character level and an XP bar, not a bare total', () => {
+    const game = createGame(registry, 1)
+    const status = gameStatus(game.world, game.player)
+
+    // Level 5 comes from Progression (decision 0049), NOT from Combatant.level
+    // — they read the same 5 at spawn and diverge from the first kill on
+    // (decision 0051), so this assertion alone cannot tell them apart; the
+    // kill test below is what does.
+    expect(status.playerLevel).toBe(PLAYER_LEVEL)
+    // `xp` is progress toward the *next* level, never a lifetime total, so it
+    // is a bar: 500 is xpToNextLevel(5) = 100 × 5 (decision 0049).
+    expect(xpToNextLevel(PLAYER_LEVEL)).toBe(500)
+    expect(status.playerXp).toBe('0/500')
+    // Unchanged neighbours, so the line still says what it used to.
+    expect(status.playerLife).toBe(`${PLAYER_STATS.life}/${PLAYER_STATS.life}`)
+    expect(status.monstersRemaining).toBe(authoredSpawns.length)
+  })
+
+  it('a kill through the real systems moves the bar numerator and not the level', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+
+    const mageRow = boneMageOf(world)
+    expect(mageRow).toBeDefined()
+    if (mageRow === undefined) return
+    const [mageEntity, mage] = mageRow
+    // bone-mage is worth 13 XP at tier 1 (decision 0057's shipped roster).
+    const worth = xpForKill(mage)
+    expect(worth).toBe(13)
+
+    world.add(mageEntity, StatusEffects, { entries: [lethalDot(mage.life)] })
+    world.step()
+
+    // The systems the browser registers did this: statusTickSystem killed it,
+    // xpAwardSystem paid for the corpse, deathSystem reaped it — all in one
+    // tick, in that order.
+    expect(livingMonsters(world)).toHaveLength(authoredSpawns.length - 1)
+    const status = gameStatus(world, player)
+    expect(status.playerXp).toBe(`${worth}/500`)
+    // A level costs 500 and one bone-mage pays 13, so the level must not move.
+    // (Reading `Combatant.level` instead would also print 5 here and stay 5
+    // forever; the numerator above is what proves Progression is the source.)
+    expect(status.playerLevel).toBe(PLAYER_LEVEL)
+    expect(world.get(player, Combatant)?.level).toBe(PLAYER_LEVEL)
+  })
+
+  it('reports a capped character as "(at cap)", never the string null', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+
+    // xpToNextLevel returns null at MAX_CHARACTER_LEVEL by design (the cap is
+    // a normal state, not an error), so a naive bar renders the literal text
+    // `0/null` on screen for the whole endgame. This is that assertion.
+    expect(xpToNextLevel(MAX_CHARACTER_LEVEL)).toBeNull()
+    world.add(player, Progression, makeProgression(MAX_CHARACTER_LEVEL))
+
+    const status = gameStatus(world, player)
+    expect(status.playerLevel).toBe(MAX_CHARACTER_LEVEL)
+    // The same string the crawl scenario's `avatarXp` reports (task 0680), so
+    // the two surfaces stating this fact state it identically.
+    expect(status.playerXp).toBe('0 (at cap)')
+    expect(status.playerXp).not.toContain('null')
+  })
+
+  it('a world assembled without Progression reports nulls instead of throwing', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+    world.remove(player, Progression)
+
+    // gameStatus runs every animation frame; a world without the component
+    // must degrade to "nothing to say", not take the render loop down.
+    const status = gameStatus(world, player)
+    expect(status.playerLevel).toBeNull()
+    expect(status.playerXp).toBeNull()
+    // Still alive: it is the missing component, not a death, that nulled them.
+    expect(status.playerLife).toBe(`${PLAYER_STATS.life}/${PLAYER_STATS.life}`)
+  })
+
+  it('a dead avatar reports no level and no XP, alongside no life', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+    const combatant = world.get(player, Combatant)
+    expect(combatant).toBeDefined()
+    if (combatant === undefined) return
+
+    world.add(player, StatusEffects, { entries: [lethalDot(combatant.life)] })
+    world.step()
+
+    // main.ts branches on playerLife for the `you died` line; the other two
+    // must vanish with it, or the dead line would state a corpse's XP.
+    const status = gameStatus(world, player)
+    expect(status.playerLife).toBeNull()
+    expect(status.playerLevel).toBeNull()
+    expect(status.playerXp).toBeNull()
   })
 })

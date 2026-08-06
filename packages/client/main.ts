@@ -165,11 +165,16 @@ async function main(): Promise<void> {
     }
 
     drawScene(context, interpolateScene(previous, current, alpha))
-    const { tick, playerLife, monstersRemaining } = gameStatus(world, player)
+    const { tick, playerLife, playerLevel, playerXp, monstersRemaining } = gameStatus(world, player)
+    // Progression is stated as its own clause so the dead branch drops it
+    // wholesale — the two fields are null together and neither may ever reach
+    // the page as the literal text `null`.
+    const progress = playerLevel === null || playerXp === null ? '' : ` · level ${playerLevel} · xp ${playerXp}`
+    const monsters = `${monstersRemaining}/${game.monstersAuthored} monsters remain`
     status.textContent =
       playerLife === null
-        ? `tick ${tick} · you died · ${monstersRemaining}/${game.monstersAuthored} monsters remain`
-        : `tick ${tick} · life ${playerLife} · ${monstersRemaining}/${game.monstersAuthored} monsters remain`
+        ? `tick ${tick} · you died${progress} · ${monsters}`
+        : `tick ${tick} · life ${playerLife}${progress} · ${monsters}`
     requestAnimationFrame(frame)
   }
 
