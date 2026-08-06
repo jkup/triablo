@@ -718,6 +718,26 @@ describe('status effects: damage-over-time (decision 0036)', () => {
     expect(world.get(target, StatusEffects)).toBeUndefined()
   })
 
+  it('a DoT rider stays rng-silent (decision 0036)', () => {
+    // Two computeDamage calls resolve on the same tick: the direct hit (which
+    // routes through toDamageAttacker, decision 0064) and applyDot's rider
+    // (which deliberately does not — 0036 forecloses DoT crit). Both must
+    // leave the stream untouched, so a rider can never be the thing that
+    // desynchronises a replay.
+    const world = makeWorld()
+    const caster = spawnFighter(world, { x: 0, y: 0, faction: 'casters' })
+    const target = spawnFighter(world, { x: 1, y: 0, faction: 'dummies' })
+    planCast(world, caster, INSTANT_BLEED, { target })
+
+    const rngBefore = world.rng.getState()
+    world.step() // tick 1: direct hit resolves, rider is applied, first tick lands
+
+    // Not vacuous: the rider really did get built on this tick.
+    expect(world.getOrThrow(target, StatusEffects).entries).toHaveLength(1)
+    expect(damageTaken(world, target)).toBeGreaterThan(1) // direct 1 + first DoT tick
+    expect(world.rng.getState()).toEqual(rngBefore)
+  })
+
   it('StatusEffects never appears in a world where no DoT was applied', () => {
     const world = makeWorld({ withDeath: true })
     const caster = spawnFighter(world, { x: 0, y: 0, faction: 'casters' })

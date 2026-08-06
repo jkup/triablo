@@ -23,7 +23,7 @@ export type {
   DamageType,
 } from './combat/damage'
 
-export { Combatant, makeCombatant, Position } from './combat/components'
+export { Combatant, makeCombatant, Position, toDamageAttacker } from './combat/components'
 export type { CombatantBaseStats } from './combat/components'
 
 export {

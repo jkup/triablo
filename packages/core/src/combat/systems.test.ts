@@ -10,7 +10,7 @@ import { Faction } from '../skills/components'
 import { Grid } from '../world/grid'
 import { DungeonMap } from '../world/populate'
 import type { Combatant as CombatantValue } from './components'
-import { Combatant, Position } from './components'
+import { Combatant, Position, toDamageAttacker } from './components'
 import { computeDamage } from './damage'
 import {
   AGGRO_RADIUS_TILES,
@@ -58,16 +58,14 @@ function spawnFighter(world: World, overrides: SpawnOverrides = {}): EntityId {
   return entity
 }
 
-/** What one swing must deal, per computeDamage. critChance is 0, so no rng is consumed. */
+/**
+ * What one swing must deal, per computeDamage — built through the same
+ * content-units→engine-units boundary the system uses (decision 0064). With no
+ * stat block the conversion yields critChance 0, so no rng is consumed.
+ */
 function expectedHit(attacker: CombatantValue, defender: CombatantValue): number {
   return computeDamage(
-    {
-      weaponDamage: attacker.damage,
-      mods: { flat: 0, increased: 0, more: [] },
-      critChance: 0,
-      critDamage: 1,
-      level: attacker.level,
-    },
+    toDamageAttacker(attacker.damage, attacker.level),
     { armor: defender.armor, resistances: {} },
     { weaponMultiplier: 1, damageType: attacker.damageType },
     Rng.create('expected'),
@@ -338,6 +336,24 @@ describe('attackSystem', () => {
     expect(aData.life).toBe(32 - bHitsFor)
     expect(aData.damageDealt).toBe(aHitsFor)
     expect(bData.damageDealt).toBe(bHitsFor)
+  })
+
+  it('draws no rng while gearless combatants trade blows (decision 0064)', () => {
+    // The attacker is built by toDamageAttacker with no stat block, so
+    // critChance converts to exactly 0 and `Rng.chance` short-circuits before
+    // `next()`. The first entity with crit in (0, 100) points changes this and
+    // moves every replay containing it — that cost belongs to the equipping
+    // task, not here.
+    const world = new World({ seed: 1 })
+    world.addSystem(attackSystem)
+    spawnFighter(world, { x: 0, combatant: { life: 500, maxLife: 500 } })
+    spawnFighter(world, { x: 1, combatant: { life: 500, maxLife: 500 }, faction: 'blue' })
+
+    const rngBefore = world.rng.getState()
+    world.run(30) // 10 swings each at a 3-tick interval
+
+    expect(world.rng.getState()).toEqual(rngBefore)
+    expect(world.query(Combatant).every(([, c]) => c.damageDealt > 0)).toBe(true)
   })
 
   it('swings immediately on entering range, then once per interval', () => {

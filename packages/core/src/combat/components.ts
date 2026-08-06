@@ -10,8 +10,8 @@
 
 import { defineComponent } from '../ecs'
 import { secondsToTicks } from '../time'
-import type { DamageType } from './damage'
-import type { StatMod } from './stats'
+import type { DamageAttacker, DamageMods, DamageType } from './damage'
+import type { StatBlock, StatMod } from './stats'
 import { computeStats } from './stats'
 
 /** Where an entity stands, in tile coordinates. Floats allowed. */
@@ -113,5 +113,66 @@ export function makeCombatant(
     moveSpeed: stats['move-speed'],
     attackIntervalTicks: secondsToTicks(base.attackIntervalSeconds),
     ticksUntilAttack: 0,
+  }
+}
+
+/** The neutral damage-mod record: no flat, no increased, no more multipliers. */
+function noDamageMods(): DamageMods {
+  return { flat: 0, increased: 0, more: [] }
+}
+
+/**
+ * Build the attacker half of a `computeDamage` call from an entity's numbers.
+ *
+ * **This is the single boundary between content units and engine units**
+ * (decision 0064). Content authors crit in *percent points* — `keen` tier 1
+ * rolls `crit-chance: 7` meaning 7%, `of-ruin` tier 1 rolls `crit-damage: 24`
+ * meaning +24% on a crit — while `computeDamage` consumes `critChance` as a
+ * clamp01 probability and `critDamage` as a plain multiplier:
+ *
+ * ```
+ * critChance = computed['crit-chance'] / 100      // percent points → probability
+ * critDamage = 1 + computed['crit-damage'] / 100  // percent points → multiplier
+ * ```
+ *
+ * Passing the raw stat instead makes `clamp01(7) = 1` (every hit crits) and
+ * `Math.max(1, 24) = 24` (every crit deals 24×) — ×23.60 damage per hit. The
+ * pin tests in `components.test.ts` name both affixes so a "simplification"
+ * fails loudly instead of silently.
+ *
+ * The result is **computed here and stored nowhere**: `Combatant` does not
+ * carry `critChance`/`critDamage`, because `World.hash()` serializes every
+ * component key verbatim, so two new fields would move every replay that
+ * spawns a combatant even holding their own defaults. When gear supplies
+ * nonzero crit, the carrier is a separate component added only to the entities
+ * that have it (decision 0036's "absence is the clean state").
+ *
+ * rng cost, per call: `Rng.chance` short-circuits at both ends, so a
+ * `critChance` of 0 (`crit-chance` 0 points) and a `critChance` ≥ 1
+ * (100 points or more) draw **nothing**, while anything strictly inside
+ * `(0, 1)` — including the 0.5 points one dexterity grants under decision
+ * 0031, i.e. `p = 0.005` — draws exactly once. The draw count is therefore not
+ * monotonic: **a build reaching 100 crit points is a hash-visible cliff**
+ * where the per-hit draw disappears again.
+ *
+ * `stats` is a computed block (decision 0005 has already quantized it to
+ * 1/10000 of a point); missing keys read as 0, so a gearless combatant yields
+ * `critChance: 0, critDamage: 1` — bit-identical to the literals the call
+ * sites used before this function existed. No second quantization happens
+ * here: the quantum is a property of the stored stat, not of the transient
+ * engine-unit value derived from it.
+ */
+export function toDamageAttacker(
+  weaponDamage: number,
+  level: number,
+  stats?: StatBlock,
+  mods?: DamageMods,
+): DamageAttacker {
+  return {
+    weaponDamage,
+    mods: mods ?? noDamageMods(),
+    critChance: (stats?.['crit-chance'] ?? 0) / 100,
+    critDamage: 1 + (stats?.['crit-damage'] ?? 0) / 100,
+    level,
   }
 }
