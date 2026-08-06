@@ -5,14 +5,17 @@ import {
   buildDungeon,
   CastPlan,
   Combatant,
+  createXpAwardSystem,
   deathSystem,
   Faction,
   makeCombatant,
+  makeProgression,
   makeSkillRecipe,
   moveOrderSystem,
   PlayerControlled,
   populateDungeon,
   Position,
+  Progression,
   projectileSystem,
   skillCastSystem,
   skillResolveSystem,
@@ -76,7 +79,7 @@ export interface PlayableGame {
  * its scenario-local bot (a human drives this world), plus the skill executor
  * systems in their documented slot (the human casts; the bot did not):
  * move-order → approach → attack → skill-cast → skill-resolve →
- * projectile-flight → status-tick → death.
+ * projectile-flight → status-tick → xp-award → death.
  *
  * `status-tick` sits exactly where decision 0036 records it — after
  * projectileSystem, before deathSystem — so a DoT applied this tick deals its
@@ -85,6 +88,15 @@ export interface PlayableGame {
  * zombie. No shipped skill carries a rider yet, so this registration changes
  * nothing visible today; it is here so the first rider that ships ticks in
  * the browser instead of tagging monsters that never bleed.
+ *
+ * `xp-award` sits in the one-tick window that opens between them (decision
+ * 0057): it finds corpses with `query`, and `deathSystem` destroys them in the
+ * tick the fatal hit lands, so registering it after the reaper would see
+ * nothing at all. Placing it *after* `status-tick` rather than after `attack`
+ * is what makes a kill by damage-over-time pay — `statusTickSystem` is a
+ * damage source, and every damage source must have run before the corpse walk.
+ * The avatar carries `Progression` (task 0680) so the award has a recipient;
+ * nothing renders it yet, but the browser world now levels.
  */
 export function createGame(registry: ContentRegistry, seed: number | string = 1): PlayableGame {
   const world = new World({ seed })
@@ -108,6 +120,12 @@ export function createGame(registry: ContentRegistry, seed: number | string = 1)
   world.add(player, PlayerControlled, {})
   world.add(player, Faction, { id: PLAYER_FACTION })
   world.add(player, CastPlan, { casts: [] })
+  // Character level, which climbs on kills — deliberately NOT the same field as
+  // the `Combatant.level` above, which is the attacker level in decision 0004's
+  // armor curve and stays at its spawn value. Both read 5 today (decision 0030)
+  // and they diverge from the first kill on; mirroring them would grant combat
+  // power that decision 0051 does not license.
+  world.add(player, Progression, makeProgression(PLAYER_LEVEL))
 
   world.addSystem(moveOrderSystem)
   world.addSystem(approachSystem)
@@ -116,6 +134,10 @@ export function createGame(registry: ContentRegistry, seed: number | string = 1)
   world.addSystem(skillResolveSystem)
   world.addSystem(projectileSystem)
   world.addSystem(statusTickSystem)
+  // After every damage source, before the reaper. See createGame's header.
+  // No tier argument: the difficulty-tier system does not exist and tier 1 is
+  // the identity, so this world's awards will not move when it lands.
+  world.addSystem(createXpAwardSystem())
   world.addSystem(deathSystem)
 
   return {

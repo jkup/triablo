@@ -8,13 +8,23 @@ import {
   Faction,
   PlayerControlled,
   Position,
+  Progression,
   StatusEffects,
   tileOf,
+  xpForKill,
 } from '@triablo/core'
 import type { EntityId, StatusEffectEntry, World } from '@triablo/core'
 import { describe, expect, it } from 'vitest'
 
-import { createGame, DUNGEON_ID, gameStatus, MONSTER_FACTION, PLAYER_FACTION, PLAYER_STATS } from './game'
+import {
+  createGame,
+  DUNGEON_ID,
+  gameStatus,
+  MONSTER_FACTION,
+  PLAYER_FACTION,
+  PLAYER_LEVEL,
+  PLAYER_STATS,
+} from './game'
 import { applyCast, applyMoveOrder, clickToMoveOrder, keyToCast, REND_PICK_RADIUS_TILES } from './input'
 import { cameraFor, VIEWPORT, worldToScreen } from './scene'
 
@@ -121,6 +131,13 @@ describe('createGame', () => {
     // 'death' because decision 0036 records exactly that (a DoT's first tick
     // lands on the tick it was applied; a lethal tick is reaped the same
     // tick). Moving it is a decision, not a refactor.
+    //
+    // 'xp-award' sits in that same window, before 'death' and after
+    // 'status-tick' (decision 0057): the reaper destroys a corpse in the tick
+    // the fatal hit lands and `query` skips it immediately, so an award
+    // registered behind 'death' would see nothing; and every damage source —
+    // including the DoT ticker — must have run first, or a kill by
+    // damage-over-time would pay nothing.
     expect(world.systemNames).toEqual([
       'move-order',
       'approach',
@@ -129,6 +146,7 @@ describe('createGame', () => {
       'skill-resolve',
       'projectile-flight',
       'status-tick',
+      'xp-award',
       'death',
     ])
 
@@ -316,6 +334,43 @@ describe('createGame', () => {
     // touched the avatar's damage credit (the entry has no caster).
     expect(livingMonsters(world)).toHaveLength(authoredSpawns.length)
     expect(world.get(game.player, Combatant)?.damageDealt).toBe(0)
+  })
+
+  it('a kill in the playable world pays XP to the avatar, and only to Progression', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+
+    // The avatar starts at the slice's level (decision 0030) with an empty bar.
+    expect(world.get(player, Progression)).toEqual({ level: PLAYER_LEVEL, xp: 0 })
+    expect(world.count(Progression)).toBe(1)
+
+    const mageRow = boneMageOf(world)
+    expect(mageRow).toBeDefined()
+    if (mageRow === undefined) return
+    const [mageEntity, mage] = mageRow
+    const worth = xpForKill(mage)
+    expect(worth).toBeGreaterThan(0)
+
+    // Kill it with a lethal damage-over-time tick rather than a swing: this is
+    // the case the client's registration slot exists for. `statusTickSystem` is
+    // a damage source, so an 'xp-award' registered before it (as the crawl's is,
+    // right after 'attack') would let a DoT kill pay nothing. Nothing else is
+    // near the mage, so the tick is the only thing that can kill it.
+    const combatantBefore = { ...(world.get(player, Combatant) as Combatant) }
+    world.add(mageEntity, StatusEffects, {
+      entries: [{ ...testDot(), remainingTicks: 1, finalTickAmount: mage.life }],
+    })
+    world.step()
+
+    expect(livingMonsters(world)).toHaveLength(authoredSpawns.length - 1)
+    expect(world.get(mageEntity, Combatant)).toBeUndefined() // reaped the same tick
+    expect(world.get(player, Progression)).toEqual({ level: PLAYER_LEVEL, xp: worth })
+
+    // And nothing touched the avatar's combat state: `Combatant.level` is the
+    // attacker level of decision 0004's armor curve, a different quantity from
+    // the character level, and decision 0051 grants a level life at the
+    // computeStats seam — never a Combatant write from the award (0057).
+    expect(world.get(player, Combatant)).toEqual(combatantBefore)
   })
 
   it('is deterministic with a status ticking: same seed, same world hash', () => {

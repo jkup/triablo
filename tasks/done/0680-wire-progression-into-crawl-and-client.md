@@ -215,10 +215,174 @@ in those means something wrote a combat field.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** progression is turned on in both live worlds. Four files,
+  no `packages/core` change of any kind.
 
-- **What changed:**
+  1. `packages/sim/src/scenarios/dungeon-crawl.ts` — the avatar gets
+     `makeProgression(PLAYER_LEVEL)` beside its existing components (level 5,
+     xp 0); `createXpAwardSystem()` is registered between `attackSystem` and
+     `deathSystem`, making the order `move-order → approach → attack →
+     **xp-award** → death → crawl-bot`; `crawlReport` gains `avatarLevel` and
+     `avatarXp`. `PLAYER_LEVEL` still feeds `makeCombatant` and nothing writes
+     `Combatant.level`. No tier argument anywhere — the tier system does not
+     exist and tier 1 is the identity (0057).
+  2. `packages/client/src/game.ts` — same `Progression` on the player,
+     `createXpAwardSystem()` registered **after `statusTickSystem`, before
+     `deathSystem`**, so a kill by damage-over-time pays; `createGame`'s doc
+     comment updated with the new order and the reason for that slot.
+  3. `packages/client/src/game.test.ts` — the pinned roster now reads
+     `... status-tick, xp-award, death` with the reason in the comment, plus one
+     new test that would fail without this change (below).
+  4. `packages/sim/replays/dungeon-crawl.seed1.json` — re-blessed, `note`
+     extended.
+
+  **Why `avatarXp` is a bar (`119/500`) and not a bare total:** decision 0049
+  makes `xp` progress toward the *next* level, not a lifetime total, so a bare
+  number would read as a total and become wrong the first time the avatar
+  levels. Same shape as the existing `avatarLife` metric. No new decision was
+  needed for it (or for anything else here) — 0049, 0051, 0057 and 0030 cover
+  every ruling this task leaned on, so reserved number 0067 was left unclaimed.
+
+  **The crawl asserts nothing about XP, by choice.** Progression is *reported*,
+  not invarianted: the crawl's contract is clearing the dungeon, and pinning an
+  XP total in an invariant would turn every future balance retune into a
+  scenario failure. Recorded in the scenario's header comment; the replay hash
+  is the thing that pins the number, and its `note` says a move there is
+  expected when the per-kill value is retuned.
+
+  **Behaviour proof — `npm run sim -- run dungeon-crawl --seed 1`:**
+
+  ```
+  monstersRemaining     0
+  monstersAuthored      8
+  avatarLife            59/200
+  avatarDamageDealt     362
+  totalMonsterLife      362
+  avatarTile            (20, 15)
+  exitTile              (20, 15)
+  lastMonsterDeathTick  1466
+  waypointsReached      7/7
+  avatarLevel           5
+  avatarXp              119/500
+
+  state hash       a3171faa7f656eed
+  ```
+
+  Every line in the task's `MEASURED` table reproduces byte-for-byte; only the
+  hash moved, and the two progression metrics are new. `avatarLife` is
+  **59/200**, not 224 — task 0730's life grant has not leaked in.
+
+  **The eight deaths, at the eight stated ticks** (`--verbose | grep dies`):
+
+  ```
+  [  244] zombie (2) dies
+  [  484] zombie (3) dies
+  [  649] skeleton-warrior (4) dies
+  [  784] skeleton-archer (7) dies
+  [  920] skeleton-warrior (5) dies
+  [ 1290] grave-hulk (8) dies
+  [ 1362] skeleton-archer (9) dies
+  [ 1466] bone-mage (6) dies
+  ```
+
+  **One XP-award line per kill**, each immediately before its `dies` line —
+  which is the registration slot visible in the trace. Two of the eight:
+
+  ```
+  [  244] xp-award: zombie (2) grants 14 XP (tier 1) to player (10); level 5 (14/500)
+  [ 1290] xp-award: grave-hulk (8) grants 32 XP (tier 1) to player (10); level 5 (94/500)
+  ```
+
+  **The XP sum.** Per-monster, in kill order: 14 (`zombie`) + 14 (`zombie`) +
+  11 (`skeleton-warrior`) + 12 (`skeleton-archer`) + 11 (`skeleton-warrior`) +
+  32 (`grave-hulk`) + 12 (`skeleton-archer`) + 13 (`bone-mage`) = **119**,
+  and the avatar ends at **level 5, 119/500**. That matches task 0670's
+  projected table exactly (`skeleton-warrior` 11, `skeleton-archer` 12,
+  `bone-mage` 13, `zombie` 14, `grave-hulk` 32; 119 total; still level 5).
+  Nothing in 0670's arithmetic was wrong. A full clear is 23.8% of a level at
+  level 5 — the crawl does **not** level the avatar, and could not: 0049 prices
+  level 5 → 6 at 500 XP and the dungeon holds 119.
+
+  **The client, headlessly** (a scratch probe of `createGame`, since the client
+  has no HUD — deliberately out of scope here):
+
+  ```
+  systems: move-order -> approach -> attack -> skill-cast -> skill-resolve ->
+           projectile-flight -> status-tick -> xp-award -> death
+  players: 1
+  t=0     progression: {"level":5,"xp":0}   combatant.level: 5
+  t=1800  progression: {"level":5,"xp":14}  combatant.level: 5
+  ```
+
+  Sixty seconds of standing still in the browser world: the gallery zombie
+  aggros, dies to the auto-attack, and pays 14 XP. `Combatant.level` never
+  moved. A second scratch probe drove the same `createXpAwardSystem()` past two
+  level boundaries to prove the level-up path is live and not just the unit
+  test's — `level 5 -> 6 (12/600)`, then `level 6 -> 7 (20/700)`, with
+  `combatant.level` still 5 at the end.
+
+  **The new client test** (`a kill in the playable world pays XP to the avatar,
+  and only to Progression`) kills the isolated bone-mage with a lethal DoT tick
+  rather than a swing, because that is the case the client's slot exists for: an
+  `xp-award` registered before `status-tick` (as the crawl's is, right after
+  `attack`) would pay nothing for it. It asserts the award lands, the corpse is
+  reaped the same tick, and the player's `Combatant` deep-equals its pre-kill
+  value.
+
 - **Replays re-blessed:** `packages/sim/replays/dungeon-crawl.seed1.json`
-  because `<state the component/XP reason and both hashes>`
-- **Scope deviations:**
+  because the avatar now carries a `Progression` component that `snapshot()`
+  serializes verbatim and whose `xp` climbs from 0 to 119 over the run — a
+  new component on a live entity is hash-visible by construction. **No combat
+  behaviour changed**: all eight death ticks, `avatarDamageDealt` 362 and
+  `avatarLife` 59/200 reproduce exactly, because the award is pure integer
+  arithmetic, draws no `world.rng`, and never writes `Combatant`. Hash
+  **`f7dc3d682f986a80` → `a3171faa7f656eed`**.
+
+  `git diff --stat packages/sim/replays/` — exactly one file, as budgeted:
+
+  ```
+   packages/sim/replays/dungeon-crawl.seed1.json | 4 ++--
+   1 file changed, 2 insertions(+), 2 deletions(-)
+  ```
+
+  (The other five goldens are untouched: none has a `PlayerControlled` entity,
+  so `xpAwardSystem` is not registered in them and would write nothing if it
+  were — decision 0048.) `npm run replay:check`: all 6 `ok`.
+
+- **Scope deviations:** none. No file outside "Files in scope" was touched, and
+  `packages/core` is byte-unchanged. Two things deliberately **not** done that a
+  reader may expect: the `Progression.level` → `Combatant.level` mirror (the
+  trap; the two are different quantities and mirroring grants up to +14.69%
+  damage through 0004's armor curve), and the +6 max-life grant (task 0730's,
+  and its absence is what keeps `avatarLife 59/200` true here). No new
+  `docs/decisions/` entry: nothing was settled that 0030, 0049, 0051 and 0057
+  had not already ruled.
+
 - **Follow-ups worth a new task:**
+  - **The browser still cannot show what it now tracks.** `gameStatus`
+    (`packages/client/src/game.ts`) returns `tick`, `playerLife` and
+    `monstersRemaining`; the page's status line renders those three. The avatar
+    gains XP in the running game as of this task, but a human at `npm run dev`
+    sees no evidence of it. Explicitly out of scope here (the task file rules
+    `gameStatus` phase-5 UI work) and it is small: two fields on `GameStatus`
+    read from `Progression`, plus the status-line string. Worth its own task —
+    that is the change that makes this one visible rather than merely true.
+  - **A level-up is unreachable in the shipped content.** One full clear of the
+    Charnel Vaults is 119 XP against 500 for level 5 → 6, so the only dungeon
+    the game ships cannot level the avatar even once. DESIGN.md pillar 5's "a
+    level gained" is met by the *curve* (0057's pacing bar assumes ~196
+    kills/session), not by anything a player can currently do. Either more
+    content, a repeatable dungeon, or a starting level below 5 closes that gap;
+    it is a content/design call, not a systems one.
+  - **A level-up mid-crawl is untested against live combat.** Both worlds start
+    at level 5 and neither reaches 500 XP, so `grantXp`'s level-up branch runs
+    only in unit tests and scratch probes. When the item `levelRequirement`
+    work (0690) or the life grant (0730) lands, a scenario that actually levels
+    would be worth having.
+  - Task **0730** pays the second budgeted re-bless of this same replay (the +6
+    max-life grant at spawn). Its proof table is this one with `avatarLife`
+    changed: the denominator becomes **224** (200 + 6 × 4 levels above the
+    first), and the numerator will move too, since a bigger pool survives the
+    same incoming damage differently. The eight death ticks and
+    `avatarDamageDealt 362` should still hold there — the avatar's *offence* is
+    untouched by a life grant — so a drift in those is a bug, not the grant.
