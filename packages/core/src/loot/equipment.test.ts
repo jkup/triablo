@@ -5,8 +5,17 @@ import { Combatant, makeCombatant, Position } from '../combat/components'
 import type { EntityId, WorldSnapshot } from '../ecs'
 import { World } from '../ecs'
 import { PlayerControlled } from '../player/components'
+import { computeStats } from '../combat/stats'
 import type { EquipmentSlot } from './equipment'
-import { equip, Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment, unequip } from './equipment'
+import {
+  equip,
+  Equipment,
+  EQUIPMENT_SLOTS,
+  equippedMods,
+  isEquipmentSlot,
+  makeEquipment,
+  unequip,
+} from './equipment'
 import type { RolledItem } from './roll'
 
 /** The decision-0030 avatar's statline (`dungeon-crawl.ts:85-92`). */
@@ -580,5 +589,140 @@ describe('unequip', () => {
     expect(JSON.parse(JSON.stringify(worn.equipment))).toEqual(worn.equipment)
     const taken = unequip(worn.equipment, 'main-hand')
     expect(JSON.parse(JSON.stringify(taken.equipment))).toEqual(taken.equipment)
+  })
+})
+
+/**
+ * An item whose two mod values say which slot it came from: slot *i* of
+ * `EQUIPMENT_SLOTS` carries `armor flat 2i+1` as its implicit and `armor flat
+ * 2i+2` as its one affix mod. A full set therefore flattens to 1..18 in
+ * `EQUIPMENT_SLOTS` order and to nothing else, so the order is *observable* —
+ * `itemFor` above gives every slot the same values, which would make an order
+ * assertion vacuous.
+ */
+function markedItemFor(slot: EquipmentSlot): RolledItem {
+  const i = EQUIPMENT_SLOTS.indexOf(slot)
+  return {
+    ...itemFor(slot),
+    implicits: [{ stat: 'armor', mode: 'flat', value: 2 * i + 1 }],
+    affixes: [
+      {
+        affixId: 'stalwart',
+        kind: 'prefix',
+        tier: 1,
+        mods: [{ stat: 'armor', mode: 'flat', value: 2 * i + 2 }],
+      },
+    ],
+  }
+}
+
+/**
+ * A nine-slot set whose slots were **written in reverse order**. Built as a
+ * literal rather than through `equip`, because `equip` walks `EQUIPMENT_SLOTS`
+ * itself — a set assembled that way always has canonical key order, and an
+ * order test over it could not fail. A component can also arrive from
+ * `World.restore` or from a hand-built value, so this is the shape that has to
+ * work.
+ */
+function reverseWrittenSet(): Equipment {
+  const slots: Partial<Record<EquipmentSlot, RolledItem>> = {}
+  for (const slot of [...EQUIPMENT_SLOTS].reverse()) slots[slot] = markedItemFor(slot)
+  return { base: { ...AVATAR_STATS }, slots }
+}
+
+describe('equippedMods', () => {
+  it('wears nothing, grants nothing', () => {
+    expect(equippedMods(makeEquipment(AVATAR_STATS))).toEqual([])
+  })
+
+  /**
+   * The assertion that makes the order real. `Object.keys(slots)` on this value
+   * is the reverse of `EQUIPMENT_SLOTS`, so folding it in insertion order emits
+   * 17, 18, 15, 16, … instead of 1..18.
+   */
+  it('walks EQUIPMENT_SLOTS in its declared order, not the record insertion order', () => {
+    const equipment = reverseWrittenSet()
+    expect(Object.keys(equipment.slots)).toEqual([...EQUIPMENT_SLOTS].reverse())
+
+    expect(equippedMods(equipment).map((mod) => mod.value)).toEqual([
+      1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
+    ])
+  })
+
+  it('emits each item as itemMods does: implicits first, then affix mods', () => {
+    const equipment: Equipment = {
+      base: { ...AVATAR_STATS },
+      slots: { chest: markedItemFor('chest'), head: markedItemFor('head') },
+    }
+
+    expect(equippedMods(equipment)).toEqual([
+      { stat: 'armor', mode: 'flat', value: 1 }, // head implicit  (slot 0)
+      { stat: 'armor', mode: 'flat', value: 2 }, // head affix
+      { stat: 'armor', mode: 'flat', value: 3 }, // chest implicit (slot 1)
+      { stat: 'armor', mode: 'flat', value: 4 }, // chest affix
+    ])
+  })
+
+  it('skips empty slots rather than emitting anything for them', () => {
+    const equipment: Equipment = {
+      base: { ...AVATAR_STATS },
+      slots: { amulet: markedItemFor('amulet'), head: markedItemFor('head') },
+    }
+    expect(equippedMods(equipment)).toHaveLength(4)
+    expect(equippedMods(reverseWrittenSet())).toHaveLength(18)
+  })
+
+  /**
+   * Decision 0005: the fold sorts each mode's values into a canonical order
+   * before summing, so a permutation of this list computes the same block.
+   *
+   * **What this test is and is not.** It documents that guarantee at this seam,
+   * so a future reader does not "fix" `equippedMods`' order believing stats
+   * depend on it. It is *not* the guard on the order — no change to
+   * `equippedMods` can fail it, because it compares that function's output
+   * against a permutation of itself. The order guard is the
+   * `EQUIPMENT_SLOTS`-versus-insertion-order test above. Nor does it reliably
+   * guard `computeStats`' canonicalization: `roundStat`'s 1/10000 quantum
+   * absorbs almost every reordering difference.
+   */
+  it('feeds a fold that does not care about the order (decision 0005)', () => {
+    const mods = equippedMods(reverseWrittenSet())
+    const base = { 'max-life': 200, armor: 14, damage: 18, 'move-speed': 2.4 } as const
+
+    expect(computeStats(base, mods)).toEqual(computeStats(base, [...mods].reverse()))
+    expect(computeStats(base, mods).armor).toBe(14 + 171) // Σ 1..18
+  })
+
+  /**
+   * A worn `RolledItem` lives inside a component and is therefore part of the
+   * state hash. Handing out aliases into its interior would let a caller move a
+   * replay by adjusting a number it thought was a local copy.
+   */
+  it('returns fresh mods: mutating one leaves the worn item untouched', () => {
+    const equipment = reverseWrittenSet()
+    const mods = equippedMods(equipment)
+
+    const first = mods[0] as { value: number }
+    first.value = 9999
+
+    const head = equipment.slots.head as RolledItem
+    expect(head.implicits[0]?.value).toBe(1)
+    expect(head.affixes[0]?.mods[0]?.value).toBe(2)
+    expect(equippedMods(equipment)[0]?.value).toBe(1)
+  })
+
+  it('gives two Equipment values wearing the same items the same list', () => {
+    const written = reverseWrittenSet()
+
+    let built = makeEquipment(AVATAR_STATS)
+    for (const slot of EQUIPMENT_SLOTS) {
+      const result = equip(built, markedItemFor(slot), 5)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      built = result.equipment
+    }
+
+    expect(Object.keys(built.slots)).not.toEqual(Object.keys(written.slots))
+    expect(equippedMods(built)).toEqual(equippedMods(written))
   })
 })

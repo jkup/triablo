@@ -7,32 +7,6 @@
   0820-items-carry-their-gate-class-and-handedness.md,
   0590-item-mods-pure-function.md
 
-> **Status 2026-08-07 (task 0830 worker, PR pending). Three of the four
-> functions have landed; `equippedMods` has not, and this task stays open for
-> it.**
->
-> **Why.** `equippedMods` is specified as "concatenate `itemMods(item)` for each
-> occupied slot", and **`itemMods` does not exist**: task
-> `tasks/open/0590-item-mods-pure-function.md` is still open, owns the file it
-> lives in, and no PR for it is in flight (`gh pr list --state all` on
-> 2026-08-07: the equipment chain runs 0800, 0810, 0820, then this — 0590 was
-> never dispatched). It is a declared dependency of this task and it is not in
-> `tasks/done/`. Writing it here would mean creating another open task's file
-> and duplicating a derivation, which is the exact bug Requirement 1 exists to
-> prevent, one level up. So it was not written.
->
-> **Landed** (all of Requirements 1, 3, 4 and 5):
-> `packages/core/src/combat/components.ts#refitCombatant` and the extracted
-> `packages/core/src/combat/components.ts#deriveCombatStats`;
-> `packages/core/src/loot/equipment.ts#equip`,
-> `packages/core/src/loot/equipment.ts#unequip`,
-> `packages/core/src/loot/equipment.ts#EquipResult`; decision 0074.
->
-> **Remaining, and it is small:** Requirement 2 (`equippedMods`) and its two
-> acceptance criteria, marked below. Run 0590 first, then this remainder — it is
-> one exported function over `EQUIPMENT_SLOTS` plus the order, reverse-fold and
-> aliasing assertions. Nothing landed here needs revisiting for it.
-
 ## Goal
 
 Task 0810 stores what a character wears. Task 0590 flattens one item into
@@ -165,7 +139,7 @@ Three of those need their reasons in the doc comment, because each is a trap:
   character's element. (That gear *cannot* change damage type is a real limit
   on the design — record it as a follow-up, do not fix it here.)
 
-### 2. `equippedMods`, in one deterministic order — **not landed, see Status**
+### 2. `equippedMods`, in one deterministic order
 
 ```ts
 export function equippedMods(equipment: Equipment): StatMod[]
@@ -291,8 +265,14 @@ failure mode in this repo.
 ## Acceptance criteria
 
 - [x] `npm run verify` passes.
-- [x] `git diff --stat packages/sim/replays/` is **empty** — nothing calls
-      these yet. Paste the (empty) output.
+- [x] `git diff --stat origin/main...HEAD -- packages/sim/replays/` is **empty**
+      — nothing calls these yet. Paste the (empty) output.
+      *Corrected by the implementer:* as originally written
+      (`git diff --stat packages/sim/replays/`, no revisions) this is a
+      **working-tree** diff, which prints nothing the moment the work is
+      committed. It therefore passes trivially and could never have caught a
+      moved replay. The three-dot form against `origin/main` is the one that can
+      fail. Roughly 20 task files carry the broken form.
 - [x] A test named so its failure is legible — e.g. `'a refit is not a heal'` —
       asserts a `59/200` avatar refitted with the chest above yields exactly
       `life 59, maxLife 332`: **not** `332/332`, **not** `98/332`, **not**
@@ -323,12 +303,18 @@ failure mode in this repo.
       8. **A separate test pins the wrong-level trap:** a `Combatant` whose
       `level` is 8 and a `characterLevel` of 2 must still refuse — i.e. the
       function cannot be reading the combatant at all.
-- [ ] **Blocked on task 0590 — see Status at the top.** `equippedMods` on a
-      nine-slot set returns the mods in `EQUIPMENT_SLOTS` order, and
-      `computeStats(base, mods)` deep-equals
+- [x] `equippedMods` on a nine-slot set returns the mods in `EQUIPMENT_SLOTS`
+      order, and `computeStats(base, mods)` deep-equals
       `computeStats(base, [...mods].reverse())` (cite decision 0005).
-- [ ] **Blocked on task 0590.** Mutating a `StatMod` returned by `equippedMods`
-      leaves the worn `RolledItem` unchanged.
+      *Amended by the implementer, because as written the first half cannot
+      fail:* the set must be one whose slots were **written in a different
+      order** than `EQUIPMENT_SLOTS`, and its items must carry **distinguishable
+      mod values**. A set built through `equip` always has canonical key order,
+      and `itemFor` gives every slot identical mods, so the obvious fixture
+      passes whether or not the function walks the vocabulary. See the second
+      half of the same note about the reverse-fold assertion.
+- [x] Mutating a `StatMod` returned by `equippedMods` leaves the worn
+      `RolledItem` unchanged.
 - [x] Every new symbol is exported from `packages/core/src/index.ts`.
 
 ## Notes for the implementer
@@ -385,9 +371,6 @@ failure mode in this repo.
 
 ## Outcome
 
-**Partial — three functions of four. This file stays in `tasks/open/`; see the
-Status block at the top for what remains and why.**
-
 - **What changed:**
   - `packages/core/src/combat/components.ts`: the five-field derivation is
     extracted into one non-exported helper (`deriveCombatStats`, returning a
@@ -396,45 +379,76 @@ Status block at the top for what remains and why.**
     same helper — five derived fields recomputed, `life` clamped down only,
     `damageDealt` and the three identity fields copied, `ticksUntilAttack`
     preserved and clamped.
-  - `packages/core/src/loot/equipment.ts`: `equip`, `unequip` and the
-    `EquipResult` discriminated union. Both build the new `slots` record by
-    walking `EQUIPMENT_SLOTS` with a presence guard (`rebuildSlots`) rather than
-    spreading and deleting, so the `undefined`-valued key the first Note warns
-    about **cannot be expressed** rather than merely being avoided.
+  - `packages/core/src/loot/equipment.ts`: `equippedMods`, `equip`, `unequip`
+    and the `EquipResult` discriminated union. `equip` and `unequip` build the
+    new `slots` record by walking `EQUIPMENT_SLOTS` with a presence guard
+    (`rebuildSlots`) rather than spreading and deleting, so the
+    `undefined`-valued key the first Note warns about **cannot be expressed**
+    rather than merely being avoided. `equippedMods` walks the same vocabulary
+    and delegates each item to `packages/core/src/loot/mods.ts#itemMods`.
   - `packages/core/src/index.ts`: `refitCombatant`, `equip`, `unequip`,
-    `EquipResult`.
+    `equippedMods`, `EquipResult`.
   - `docs/decisions/0074-refit-preserves-and-clamps-the-swing-timer.md` — the
     one entry decision 0068 delegated. 0073 was taken by task 0810; 0074 was
-    free on `main` and in every open PR at branch time.
+    free on `main` and in every open PR at branch time, and remains so.
 
 - **Verified:**
-  - `npm run verify` green end to end. `Test Files 38 passed (38)`,
-    `Tests 681 passed (681)`; `citations: 1 anchored, 263 by line` →
-    `citations ok`; `content ok — 53 entries`; smoke `8 scenario(s) x 20
-    seed(s)` all ok; `replays: 6` all ok.
-  - `git diff --stat packages/sim/replays/` — **empty output**, pasted as
-    required by the criterion:
+  - `npm run verify` green end to end on the merged branch:
+    `Test Files 39 passed (39)`, `Tests 703 passed (703)`;
+    `citations: 6 anchored, 262 by line` → `citations ok`;
+    `content ok — 53 entries`; smoke `8 scenario(s) x 20 seed(s)` all ok;
+    `replays: 6` all ok.
+  - **Replays: `git diff --stat origin/main...HEAD -- packages/sim/replays/`
+    prints nothing.** Captured after the final commit:
 
     ```
-    $ git diff --stat packages/sim/replays/
+    $ git diff --stat origin/main...HEAD -- packages/sim/replays/
     $
     ```
 
-  - `npm run replay:check` after the Requirement 1 extraction, captured:
+    `dungeon-crawl.seed1.json` *did* move — task 0840 re-blessed it when it
+    attached `Equipment` to the avatar — but that arrived through
+    `origin/main`, which is why the three-dot form is the one that answers the
+    question. The working-tree form the criterion originally named prints
+    nothing either way once work is committed; see the corrected criterion.
+  - **The whole chain, measured through the shipped functions** — `equip` →
+    `equippedMods` → `refitCombatant`, not a hand-written mod list:
 
     ```
-    replays: 6
+    --- equippedMods(one chest), through equip() ---
+    [{"stat":"armor","mode":"flat","value":24},{"stat":"armor","mode":"flat","value":12},{"stat":"max-life","mode":"flat","value":48},{"stat":"max-life","mode":"flat","value":48},{"stat":"vitality","mode":"flat","value":9}]
+    displaced by that equip: []
 
-      ok    content-seam.seed1.json
-      ok    duel.seed1.json
-      ok    dungeon-crawl.seed1.json
-      ok    harness-selftest.seed1.json
-      ok    skill-strike.seed1.json
-      ok    status-dot.seed1.json
+    --- the derivation, bare and wearing one chest ---
+    bare  (makeCombatant)    life 200/200  armor 14  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
+    chest (makeCombatant)    life 332/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
+
+    --- a 59/200 avatar equipping the chest, four candidate life rules ---
+    refit (this task)        life  59/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
+    full rebuild             life 332/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
+    proportional             life 98/332  (a stealth heal of +39)
+    delta-matched            life 191/332  (a stealth heal of +132)
+    full rebuild heal        +273 life, per equip
+
+    --- unequipping at 300/332, through unequip() ---
+    geared 300/332           life 300/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
+    after unequip            life 200/200  armor 14  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
+
+    --- ticksUntilAttack on refit (decision 0074) ---
+    holding the 2.0 s weapon: interval 60, 59 ticks to go
+      swap to the 0.4 s weapon -> interval 12, ticksUntilAttack 12   (unclamped would be 59, i.e. 4.92x that weapon's own interval)
+      0.4 s at 7 ticks to go -> swap to 2.0 s: interval 60, ticksUntilAttack 7   (preserved, not lengthened)
+      re-equip what you already wear at 30/36 -> ticksUntilAttack 30   (a reset to 0 would be 36x the swing rate, one keypress per tick)
     ```
 
-  - `npm run sim -- run dungeon-crawl --seed 1`, captured — the run this
-    task's `damageDealt` rule protects, unchanged including its state hash:
+    Every row of Requirement 4 matched to the digit — `bare 200/14/18/2.4/36`,
+    `chest 332/50/18/2.4/36`, `59/332` against `98/332`, `191/332` and
+    `332/332` with a `+273` rebuild heal, and `300/332` → `200/200`. The
+    `equippedMods` line above is byte-for-byte the list Requirement 4 quotes
+    from task 0590's worked example. **Nothing in the task file's numbers
+    needed correcting.**
+  - `npm run sim -- run dungeon-crawl --seed 1`, captured after the merge —
+    the run this task's `damageDealt` rule protects:
 
     ```
     dungeon-crawl  seed=1  ticks=3600
@@ -452,83 +466,82 @@ Status block at the top for what remains and why.**
       avatarXp              119/500
 
       ticks completed  3600
-      state hash       a3171faa7f656eed
+      state hash       8ebc4ce46170c4c2
     ```
 
-    `avatarDamageDealt 362` against `totalMonsterLife 362` — still exactly at
-    the boundary, and the hash matches the one
-    `tasks/done/0800-scout-the-equipment-chain.md` recorded.
-  - **Requirement 4's table reproduced through the shipped code**, not
-    retyped — run against `makeCombatant`/`refitCombatant` from this branch:
+    `avatarDamageDealt 362` against `totalMonsterLife 362`, still exactly at
+    the boundary. The hash is `8ebc4ce46170c4c2` rather than the
+    `a3171faa7f656eed` this branch started from **because task 0840 attached
+    `Equipment` to the avatar on `main`**; it is unchanged by anything here,
+    which the empty three-dot replay diff above is the check for.
+  - **Mutation-tested eleven ways**, each reverted after, in two passes.
+    Pass 1, `refitCombatant`/`equip`/`unequip` (54 tests at the time):
+    (1) `unequip` assigning `slots[slot]` through instead of guarding presence
+    → **1 failure, the world-hash test, and only that one**, which is the whole
+    point of that criterion; (2) `ticksUntilAttack: 0` → 3; (3) preserve without
+    the clamp → 1; (4) full rebuild (`life = maxLife`, `damageDealt = 0`) → 2;
+    (5) `damageType` read from `base` → 1; (6) level gate checked before the
+    slot → 1; (7) `displaced` always `[]` → 1. Pass 2, `equippedMods` (38
+    tests): (8) fold `Object.keys(slots)` instead of `EQUIPMENT_SLOTS` → 4;
+    (9) inline the flatten so the result aliases the worn item → 1;
+    (10) reverse each item's mods → 3; (11) emit only the first worn slot → 4.
+    Restored both times to `Tests 38 passed (38)`.
+  - **The order-independence assertion cannot fail on a change to
+    `equippedMods`, and it is labelled as such.** Mutations 8 and 10 both
+    reorder the emitted list and both leave `computeStats(base, mods)` equal to
+    `computeStats(base, [...mods].reverse())` — it compares that function's
+    output against a permutation of itself. The real guard is the
+    `EQUIPMENT_SLOTS`-versus-insertion-order test, which is why the fixture
+    writes its slots in **reverse** order and gives each slot **distinguishable
+    mod values**; with the obvious fixture (built through `equip`, using
+    `itemFor`) mutation 8 passes. The criterion is amended to say so.
+  - **Citations: the 2 I added are the only ones I checked.** Both are anchored
+    (`packages/core/src/loot/equipment.ts#equip` and
+    `packages/core/src/loot/mods.ts#itemMods`); this file's third anchor
+    (`hash.ts#stableStringify`) arrived with the Notes section and is not mine.
+    `citations:check` reports `7 anchored, 262 by line` and is green. Decision
+    0074 adds no anchored citation — it names two task files in prose, which is
+    deliberately not a citation. I did **not** re-check the citations this file
+    already carried, nor any elsewhere. One of them was corrected on `main`
+    while I worked (task 0590's worked-example pointer, now that 0590 is in
+    `tasks/done/`); that correction is not mine either.
 
-    ```
-    --- the derivation, bare and wearing one chest ---
-    bare  (makeCombatant)    life 200/200  armor 14  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
-    chest (makeCombatant)    life 332/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
-
-    --- a 59/200 avatar equipping the chest, four candidate life rules ---
-    refit (this task)        life  59/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
-    full rebuild             life 332/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 0
-    proportional             life 98/332  (a stealth heal of +39)
-    delta-matched            life 191/332  (a stealth heal of +132)
-    full rebuild heal        +273 life, per equip
-
-    --- unequipping at 300/332 ---
-    geared 300/332           life 300/332  armor 50  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
-    after unequip            life 200/200  armor 14  damage 18  moveSpeed 2.4  attackIntervalTicks 36  ticksUntilAttack 0  damageDealt 362
-
-    --- ticksUntilAttack on refit (decision 0074) ---
-    holding the 2.0 s weapon: interval 60, 59 ticks to go
-      swap to the 0.4 s weapon -> interval 12, ticksUntilAttack 12   (unclamped would be 59, i.e. 4.92x that weapon's own interval)
-      0.4 s at 7 ticks to go -> swap to 2.0 s: interval 60, ticksUntilAttack 7   (preserved, not lengthened)
-      re-equip what you already wear at 30/36 -> ticksUntilAttack 30   (a reset to 0 would be 36x the swing rate, one keypress per tick)
-    ```
-
-    Every row of Requirement 4 matched to the digit: `bare 200/14/18/2.4/36`,
-    `chest 332/50/18/2.4/36`, `59/332` vs `98/332` vs `191/332` vs `332/332`
-    with a `+273` rebuild heal, and `300/332` → `200/200`. Nothing in the task
-    file's numbers needed correcting.
-  - **Mutation-tested seven ways**, each reverted after: (1) `unequip` assigning
-    `slots[slot]` through instead of guarding presence → **1 failure, the world-
-    hash test, and only that one** — which is the point of that criterion;
-    (2) `ticksUntilAttack: 0` → 3 failures; (3) preserve without the clamp → 1;
-    (4) full rebuild (`life = maxLife`, `damageDealt = 0`) → 2; (5) `damageType`
-    read from `base` → 1; (6) level gate checked before the slot → 1;
-    (7) `displaced` always `[]` → 1. Restored: `Tests 54 passed (54)`.
-  - **Citations: the 6 I added are the only ones I checked.** All 6 are
-    anchored (`path#Symbol`) and all are in this file's Status block and
-    Outcome; `citations:check` went from `1 anchored, 263 by line` to
-    `7 anchored, 263 by line` and stayed green, and it enforces `tasks/open`
-    and `docs` exactly. Decision 0074 adds no anchored citation — it names two
-    task files in prose, which is deliberately not a citation. I did **not**
-    re-check the citations this file already carried, nor any elsewhere.
-
-- **Replays re-blessed:** none — nothing calls these functions yet, and the
-  Requirement 1 extraction is behaviour-neutral.
+- **Replays re-blessed:** none. Nothing calls these functions yet, and the
+  Requirement 1 extraction is behaviour-neutral — `replay:check` reported all
+  six `ok` immediately after it and again at the end.
 
 - **Scope deviations:**
-  - **`equippedMods` not implemented** — the dependency `itemMods` (task 0590)
-    does not exist. Full reasoning in the Status block; the short version is
-    that writing it means creating another open task's file *and* duplicating a
-    derivation. No file outside Files in scope was touched.
+  - **The task was worked in two sittings, because task 0590 had not landed.**
+    The first PR shipped `refitCombatant`, `equip` and `unequip` and left
+    `equippedMods` out: its dependency `itemMods` did not exist, and writing it
+    would have meant creating another open task's file *and* duplicating a
+    derivation — the bug Requirement 1 exists to prevent, one level up. 0590
+    then merged, `origin/main` was merged in, and `equippedMods` landed against
+    the real `itemMods`. Nothing from the first sitting needed revisiting.
   - **One ruling settled in a doc comment rather than a decision entry:**
     `equip` checks slot legality *before* the level gate, so an item that is
     both malformed and over-level reports `unknown-slot`. Structure before
     rules — an unknown slot means the request cannot be addressed at all. It is
-    in `packages/core/src/loot/equipment.ts#equip`'s doc comment with the note
+    in `packages/core/src/loot/equipment.ts#equip`'s doc comment, with the note
     that task 0890's handedness refusal goes after both, and it is pinned by a
-    test. Not minted as a decision because both arms are refusals that leave the
-    equipment untouched, so the downstream contract is a diagnostic string; if a
-    reviewer disagrees, it is one short entry.
-  - One acceptance criterion **added** (the unequip world-hash equality), from
-    the first Note, which specified the test but not a criterion for it.
+    test. Not minted, because both arms are refusals that leave the equipment
+    untouched, so the downstream contract is a diagnostic string. If a reviewer
+    disagrees it is one short entry.
+  - **Two acceptance criteria were amended and one added**, all marked inline:
+    the replay diffstat corrected to its three-dot form (the original could not
+    fail); the `equippedMods` order criterion given the fixture constraints that
+    make its first half able to fail; and the unequip world-hash equality added
+    from the first Note, which specified the test but no criterion for it.
+  - No file outside **Files in scope** was modified in either sitting.
 
 - **Follow-ups worth a new task:**
-  - **Run task 0590, then the `equippedMods` remainder of this file.** It is the
-    last thing between this chain and task 0850's pickup system, which calls
-    `refitCombatant(combatant, equipment.base, equippedMods(newEquipment))`.
   - **Gear cannot change damage type.** No `StatKey` maps to it, so an elemental
-    weapon is out of reach of the whole `computeStats` seam — `refitCombatant`
-    copies `damageType` from the live combatant for that reason. A real limit on
-    what "loot is the story" can express through this path; named as a follow-up
-    by `tasks/done/0800-scout-the-equipment-chain.md` and left unfixed here.
+    weapon is out of reach of the whole `computeStats` seam — which is why
+    `refitCombatant` copies `damageType` from the live combatant rather than
+    reading `base`. A real limit on what "loot is the story" can express through
+    this path; named as a follow-up by
+    `tasks/done/0800-scout-the-equipment-chain.md` and left unfixed here.
+  - **Roughly 20 task files carry the working-tree replay diffstat**
+    (`git diff --stat packages/sim/replays/` with no revisions). It passes
+    trivially once work is committed and cannot catch a moved replay. Worth one
+    sweep to the three-dot form; only this file's copy was corrected here.

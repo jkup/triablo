@@ -64,7 +64,9 @@
  */
 
 import type { CombatantBaseStats } from '../combat/components'
+import type { StatMod } from '../combat/stats'
 import { defineComponent } from '../ecs'
+import { itemMods } from './mods'
 import type { RolledItem } from './roll'
 
 /**
@@ -145,6 +147,46 @@ export const Equipment = defineComponent<Equipment>('Equipment')
  */
 export function makeEquipment(base: CombatantBaseStats): Equipment {
   return { base: { ...base }, slots: {} }
+}
+
+/**
+ * Every modifier a character's worn gear grants, in one fixed order.
+ *
+ * The other half of the refit input: `refitCombatant(combatant, equipment.base,
+ * equippedMods(equipment))` is a character wearing exactly what this component
+ * says it wears. Callers that also carry level grants concatenate them —
+ * `computeStats` folds the whole list at once and is not linear in it, so the
+ * lists must be joined before the fold, never folded separately and added.
+ *
+ * **The order is `EQUIPMENT_SLOTS`' declared order**, and within a slot
+ * `itemMods`' order (implicits, then affixes in roll order). Never
+ * `Object.keys(equipment.slots)`: that is an unordered collection whose order
+ * would feed a fold, which the determinism rules forbid outright. Two
+ * `Equipment` values wearing the same nine items therefore produce the same
+ * list whatever order the slots were written in — which `equip` alone does not
+ * guarantee, since a component can also be built by `World.restore` or by hand.
+ *
+ * Fixing the order does not change the *stats*: decision 0005's fold sorts each
+ * mode's values into a canonical order before summing, so any permutation of
+ * this list computes the same block. It is fixed anyway, because a consumer
+ * that *is* order-sensitive — a tooltip, an audit log, a damage breakdown —
+ * must get the same answer every time, and because "the fold does not care" is
+ * a property of today's only consumer.
+ *
+ * Returns **fresh mod objects**: `itemMods` copies field-by-field out of the
+ * `RolledItem`, so a caller adjusting a value in this list cannot reach into a
+ * worn item — and therefore cannot move a replay hash — by accident.
+ *
+ * Judges nothing. An item already in a slot is worn; whether it *may* be worn
+ * was {@link equip}'s question.
+ */
+export function equippedMods(equipment: Equipment): StatMod[] {
+  const mods: StatMod[] = []
+  for (const slot of EQUIPMENT_SLOTS) {
+    const worn = equipment.slots[slot]
+    if (worn !== undefined) mods.push(...itemMods(worn))
+  }
+  return mods
 }
 
 /**

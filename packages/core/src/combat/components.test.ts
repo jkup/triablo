@@ -32,10 +32,15 @@ const AVATAR_STATS: CombatantBaseStats = {
  * `of-the-bear` T1 (max-life flat 48 each) and `vital` T1 (vitality flat 9),
  * every roll at its maximum.
  *
- * Written out rather than produced by `itemMods`, which task 0590 owns and has
- * not landed. The measuring stick for every number in this file: **one
- * character — the level-5 slice avatar — wearing exactly this one chest.**
- * Folded onto `AVATAR_STATS` it gives armor 14+24+12 = 50 and max-life
+ * Written out rather than imported: this file tests the combat half and must not
+ * depend on the loot half to state its inputs. It is nonetheless the exact list
+ * `itemMods` (`../loot/mods.ts`) emits for that chest — `loot/mods.test.ts`
+ * pins the same five entries in the same order against the same fixture, so if
+ * the two ever disagree that file fails first.
+ *
+ * The measuring stick for every number in this file: **one character — the
+ * level-5 slice avatar — wearing exactly this one chest.** Folded onto
+ * `AVATAR_STATS` it gives armor 14+24+12 = 50 and max-life
  * 200+48+48+(9 vitality × 4, decision 0031) = 332.
  */
 const CHEST_MODS: readonly StatMod[] = [
