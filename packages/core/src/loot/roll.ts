@@ -13,7 +13,12 @@ import { STAT_KEYS, STAT_SCALE } from '../combat/stats'
  *
  * The affix-count-per-rarity rule and prefix/suffix caps are recorded in
  * docs/decisions/0014; selection weighting and value granularity in
- * docs/decisions/0015.
+ * docs/decisions/0015. Three facts an item carries but this module never
+ * judges — `levelRequirement`, `itemClass` and `handedness` — cross the seam
+ * per docs/decisions/0069 (the level gate, and why the widening lands ahead of
+ * the loot-drop wiring) and docs/decisions/0071 (handedness is an explicit
+ * enum field, not a tag and not a reading of `itemClass`). The rules that read
+ * them live outside this file.
  *
  * Input shapes mirror the content schemas (`ItemBase`, `Affix`,
  * `StatModRange`). Core cannot import content (the dependency points the
@@ -67,6 +72,23 @@ export interface LootAffix {
 export interface LootItemBase {
   id: string
   slot: string
+  /**
+   * Minimum character level to equip. Mirrors the content schema. Compared
+   * against `Progression.level`, never `Combatant.level` (decision 0069) — the
+   * latter is decision 0004's attacker level in the armour curve, and
+   * conflating the two would grant combat power decision 0051 does not license.
+   * Carried here, enforced elsewhere: nothing in this module reads it.
+   */
+  levelRequirement: number
+  /** Opaque here, exactly like `slot`: core only ever compares it. */
+  itemClass: string
+  /**
+   * `'one-handed' | 'two-handed'` — an opaque string here for the same reason
+   * `slot` is, enum-constrained on the content side (decision 0071). It is the
+   * single authority for decision 0070's off-hand block; `tags` is not, and
+   * `itemClass` cannot be (`sword`, `axe` and `mace` each cover both).
+   */
+  handedness: string
   /** Modifiers every instance of this base rolls, before affixes. */
   implicits: readonly StatModRange[]
 }
@@ -93,6 +115,14 @@ export interface RolledItem {
   slot: string
   itemLevel: number
   rarity: LootRarity
+  /**
+   * The base's own gate, class and handedness, copied verbatim — see
+   * {@link LootItemBase} for what each means and {@link rollItem} for the
+   * copying rule. `itemLevel` scales affixes, never these three.
+   */
+  levelRequirement: number
+  itemClass: string
+  handedness: string
   implicits: StatMod[]
   affixes: RolledAffix[]
 }
@@ -147,6 +177,13 @@ const MOD_MODES: readonly StatModMode[] = ['flat', 'increased', 'more']
  * Value granularity (decision 0015): integer-endpoint ranges roll a uniform
  * integer in [min, max]; fractional ranges roll a continuous uniform value
  * quantized to 1/{@link STAT_SCALE} and clamped into [min, max].
+ *
+ * `levelRequirement`, `itemClass` and `handedness` are copied verbatim from
+ * the base onto the result: no defaulting, no clamping, and — the thing a
+ * later reader will otherwise assume — **no scaling by `itemLevel`**. A rolled
+ * item's gate, class and handedness are its base's, whatever it rolled
+ * (decisions 0069 and 0071). Copying is not a draw, so the widening leaves the
+ * draw order above untouched.
  *
  * Malformed inputs (non-finite ranges, min > max, unknown stat keys or modes,
  * a non-positive-integer item level, an unsupported rarity) throw immediately
@@ -203,7 +240,17 @@ export function rollItem(
     }
   }
 
-  return { baseId: base.id, slot: base.slot, itemLevel, rarity, implicits, affixes }
+  return {
+    baseId: base.id,
+    slot: base.slot,
+    itemLevel,
+    rarity,
+    levelRequirement: base.levelRequirement,
+    itemClass: base.itemClass,
+    handedness: base.handedness,
+    implicits,
+    affixes,
+  }
 }
 
 /**

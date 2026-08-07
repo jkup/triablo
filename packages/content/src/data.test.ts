@@ -55,6 +55,28 @@ describe('authored content', () => {
   })
 
   /**
+   * Decision 0071: handedness is an explicit field, and `tags` is not the
+   * authority for it. `rusted-cleaver` is the roster's only two-hander and one
+   * of the three bases the shipped loot tables can drop, so it is pinned by id;
+   * everything else takes the schema default, which is what keeps the other ten
+   * files untouched. Both halves matter — the field alone would leave the old
+   * tag as a second, unvalidated source of truth.
+   */
+  it('authors handedness on the one two-hander, and nowhere in tags', () => {
+    expect(registry.item('rusted-cleaver').handedness).toBe('two-handed')
+    expect(registry.item('rusted-cleaver').tags).toEqual(['starter'])
+
+    const twoHanders = [...registry.items.values()].filter(
+      (item) => item.handedness === 'two-handed',
+    )
+    expect(twoHanders.map((item) => item.id)).toEqual(['rusted-cleaver'])
+    for (const item of registry.items.values()) {
+      expect(['one-handed', 'two-handed']).toContain(item.handedness)
+      expect(item.tags, `"${item.id}" must not carry handedness in tags`).not.toContain('two-handed')
+    }
+  })
+
+  /**
    * The decision-0009 migration mapping, pinned per skill id. If a skill is
    * remapped to a different brick (or the migration is reverted), this fails —
    * the mapping is the owner's, not re-derivable from the numbers.

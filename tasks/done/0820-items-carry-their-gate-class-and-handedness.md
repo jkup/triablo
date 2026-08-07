@@ -225,32 +225,32 @@ mutually exclusive pair at today's roster size.
 
 ## Acceptance criteria
 
-- [ ] `npm run verify` passes.
-- [ ] `npm run content:validate` passes and all **eleven** bases validate.
-- [ ] `git diff --stat packages/sim/replays/` is **empty**. Paste the (empty)
+- [x] `npm run verify` passes.
+- [x] `npm run content:validate` passes and all **eleven** bases validate.
+- [x] `git diff --stat packages/sim/replays/` is **empty**. Paste the (empty)
       output. The premise is measured above: no golden rolls an item or embeds
       an item base.
-- [ ] `npm run replay:check` reports all six `ok`.
-- [ ] `git diff --stat packages/content/data/` lists **exactly one file**,
+- [x] `npm run replay:check` reports all six `ok`.
+- [x] `git diff --stat packages/content/data/` lists **exactly one file**,
       `rusted-cleaver.json`.
-- [ ] A test asserts an item base authored without `handedness` parses to
+- [x] A test asserts an item base authored without `handedness` parses to
       `'one-handed'`, and one authored `"handedness": "sometimes"` **fails**
       validation naming the field.
-- [ ] A test asserts `rusted-cleaver` parses to `handedness: 'two-handed'` and
+- [x] A test asserts `rusted-cleaver` parses to `handedness: 'two-handed'` and
       that its `tags` no longer contain `'two-handed'`.
-- [ ] A test asserts `rollItem` copies `base.levelRequirement`,
+- [x] A test asserts `rollItem` copies `base.levelRequirement`,
       `base.itemClass` and `base.handedness` onto its result **unchanged**, at
       two different `itemLevel`s and two different rarities — proving none is
       scaled.
-- [ ] A test asserts the returned item is still plain JSON:
+- [x] A test asserts the returned item is still plain JSON:
       `JSON.parse(JSON.stringify(item))` deep-equals `item`.
-- [ ] A test pins that the widening consumed no draw: two `rollItem` calls from
+- [x] A test pins that the widening consumed no draw: two `rollItem` calls from
       identically seeded `createRng`s produce identical items, and the two runs'
       post-call rng states are equal (assert equality between two runs, not a
       literal).
-- [ ] `npm run sim -- run loot-smoke --seed 1` passes and `npm run smoke` is
+- [x] `npm run sim -- run loot-smoke --seed 1` passes and `npm run smoke` is
       green.
-- [ ] Removing `levelRequirement` from core's `LootItemBase` makes
+- [x] Removing `levelRequirement` from core's `LootItemBase` makes
       `npm run typecheck` fail via `core-sync.test.ts`; the same for
       `handedness`.
 
@@ -284,10 +284,68 @@ mutually exclusive pair at today's roster size.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
 - **What changed:**
+  - `packages/content/src/schemas/index.ts:43` — `ItemBaseSchema` gains
+    `handedness: z.enum(['one-handed', 'two-handed']).default('one-handed')`,
+    exactly as Requirement 1 specifies, with the two rejected authorities
+    recorded in the field's doc comment.
+  - `packages/content/data/items/rusted-cleaver.json` — the one authored value
+    (`"handedness": "two-handed"`) and `"tags": ["starter"]`. No other data file
+    is touched: `git diff --stat packages/content/data/` lists one file.
+  - `packages/core/src/loot/roll.ts` — `LootItemBase` (`:72-94`) and
+    `RolledItem` (`:113-128`) each gain the three required fields, and `rollItem`
+    copies them verbatim (`:248-250`). The module header (`:16-21`), both
+    interfaces and `rollItem`'s doc block (`:180-185`) cite decisions 0069 and
+    0071 and state that `itemLevel` scales affixes, never these three.
+  - `packages/core/src/loot/roll.test.ts` — the seven hand-built `LootItemBase`
+    literals gain the three fields, plus a two-handed `cleaver` base and a new
+    describe block covering the copy across two item levels × two rarities, the
+    JSON round trip on the widened item, and the no-extra-draw pin (equality
+    between two runs' post-call rng states, not against a literal).
+  - `packages/content/src/core-sync.test.ts` — the compile-time mirror
+    (`ContentItemBase` assignable to `CoreLootItemBase`, whole shape and per
+    field; the two string fields' reverse direction pinned `false`, like
+    `LootRarity`, because core keeps them opaque) and the runtime enum pin
+    (`ItemBaseSchema.shape.handedness.removeDefault().options`), plus the
+    default-parses and typo-rejected cases.
+- **Verified:** `npm run verify` exits 0 — content ok, 53 entries, 11 items;
+  smoke 8 scenarios × 20 seeds all ok; `replay:check` **6/6 ok**.
+  `git diff --stat packages/sim/replays/` is empty.
+  Removing `levelRequirement` from core's `LootItemBase` fails `npm run
+  typecheck` at `core-sync.test.ts(198,24)` and `(223,24)`; removing
+  `handedness` fails at `core-sync.test.ts(204,24)`, `(217,11)` and `(218,24)`
+  — both measured by making the edit and running the typechecker.
+  The three fields were read out of the real registry through `rollItem` at
+  `itemLevel` 25: `rusted-cleaver` → `levelRequirement 1 / axe / two-handed`,
+  `battered-plate` → `8 / heavy-armor / one-handed`, both unscaled.
 - **Replays re-blessed:** none — no golden replay rolls an item or embeds an
-  item base.
-- **Scope deviations:**
+  item base. `loot-smoke`'s own state hash *does* move
+  (`94c7e6832f6b570d` → `fc270473004d6cd5` at seed 1), because its `RolledLoot`
+  components now carry three more fields; `loot-smoke` is not one of the six
+  pinned replays, which is the whole reason this window is free.
+- **Scope deviations:** one. `packages/content/src/data.test.ts` gained a new
+  test (`:57-77`) rather than the "one-line fix" the Files-in-scope note
+  anticipated. Nothing in it was *surprised* by the defaulted field — it is the
+  home for the acceptance criterion "a test asserts `rusted-cleaver` parses to
+  `handedness: 'two-handed'` and that its `tags` no longer contain
+  `'two-handed'`", and it is the only test file that loads the shipped data.
+  `packages/content/src/registry.test.ts` is untouched (its `validItem` fixture
+  takes the default). `packages/core/src/index.ts` is untouched — the widening
+  adds no exported symbol. `loot-smoke.ts` is untouched, and the typechecker
+  agreed: its inline `bases` array is not a `LootItemBase`, and
+  `registry.item(id)` still satisfies `rollItem`'s parameter structurally.
 - **Follow-ups worth a new task:**
+  - The trace cannot see handedness. `loot-smoke`'s `describeItem` prints
+    `base (slot, ilvl N, rarity)` only, so the field crossing the seam is
+    invisible in scenario output — I had to read it out of a rolled item
+    directly. When task 0750 puts items on the ground, a trace line that names
+    handedness (or the gate) would make the block and the level gate legible
+    without a side script. Out of scope here; `loot-smoke` is an unpinned
+    scenario whose snapshot state this task was told not to widen.
+  - `LootPoolContext.bases` (`packages/sim/src/scenarios/loot-smoke.ts:64`)
+    carries `{ id, slot, implicits }`, so the smoke's invariants cannot audit
+    the three new fields against their source bases the way they audit mod
+    values. Widening it is a deliberate snapshot change and belongs with
+    whichever task next re-blesses that scenario.
+  - Nothing was minted: decisions 0069 and 0071 covered every choice, including
+    the two rejected authorities, the field name, and the default.

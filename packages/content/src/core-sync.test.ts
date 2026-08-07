@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type {
   AffixKind as CoreAffixKind,
   DamageType as CoreDamageType,
+  LootItemBase as CoreLootItemBase,
   LootRarity as CoreLootRarity,
   SkillEffectSource as CoreSkillEffectSource,
   StatModMode as CoreStatModMode,
@@ -13,12 +14,13 @@ import { STAT_KEYS as CORE_STAT_KEYS } from '@triablo/core'
 import type {
   Affix,
   DAMAGE_TYPES,
+  ItemBase as ContentItemBase,
   MOD_MODES,
   RARITIES,
   SkillEffect as ContentSkillEffect,
   StatModRange as ContentStatModRange,
 } from '@triablo/content'
-import { SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
+import { ItemBaseSchema, SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
 
 /**
  * The core↔content vocabulary contract, made mechanical.
@@ -42,8 +44,13 @@ import { SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
  *   mutual-assignability assertions. Their failure mode is a
  *   `npm run typecheck` error on a `: true = true` assignment below, not a
  *   red test at runtime. The loot mirrors from `roll.ts` (`AffixKind`,
- *   `StatModRange`, `LootRarity`) are checked the same way — with the twist
- *   that `LootRarity` is asymmetric on purpose (see its test below).
+ *   `StatModRange`, `LootRarity`, `LootItemBase`) are checked the same way —
+ *   with the twist that `LootRarity` and two of `LootItemBase`'s fields are
+ *   asymmetric on purpose (see their tests below).
+ *
+ * `handedness` gets both kinds: compile-time for the shape, and a runtime pin
+ * on the enum's members, because core holds it as an opaque `string` and so
+ * cannot notice a third one arriving (decision 0071).
  */
 
 type ContentDamageType = (typeof DAMAGE_TYPES)[number]
@@ -174,6 +181,89 @@ describe('core↔content vocabulary sync', () => {
       ],
     })
     expect(withUnknownKind.success).toBe(false)
+  })
+
+  it('a content ItemBase is still a core LootItemBase (enforced at compile time)', () => {
+    // What this protects: `loot-smoke.ts` hands `registry.item(id)` — a parsed
+    // content `ItemBase` — straight to `rollItem`, which wants a
+    // `LootItemBase`. That only typechecks while content covers every field
+    // core declares, so drop `levelRequirement`, `itemClass` or `handedness`
+    // from either side and this line stops resolving to `true`.
+    const contentWithinCore: Covers<ContentItemBase, CoreLootItemBase> = true
+
+    // Per field, so a whole-shape failure says *which* field moved. The three
+    // that decisions 0069 and 0071 pushed across the seam:
+    const levelReqNarrows: Covers<
+      ContentItemBase['levelRequirement'],
+      CoreLootItemBase['levelRequirement']
+    > = true
+    const itemClassNarrows: Covers<ContentItemBase['itemClass'], CoreLootItemBase['itemClass']> =
+      true
+    const handednessNarrows: Covers<
+      ContentItemBase['handedness'],
+      CoreLootItemBase['handedness']
+    > = true
+
+    // The reverse direction is deliberately `false` for the two string fields,
+    // like `LootRarity` below: core keeps `itemClass` and `handedness` opaque
+    // `string`s on purpose (`roll.ts`'s "the roller only ever compares them for
+    // equality" rule), while content constrains both to enums. If one of these
+    // ever resolves to `true`, core has adopted content's vocabulary — a
+    // deliberate decision, not something to let drift in silently.
+    const coreItemClassIsOpaque: Covers<
+      CoreLootItemBase['itemClass'],
+      ContentItemBase['itemClass']
+    > = false
+    const coreHandednessIsOpaque: Covers<
+      CoreLootItemBase['handedness'],
+      ContentItemBase['handedness']
+    > = false
+    // `levelRequirement` is `number` on both sides, so it *is* symmetric.
+    const levelReqIsSymmetric: Covers<
+      CoreLootItemBase['levelRequirement'],
+      ContentItemBase['levelRequirement']
+    > = true
+
+    expect(contentWithinCore).toBe(true)
+    expect(levelReqNarrows && itemClassNarrows && handednessNarrows).toBe(true)
+    expect(levelReqIsSymmetric).toBe(true)
+    expect(coreItemClassIsOpaque || coreHandednessIsOpaque).toBe(false)
+  })
+
+  it('the handedness enum has exactly the two members the rules read (decision 0071)', () => {
+    // Core cannot express this one: `handedness` is an opaque `string` there,
+    // so a third schema member would flow into core and be compared against
+    // `'two-handed'` by decision 0070's block — reading as one-handed, in
+    // silence. Decision 0071 names that case ("versatile") as its revisit
+    // trigger, so it fails here instead: adding a member means auditing every
+    // handedness comparison, then updating this list on purpose.
+    expect(ItemBaseSchema.shape.handedness.removeDefault().options).toEqual([
+      'one-handed',
+      'two-handed',
+    ])
+
+    // The default is what lets 10 of the 11 authored bases stay untouched.
+    const parsed = ItemBaseSchema.parse({
+      id: 'sync-fixture-blade',
+      name: 'Sync Fixture Blade',
+      slot: 'main-hand',
+      itemClass: 'sword',
+      levelRequirement: 1,
+    })
+    expect(parsed.handedness).toBe('one-handed')
+
+    // And `.strict()` plus the enum means a typo is a validation error naming
+    // the field, rather than a tag that silently disables the block.
+    const typo = ItemBaseSchema.safeParse({
+      id: 'sync-fixture-blade',
+      name: 'Sync Fixture Blade',
+      slot: 'main-hand',
+      itemClass: 'sword',
+      levelRequirement: 1,
+      handedness: 'sometimes',
+    })
+    expect(typo.success).toBe(false)
+    expect(typo.error?.issues.map((issue) => issue.path.join('.'))).toContain('handedness')
   })
 
   it('LootRarity is a strict subset of content rarities (enforced at compile time)', () => {
