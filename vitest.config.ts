@@ -23,6 +23,16 @@ export default defineConfig({
   test: {
     include: ['packages/**/*.test.ts'],
     environment: 'node',
+    // Vitest defaults to 5s. Several tests are deliberately heavy statistical
+    // sweeps (`loot/roll.test.ts` rolls 50k items, `combat/damage.test.ts` and
+    // `combat/stats.test.ts` run thousands of trials) and they pass in well
+    // under a second on an idle machine. Under the parallel-agent workflow this
+    // repo is built around — several agents each running `npm run verify` at
+    // once — CPU contention pushed one of them past 5s twice on 2026-08-06,
+    // producing a single unexplained failure that passed on re-run. A flaky
+    // gate is worse than a slow one: it teaches agents to re-run rather than
+    // trust a failure. This ceiling is for contention, not for slow tests.
+    testTimeout: 15000,
     coverage: {
       provider: 'v8',
       include: ['packages/*/src/**'],
