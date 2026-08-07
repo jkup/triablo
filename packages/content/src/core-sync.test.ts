@@ -8,7 +8,7 @@ import type {
   StatModMode as CoreStatModMode,
   StatModRange as CoreStatModRange,
 } from '@triablo/core'
-import { STAT_KEYS as CORE_STAT_KEYS } from '@triablo/core'
+import { EQUIPMENT_SLOTS as CORE_EQUIPMENT_SLOTS, STAT_KEYS as CORE_STAT_KEYS } from '@triablo/core'
 
 import type {
   Affix,
@@ -18,7 +18,11 @@ import type {
   SkillEffect as ContentSkillEffect,
   StatModRange as ContentStatModRange,
 } from '@triablo/content'
-import { SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
+import {
+  EQUIPMENT_SLOTS as CONTENT_EQUIPMENT_SLOTS,
+  SkillSchema,
+  STAT_KEYS as CONTENT_STAT_KEYS,
+} from '@triablo/content'
 
 /**
  * The core↔content vocabulary contract, made mechanical.
@@ -33,10 +37,11 @@ import { SkillSchema, STAT_KEYS as CONTENT_STAT_KEYS } from '@triablo/content'
  *
  * Two kinds of check:
  *
- * - `STAT_KEYS` is a runtime const on both sides, so it gets a runtime test —
- *   with **exact order**, because core documents that `ComputedStats`
- *   serializes in `STAT_KEYS` order and serialization order feeds state
- *   hashes. A set-equality check would let the order silently diverge.
+ * - `STAT_KEYS` and `EQUIPMENT_SLOTS` are runtime consts on both sides, so they
+ *   get runtime tests — with **exact order**, because core documents that
+ *   `ComputedStats` serializes in `STAT_KEYS` order and serialization order
+ *   feeds state hashes. A set-equality check would let the order silently
+ *   diverge.
  * - `DamageType` and `StatModMode` are type-only on the core side (core
  *   exports no runtime array for them, by design), so those are compile-time
  *   mutual-assignability assertions. Their failure mode is a
@@ -64,6 +69,18 @@ describe('core↔content vocabulary sync', () => {
   it('STAT_KEYS match exactly, order included', () => {
     // toEqual on arrays is order-sensitive, which is the point (see above).
     expect([...CORE_STAT_KEYS]).toEqual([...CONTENT_STAT_KEYS])
+  })
+
+  it('EQUIPMENT_SLOTS match exactly, order included', () => {
+    // Core mirrors the slot vocabulary in `packages/core/src/loot/equipment.ts`
+    // because it cannot import content. Order is load-bearing on both sides:
+    // task 0830's fold over worn items walks slots in this order, and
+    // `packages/core/src/loot/budget.ts:166-171` calibrates every affix ceiling
+    // in the game against `equipmentSlotCount: 9` — so a tenth slot added on
+    // one side alone is a silent balance change. `toEqual` on arrays is
+    // order-sensitive, which is the point.
+    expect([...CORE_EQUIPMENT_SLOTS]).toEqual([...CONTENT_EQUIPMENT_SLOTS])
+    expect(CORE_EQUIPMENT_SLOTS).toHaveLength(9)
   })
 
   it('DamageType unions are mutually assignable (enforced at compile time)', () => {
