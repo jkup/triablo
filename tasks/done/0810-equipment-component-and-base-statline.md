@@ -278,9 +278,76 @@ with a named alternative, not a constraint.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
-
 - **What changed:**
+  - `packages/core/src/loot/equipment.ts` (new): `EQUIPMENT_SLOTS` (the nine
+    slots, core-side mirror, content is the follower on a divergence),
+    `EquipmentSlot`, `isEquipmentSlot`, the `Equipment` component
+    (`{ base: CombatantBaseStats; slots: Partial<Record<EquipmentSlot, RolledItem>> }`)
+    and `makeEquipment(base)`, which copies the base. **Attached to nothing.**
+  - `packages/core/src/loot/equipment.test.ts` (new): 17 tests. Every hash
+    assertion is relational — no 16-hex literal is pinned.
+  - `packages/core/src/index.ts`: one added export line plus its type line,
+    appended above the `world/grid` block.
+  - `packages/content/src/core-sync.test.ts`: one added runtime check,
+    `EQUIPMENT_SLOTS match exactly, order included`, in the shape of the
+    existing `STAT_KEYS` check (plus the header's "two kinds of check" bullet
+    updated to name it).
+  - `docs/decisions/0073-equipped-state-is-a-player-only-component.md` (new).
+
+  **Measurements taken on this branch, not inherited.** Both temporary edits
+  were reverted; `git status` is clean of them.
+
+  | what was measured | result |
+  |---|---|
+  | shipped state (defined, attached to nothing) | **0 of 6** goldens move; crawl `a3171faa7f656eed`, unchanged |
+  | `world.add(avatar, Equipment, makeEquipment(PLAYER_STATS))` in `dungeon-crawl.ts` | **1 of 6** — `dungeon-crawl.seed1.json`, `a3171faa7f656eed` → `8ebc4ce46170c4c2` |
+  | the same state as a `Combatant` field (`equipment: {}`) | **5 of 6** — `content-seam`, `duel`, `dungeon-crawl`, `skill-strike`, `status-dot` fail; only `harness-selftest` survives |
+
+  The 1-of-6 row reproduces the hash this task file predicted
+  (`8ebc4ce46170c4c2`) and the 5-of-6 row reproduces task 0800 §2's option-C
+  hashes exactly (crawl `1e3556f4057dd14c`). Measuring stick for all three: the
+  six files in `packages/sim/replays/`, `npm run replay:check`, branched from
+  `main` at `6b8980a`.
+
+  `npm run verify` exit 0: **38 test files, 650 tests passed**, content ok
+  (53 entries), smoke 8 scenarios × 20 seeds all ok, all 6 replays ok.
+  `npm run sim -- run dungeon-crawl --seed 1 --verbose` ends
+  `avatarLife 59/200`, `avatarDamageDealt 362`, `waypointsReached 7/7`,
+  `state hash a3171faa7f656eed` — byte-identical to the baseline, and the word
+  "equip" appears **0 times** in the trace. That is the intended result: this
+  task's feature is deliberately invisible to every scenario, so the trace
+  proves absence and the unit tests plus the temporary-attach measurement above
+  prove the component works.
+
 - **Replays re-blessed:** none — nothing attaches the component.
-- **Scope deviations:**
+  `git diff --stat packages/sim/replays/` is empty.
+
+- **Scope deviations:** none. Files touched are exactly the five named in Files
+  in scope. Two additions beyond the letter of the acceptance list, both inside
+  the named files: a test that an emptied `Equipment` store is hash-neutral
+  *again* after `remove` (the acceptance criterion's cited mechanism,
+  `ecs.ts:395`, only fires for a store that exists and is empty — a
+  never-touched component creates no store at all, so the criterion as written
+  is proved by the weaker path; both are pinned), and `isEquipmentSlot`
+  rejecting inherited `Object` keys (`'toString'`), since the guard is backed by
+  a `Set` and a future `in`-based rewrite would silently accept them.
+
 - **Follow-ups worth a new task:**
+  - **Task 0840 should carry `8ebc4ce46170c4c2` forward.** That is the crawl
+    hash for `makeEquipment(PLAYER_STATS)` on the avatar with `slots: {}`,
+    measured here. If 0840 gets a different one, either the base statline it
+    attaches is not `PLAYER_STATS` or something else moved.
+  - **Nothing enforces `slots[s].slot === s`.** A mis-keyed record — a
+    main-hand item stored under `off-hand` — is representable and would survive
+    the round trip. `equip()` (task 0830) is the natural place to reject it;
+    worth an explicit line in that task rather than leaving it to be discovered.
+  - **`isEquipmentSlot` has no runtime consumer yet.** It exists so that
+    `RolledItem.slot` (an opaque `string` in core) can be narrowed at the one
+    boundary that needs it. If tasks 0830/0850 do not route through it, it is
+    dead code and should be either used or deleted, not left as decoration.
+  - **The base statline is duplicated at spawn.** `PLAYER_STATS` exists twice
+    (`dungeon-crawl.ts:85`, `client/game.ts:53`) and a third copy will land in
+    each `Equipment`. That is deliberate here (the copy is the anti-aliasing
+    rule), but the two *authored* constants drifting apart would give the sim
+    and the client different avatars — worth a pin test somewhere, and it is
+    not this task's file.
