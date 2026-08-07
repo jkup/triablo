@@ -318,6 +318,15 @@ mutually exclusive pair at today's roster size.
   The three fields were read out of the real registry through `rollItem` at
   `itemLevel` 25: `rusted-cleaver` → `levelRequirement 1 / axe / two-handed`,
   `battered-plate` → `8 / heavy-armor / one-handed`, both unscaled.
+- **Removal and addition are different failures — only the runtime pin catches
+  addition.** The review made this point and it is right; measured here by
+  adding `'versatile'` to the schema enum. `npm run typecheck` stays **green**
+  (exit 0) — core holds `handedness` as an opaque `string`, so a third content
+  member is still assignable and no compile-time mirror can notice it. The only
+  thing that fails is the runtime `options` pin:
+  `core-sync.test.ts:258` → `expected [ 'one-handed', 'two-handed', …(1) ] to
+  deeply equal [ 'one-handed', 'two-handed' ]`. That pin, not the removal
+  experiments above, is what satisfies decision 0071's named revisit trigger.
 - **Replays re-blessed:** none — no golden replay rolls an item or embeds an
   item base. `loot-smoke`'s own state hash *does* move
   (`94c7e6832f6b570d` → `fc270473004d6cd5` at seed 1), because its `RolledLoot`
@@ -334,6 +343,50 @@ mutually exclusive pair at today's roster size.
   adds no exported symbol. `loot-smoke.ts` is untouched, and the typechecker
   agreed: its inline `bases` array is not a `LootItemBase`, and
   `registry.item(id)` still satisfies `rollItem`'s parameter structurally.
+
+  Three further files were touched **by the merge with task 0810**, not by the
+  original diff (see the merge note below): `core-sync.test.ts`'s import
+  statement, `equipment.test.ts`'s `itemFor` helper, and two stale line
+  citations in `equipment.ts`.
+- **Merge with task 0810 (`518ae7a`).** One git conflict, plus two things git
+  merged cleanly that were nonetheless broken:
+  - `packages/content/src/core-sync.test.ts` — the conflict, in the
+    `@triablo/content` import both tasks extended. Resolved by keeping **both**
+    (`EQUIPMENT_SLOTS` and `ItemBaseSchema`); each is an acceptance criterion of
+    its own task. I read the merged file end to end: 0810's `EQUIPMENT_SLOTS`
+    check (`:82-92`) and my two tests (`:204-285`) are disjoint, no assertion is
+    duplicated or contradicted, and the header doc block merged coherently —
+    0810 widened the first bullet to cover both runtime consts and my
+    `handedness` paragraph survived beside it.
+  - `packages/core/src/loot/equipment.test.ts:22-49` — merged cleanly and
+    **failed typecheck**: 0810's `itemFor` builds a `RolledItem` literal, and
+    my three fields are required. Given the three inert values with a comment
+    saying why (that file tests where a worn item is *stored*, not whether it
+    may be worn). No hash in that file is pinned to a literal — all its
+    assertions compare two worlds — so the widened fixture changes nothing it
+    proves.
+  - `packages/core/src/loot/equipment.ts:61,77,108` — three `./roll.ts:N-M`
+    citations that my header insertion shifted, all now stale by exactly the
+    number of lines I added. Repointed to `:108-112`, `:23-28` and `:113-128`
+    against the current file. Frozen historical citations in `tasks/done/` and
+    in decisions 0069/0071 were deliberately **not** touched: they record what
+    was measured before this task.
+
+  After the merge: `npm run verify` green again, `replay:check` 6/6 ok,
+  `git diff --stat origin/main -- packages/sim/replays/` empty, and
+  `loot-smoke` seed 1 still hashes `fc270473004d6cd5` — the merge disturbed
+  nothing.
+- **Two defects in this task file, for whoever copies its phrasing:**
+  - The "no draw" acceptance criterion is **vacuous as worded**. Two
+    identically-seeded runs produce identical items and identical end states
+    whether or not the widening spent draws — the seed determines both. The
+    test as written exceeds it (it also compares the end state across two
+    *different* bases differing only in the three fields), and the real proof
+    was that the `loot-smoke` trace is byte-identical except for the hash line.
+  - Files-in-scope said `data.test.ts` should be "expected **untouched**" while
+    an acceptance criterion required a `rusted-cleaver` assertion over shipped
+    data. Those cannot both hold; the disclosed deviation above is the
+    resolution.
 - **Follow-ups worth a new task:**
   - The trace cannot see handedness. `loot-smoke`'s `describeItem` prints
     `base (slot, ilvl N, rarity)` only, so the field crossing the seam is
