@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
 import { Rng } from '../rng'
-import type { CombatantBaseStats } from './components'
-import { makeCombatant, toDamageAttacker } from './components'
+import type { Combatant, CombatantBaseStats } from './components'
+import { makeCombatant, refitCombatant, toDamageAttacker } from './components'
 import { computeDamage } from './damage'
+import type { StatMod } from './stats'
 import { computeStats } from './stats'
 
 const SKELETON_STATS: CombatantBaseStats = {
@@ -13,6 +14,41 @@ const SKELETON_STATS: CombatantBaseStats = {
   damageType: 'physical',
   attackIntervalSeconds: 1.4,
   moveSpeed: 2.6,
+}
+
+/** The decision-0030 slice avatar (`packages/sim/src/scenarios/dungeon-crawl.ts#PLAYER_STATS`). */
+const AVATAR_STATS: CombatantBaseStats = {
+  life: 200,
+  armor: 14,
+  damage: 18,
+  damageType: 'physical',
+  attackIntervalSeconds: 1.2,
+  moveSpeed: 2.4,
+}
+
+/**
+ * Task 0590's worked-example chest, flattened: `battered-plate`'s implicit
+ * (armor flat 24) plus `stalwart` T1 (armor flat 12), `undying` T1 and
+ * `of-the-bear` T1 (max-life flat 48 each) and `vital` T1 (vitality flat 9),
+ * every roll at its maximum.
+ *
+ * Written out rather than produced by `itemMods`, which task 0590 owns and has
+ * not landed. The measuring stick for every number in this file: **one
+ * character — the level-5 slice avatar — wearing exactly this one chest.**
+ * Folded onto `AVATAR_STATS` it gives armor 14+24+12 = 50 and max-life
+ * 200+48+48+(9 vitality × 4, decision 0031) = 332.
+ */
+const CHEST_MODS: readonly StatMod[] = [
+  { stat: 'armor', mode: 'flat', value: 24 },
+  { stat: 'armor', mode: 'flat', value: 12 },
+  { stat: 'max-life', mode: 'flat', value: 48 },
+  { stat: 'max-life', mode: 'flat', value: 48 },
+  { stat: 'vitality', mode: 'flat', value: 9 },
+]
+
+/** The avatar as `dungeon-crawl` seed 1 leaves it: hurt, and having fought. */
+function woundedAvatar(overrides: Partial<Combatant> = {}): Combatant {
+  return { ...makeCombatant('avatar', 5, AVATAR_STATS), life: 59, damageDealt: 362, ...overrides }
 }
 
 describe('makeCombatant', () => {
@@ -60,6 +96,135 @@ describe('makeCombatant', () => {
   it('produces plain JSON data that survives the save round trip', () => {
     const combatant = makeCombatant('zombie', 2, SKELETON_STATS)
     expect(JSON.parse(JSON.stringify(combatant))).toEqual(combatant)
+  })
+})
+
+/**
+ * `makeCombatant` is a constructor and a refit is not a construction. Decision
+ * 0068 rules the recompute and the no-heal clamp; decision 0074 rules the
+ * `ticksUntilAttack` half. Every number below is measured against one stick:
+ * the level-5 slice avatar wearing exactly one chest ({@link CHEST_MODS}).
+ */
+describe('refitCombatant', () => {
+  it('recomputes the five derived fields from base + mods', () => {
+    const refit = refitCombatant(makeCombatant('avatar', 5, AVATAR_STATS), AVATAR_STATS, CHEST_MODS)
+
+    expect(refit.maxLife).toBe(332)
+    expect(refit.armor).toBe(50)
+    expect(refit.damage).toBe(18)
+    expect(refit.moveSpeed).toBe(2.4)
+    expect(refit.attackIntervalTicks).toBe(36)
+  })
+
+  /**
+   * Decision 0068: `life = min(life, newMaxLife)` and otherwise unchanged, so
+   * decision 0060's level-up heal stays the only heal in the game. The three
+   * rejected rules are named by their arithmetic so a future "fix" toward any
+   * of them fails here rather than in a playtest:
+   *
+   *   full rebuild  332/332  a +273 free heal, per equip, repeatable at will
+   *   delta-matched 191/332  +132, the chest's whole max-life contribution
+   *   proportional   98/332  +39, 59 × 332/200
+   */
+  it('is not a heal: 59/200 wearing the chest is 59/332', () => {
+    const refit = refitCombatant(woundedAvatar(), AVATAR_STATS, CHEST_MODS)
+
+    expect(refit.life).toBe(59)
+    expect(refit.maxLife).toBe(332)
+
+    expect(refit.life).not.toBe(332) // full rebuild
+    expect(refit.life).not.toBe(191) // delta-matched
+    expect(refit.life).not.toBe(98) // proportional
+  })
+
+  it('clamps life down when gear is removed: 300/332 unequips to 200/200', () => {
+    const geared = { ...refitCombatant(woundedAvatar(), AVATAR_STATS, CHEST_MODS), life: 300 }
+    expect(geared.maxLife).toBe(332)
+
+    const stripped = refitCombatant(geared, AVATAR_STATS, [])
+    expect(stripped.life).toBe(200)
+    expect(stripped.maxLife).toBe(200)
+  })
+
+  /**
+   * `dungeon-crawl` fails its run when the avatar's `damageDealt` falls below
+   * the total monster life it killed, and today's crawl sits exactly at that
+   * boundary (362 against 362). One wipe anywhere fails the scenario.
+   */
+  it('never writes damageDealt, across a refit that moves maxLife, armor and damage', () => {
+    const before = woundedAvatar()
+    const refit = refitCombatant(before, AVATAR_STATS, [
+      ...CHEST_MODS,
+      { stat: 'damage', mode: 'flat', value: 28 },
+    ])
+
+    expect(refit.damageDealt).toBe(362)
+    expect(refit.maxLife).not.toBe(before.maxLife)
+    expect(refit.armor).not.toBe(before.armor)
+    expect(refit.damage).not.toBe(before.damage)
+  })
+
+  /**
+   * Decision 0074. Preservation stops a re-equip from resetting the swing
+   * timer — against the avatar's 36-tick interval, a reset per tick is a 36×
+   * damage rate and silently repeals decision 0010's cadence. The clamp stops a
+   * slow-to-fast swap from being momentarily slower than either weapon.
+   */
+  it('preserves ticksUntilAttack when the new interval is longer', () => {
+    const slow: CombatantBaseStats = { ...AVATAR_STATS, attackIntervalSeconds: 2 }
+    const refit = refitCombatant(woundedAvatar({ ticksUntilAttack: 20 }), slow)
+
+    expect(refit.attackIntervalTicks).toBe(60)
+    expect(refit.ticksUntilAttack).toBe(20)
+  })
+
+  it('clamps ticksUntilAttack down to the new interval when it is shorter', () => {
+    const fast: CombatantBaseStats = { ...AVATAR_STATS, attackIntervalSeconds: 0.4 }
+    const refit = refitCombatant(woundedAvatar({ ticksUntilAttack: 30 }), fast)
+
+    expect(refit.attackIntervalTicks).toBe(12)
+    expect(refit.ticksUntilAttack).toBe(12)
+  })
+
+  it('leaves a mid-swing timer alone when the interval does not change', () => {
+    const refit = refitCombatant(woundedAvatar({ ticksUntilAttack: 30 }), AVATAR_STATS, CHEST_MODS)
+    expect(refit.ticksUntilAttack).toBe(30) // not 0 — a re-equip is not a free swing
+  })
+
+  it('is the identity on a gearless combatant', () => {
+    const combatant = makeCombatant('avatar', 5, AVATAR_STATS)
+    expect(refitCombatant(combatant, AVATAR_STATS, [])).toEqual(combatant)
+    expect(refitCombatant(combatant, AVATAR_STATS)).toEqual(combatant)
+  })
+
+  it('copies the identity fields and never mutates the combatant it was given', () => {
+    const before = woundedAvatar({ ticksUntilAttack: 11 })
+    const snapshot = { ...before }
+    const refit = refitCombatant(before, AVATAR_STATS, CHEST_MODS)
+
+    expect(refit).not.toBe(before)
+    expect(before).toEqual(snapshot)
+    expect(refit.monsterId).toBe('avatar')
+    expect(refit.level).toBe(5) // decision 0004's attacker level, not Progression.level
+  })
+
+  /**
+   * No `StatKey` maps to damage type, so gear cannot change it through
+   * `computeStats` at all. Reading it from `base` would let a stale stored
+   * statline silently change a character's element, so it is copied from the
+   * live combatant instead.
+   */
+  it('copies damageType from the combatant, not from the base statline', () => {
+    const current = { ...woundedAvatar(), damageType: 'fire' as const }
+    const refit = refitCombatant(current, AVATAR_STATS, CHEST_MODS)
+
+    expect(AVATAR_STATS.damageType).toBe('physical')
+    expect(refit.damageType).toBe('fire')
+  })
+
+  it('produces plain JSON data that survives the save round trip', () => {
+    const refit = refitCombatant(woundedAvatar(), AVATAR_STATS, CHEST_MODS)
+    expect(JSON.parse(JSON.stringify(refit))).toEqual(refit)
   })
 })
 

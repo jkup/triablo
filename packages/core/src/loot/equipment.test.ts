@@ -6,7 +6,7 @@ import type { EntityId, WorldSnapshot } from '../ecs'
 import { World } from '../ecs'
 import { PlayerControlled } from '../player/components'
 import type { EquipmentSlot } from './equipment'
-import { Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment } from './equipment'
+import { equip, Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment, unequip } from './equipment'
 import type { RolledItem } from './roll'
 
 /** The decision-0030 avatar's statline (`dungeon-crawl.ts:85-92`). */
@@ -320,5 +320,265 @@ describe('Equipment component', () => {
     const { world, player } = buildWorld({ slots: { 'main-hand': MAIN_HAND } })
     const restored = World.restore(world.snapshot())
     expect(restored.getOrThrow(player, Equipment).base).toEqual(AVATAR_STATS)
+  })
+})
+
+/**
+ * The three shipped bases the runtime gate actually separates, as `RolledItem`s.
+ * `battered-plate` (chest, levelRequirement 8) and `copper-band` (ring, 3) are
+ * the pair decision 0069 names; `tattered-tunic` (chest, 1) is the item
+ * `battered-plate` swaps out.
+ */
+function baseItem(
+  baseId: string,
+  slot: string,
+  levelRequirement: number,
+  itemClass: string,
+): RolledItem {
+  return {
+    baseId,
+    slot,
+    itemLevel: 5,
+    rarity: 'common',
+    levelRequirement,
+    itemClass,
+    handedness: 'one-handed',
+    implicits: [],
+    affixes: [],
+  }
+}
+
+const BATTERED_PLATE = baseItem('battered-plate', 'chest', 8, 'heavy-armor')
+const TATTERED_TUNIC = baseItem('tattered-tunic', 'chest', 1, 'light-armor')
+const COPPER_BAND = baseItem('copper-band', 'ring', 3, 'jewelry')
+
+describe('equip', () => {
+  it('puts an item into an empty slot and displaces nothing', () => {
+    const result = equip(makeEquipment(AVATAR_STATS), TATTERED_TUNIC, 5)
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    expect(result.equipment.slots.chest).toBe(TATTERED_TUNIC)
+    expect(result.displaced).toEqual([])
+  })
+
+  /**
+   * Decision 0067: there is no inventory in v1, so picking up an item for an
+   * occupied slot swaps and the worn item goes back to the ground. `equip`
+   * never destroys an item — handing the outgoing one to the caller is how it
+   * survives.
+   */
+  it('swaps an occupied slot and reports the outgoing item', () => {
+    const worn = equip(makeEquipment(AVATAR_STATS), TATTERED_TUNIC, 5)
+    expect(worn.ok).toBe(true)
+    if (!worn.ok) return
+
+    const swapped = equip(worn.equipment, BATTERED_PLATE, 8)
+    expect(swapped.ok).toBe(true)
+    if (!swapped.ok) return
+
+    expect(swapped.equipment.slots.chest).toBe(BATTERED_PLATE)
+    expect(swapped.displaced).toEqual([TATTERED_TUNIC])
+    // The input is untouched: it still wears what it wore.
+    expect(worn.equipment.slots.chest).toBe(TATTERED_TUNIC)
+  })
+
+  it('never mutates its input, and never shares a slots record with it', () => {
+    const before = makeEquipment(AVATAR_STATS)
+    const result = equip(before, COPPER_BAND, 5)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(before.slots).toEqual({})
+    expect(result.equipment).not.toBe(before)
+    expect(result.equipment.slots).not.toBe(before.slots)
+    expect(result.equipment.base).not.toBe(before.base)
+    expect(result.equipment.base).toEqual(AVATAR_STATS)
+  })
+
+  it('leaves every other worn slot in place', () => {
+    let equipment = makeEquipment(AVATAR_STATS)
+    for (const slot of EQUIPMENT_SLOTS) {
+      const result = equip(equipment, itemFor(slot), 5)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      equipment = result.equipment
+    }
+
+    expect(Object.keys(equipment.slots)).toEqual([...EQUIPMENT_SLOTS])
+    const swap = equip(equipment, COPPER_BAND, 5)
+    expect(swap.ok).toBe(true)
+    if (!swap.ok) return
+    expect(Object.keys(swap.equipment.slots)).toEqual([...EQUIPMENT_SLOTS])
+    expect(swap.equipment.slots.ring).toBe(COPPER_BAND)
+    expect(swap.equipment.slots.head).toBe(equipment.slots.head)
+  })
+
+  it('refuses an item above the character level, and accepts it exactly at it', () => {
+    const equipment = makeEquipment(AVATAR_STATS)
+
+    const refused = equip(equipment, BATTERED_PLATE, 5)
+    expect(refused).toEqual({
+      ok: false,
+      reason: 'level-requirement',
+      required: 8,
+      characterLevel: 5,
+    })
+
+    const accepted = equip(equipment, BATTERED_PLATE, 8)
+    expect(accepted.ok).toBe(true)
+  })
+
+  /**
+   * Decision 0069: the gate reads `Progression.level`, never `Combatant.level`.
+   * They are deliberately different quantities — `Combatant.level` is decision
+   * 0004's *attacker* level in the armor curve — and the mistake is invisible in
+   * every current golden, because the crawl avatar never levels and both read 5
+   * for the whole run.
+   *
+   * So the test makes them differ and points them in opposite directions: a
+   * combatant at level 8 that would pass a `Combatant.level` gate, and a
+   * character level of 2 that must refuse both items anyway. `equip` cannot see
+   * a `Combatant` at all, which is the property being pinned.
+   */
+  it('gates on the character level it is given, not on any combatant level', () => {
+    const combatant = makeCombatant('avatar', 8, AVATAR_STATS)
+    expect(combatant.level).toBe(8)
+
+    const equipment = makeEquipment(AVATAR_STATS)
+    const characterLevel = 2
+
+    expect(equip(equipment, BATTERED_PLATE, characterLevel)).toEqual({
+      ok: false,
+      reason: 'level-requirement',
+      required: 8,
+      characterLevel: 2,
+    })
+    expect(equip(equipment, COPPER_BAND, characterLevel)).toEqual({
+      ok: false,
+      reason: 'level-requirement',
+      required: 3,
+      characterLevel: 2,
+    })
+    // And the same character wearing the same combatant may still wear a
+    // level-1 item: the refusals above are the gate, not a blanket denial.
+    expect(equip(equipment, TATTERED_TUNIC, characterLevel).ok).toBe(true)
+  })
+
+  /**
+   * A `RolledItem.slot` is an opaque `string` in core and can arrive from a save
+   * file, so an unknown one is a refusal rather than a throw — the shape
+   * `secondsToTicks` reserves for programmer error is wrong for content.
+   */
+  it('refuses an unknown slot instead of throwing', () => {
+    const equipment = makeEquipment(AVATAR_STATS)
+    const nonsense = baseItem('backpack-of-holding', 'backpack', 1, 'jewelry')
+
+    expect(() => equip(equipment, nonsense, 99)).not.toThrow()
+    expect(equip(equipment, nonsense, 99)).toEqual({
+      ok: false,
+      reason: 'unknown-slot',
+      slot: 'backpack',
+    })
+    expect(equipment.slots).toEqual({})
+  })
+
+  it('reports the unknown slot before the level gate when both fail', () => {
+    const nonsense = baseItem('backpack-of-holding', 'backpack', 80, 'jewelry')
+    const result = equip(makeEquipment(AVATAR_STATS), nonsense, 1)
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.reason).toBe('unknown-slot')
+  })
+
+  it('does not yet block an off-hand under a two-handed main hand (task 0890 owns that)', () => {
+    const twoHander: RolledItem = { ...itemFor('main-hand'), handedness: 'two-handed' }
+    const worn = equip(makeEquipment(AVATAR_STATS), twoHander, 5)
+    expect(worn.ok).toBe(true)
+    if (!worn.ok) return
+
+    expect(equip(worn.equipment, itemFor('off-hand'), 5).ok).toBe(true)
+  })
+})
+
+describe('unequip', () => {
+  it('takes the item off and hands it back', () => {
+    const worn = equip(makeEquipment(AVATAR_STATS), COPPER_BAND, 5)
+    expect(worn.ok).toBe(true)
+    if (!worn.ok) return
+
+    const taken = unequip(worn.equipment, 'ring')
+    expect(taken.removed).toBe(COPPER_BAND)
+    expect(taken.equipment.slots).toEqual({})
+    // Pure: the value it was given still wears the ring.
+    expect(worn.equipment.slots.ring).toBe(COPPER_BAND)
+    expect(taken.equipment.slots).not.toBe(worn.equipment.slots)
+  })
+
+  it('is a no-op on an empty slot, and never a throw', () => {
+    const equipment = makeEquipment(AVATAR_STATS)
+    const taken = unequip(equipment, 'amulet')
+
+    expect(taken.removed).toBeNull()
+    expect(taken.equipment).toEqual(equipment)
+    expect(taken.equipment).not.toBe(equipment)
+  })
+
+  it('leaves the other slots alone', () => {
+    let equipment = makeEquipment(AVATAR_STATS)
+    for (const slot of EQUIPMENT_SLOTS) {
+      const result = equip(equipment, itemFor(slot), 5)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      equipment = result.equipment
+    }
+
+    const taken = unequip(equipment, 'legs')
+    expect(Object.keys(taken.equipment.slots)).toEqual(
+      EQUIPMENT_SLOTS.filter((slot) => slot !== 'legs'),
+    )
+  })
+
+  /**
+   * **The bug the gate cannot catch.** `slots[slot] = undefined` typechecks
+   * against `Partial<Record<…>>`, and within one process it is self-consistent —
+   * `replay:check` stays green over it. It diverges only across a save:
+   * `stableStringify` writes `undefined` as a literal while `JSON.stringify`
+   * drops the key. Decision 0036 rules the convention (an absent rider stays
+   * absent), `Projectile.status` implements it, and this is the assertion that
+   * fails if `unequip` ever assigns instead of omitting.
+   *
+   * Relations, not literals: three worlds holding *no chest*, differing only in
+   * how they got there.
+   */
+  it('leaves a world hashing exactly as if the item had never been equipped', () => {
+    const never = buildWorld({ slots: {} })
+
+    const worn = equip(makeEquipment(AVATAR_STATS), TATTERED_TUNIC, 5)
+    expect(worn.ok).toBe(true)
+    if (!worn.ok) return
+    const taken = unequip(worn.equipment, 'chest')
+
+    const after = buildWorld({ slots: taken.equipment.slots })
+
+    expect(Object.keys(taken.equipment.slots)).toEqual([])
+    expect('chest' in taken.equipment.slots).toBe(false)
+    expect(after.world.hash()).toBe(never.world.hash())
+
+    // And the save round trip does not move it either — the failure mode an
+    // `undefined` slot has and an absent one does not.
+    const saveAndLoad = (world: World): World =>
+      World.restore(JSON.parse(JSON.stringify(world.snapshot())) as WorldSnapshot)
+    expect(saveAndLoad(after.world).hash()).toBe(never.world.hash())
+  })
+
+  it('keeps everything plain JSON through an equip/unequip cycle', () => {
+    const worn = equip(makeEquipment(AVATAR_STATS), MAIN_HAND, 5)
+    expect(worn.ok).toBe(true)
+    if (!worn.ok) return
+
+    expect(JSON.parse(JSON.stringify(worn.equipment))).toEqual(worn.equipment)
+    const taken = unequip(worn.equipment, 'main-hand')
+    expect(JSON.parse(JSON.stringify(taken.equipment))).toEqual(taken.equipment)
   })
 })

@@ -23,7 +23,7 @@ export type {
   DamageType,
 } from './combat/damage'
 
-export { Combatant, makeCombatant, Position, toDamageAttacker } from './combat/components'
+export { Combatant, makeCombatant, Position, refitCombatant, toDamageAttacker } from './combat/components'
 export type { CombatantBaseStats } from './combat/components'
 
 export {
@@ -113,8 +113,15 @@ export type {
   StatModRange,
 } from './loot/roll'
 
-export { Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment } from './loot/equipment'
-export type { EquipmentSlot } from './loot/equipment'
+export {
+  equip,
+  Equipment,
+  EQUIPMENT_SLOTS,
+  isEquipmentSlot,
+  makeEquipment,
+  unequip,
+} from './loot/equipment'
+export type { EquipmentSlot, EquipResult } from './loot/equipment'
 
 export { Grid } from './world/grid'
 export type { GridJSON, Tile } from './world/grid'
