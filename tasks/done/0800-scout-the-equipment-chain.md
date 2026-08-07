@@ -581,12 +581,22 @@ nothing** outside this file.
   the next; `npm run replay:check` reports all six `ok` on the committed tree
   and `npm run verify` passes.
 
-  **Re-run after integrator review** (see the next bullet): the three fixtures
-  now pasted verbatim into §2 and §9 T4 were re-applied exactly as written and
-  reproduced exactly — `2821999485709688` for §2's B′ literal,
-  `f747421b5d967ce0` with `avatarLife 254/332` for T4's chest edit, and all four
-  shape-question hashes from §2's pasted script. All reverted again; the tree is
-  clean.
+  **Re-run after integrator round 1:** the three fixtures now pasted verbatim
+  into §2 and §9 T4 were re-applied exactly as written and reproduced exactly —
+  `2821999485709688` for §2's B′ literal, `f747421b5d967ce0` with
+  `avatarLife 254/332` for T4's chest edit, and all four shape-question hashes
+  from §2's pasted script. All reverted again.
+
+  **Two further throwaway edits in round 3**, to replace an argued equivalence
+  with a measured one (§2's base-statline placement): the crawl avatar was given
+  `Equipment { slots: {} }` **plus** a separate `BaseStats { base }`
+  (`684089851e49d6bc`, 1 of 6), then the single-component E1 shape
+  `Equipment { base, slots: {} }` (`8ebc4ce46170c4c2`, 1 of 6) — the same value
+  the round-3 reviewer obtained independently. Files touched:
+  `packages/core/src/combat/components.ts`, `packages/core/src/index.ts`,
+  `packages/sim/src/scenarios/dungeon-crawl.ts`; all reverted with
+  `git checkout --`. `git status --short` shows only this task file,
+  `npm run replay:check` reports all six `ok`, and `npm run verify` passes.
 
 - **Integrator round 1 (PR #96), two findings, both internal consistency — no
   measurement was wrong.** (1) §2's four shape-question hashes were labelled
@@ -609,8 +619,8 @@ nothing** outside this file.
 
 - **Integrator round 2 (PR #96), one blocking finding — again not a
   measurement.** The plan claimed equipment would be "the first component with
-  optional keys" and asked the owner to rule the empty-slot encoding (its §10
-  Q3). **Both were wrong, and the reviewer was right to block.**
+  optional keys" and carried an owner question asking him to rule the empty-slot
+  encoding. **Both were wrong, and the reviewer was right to block.**
   `Projectile.status` is already optional (`packages/core/src/skills/components.ts:109`,
   doc comment "Absent — not null — when the recipe carries none"),
   `packages/core/src/skills/systems.ts:436-437` already implements the guard,
@@ -620,21 +630,59 @@ nothing** outside this file.
   failure `CLAUDE.md`'s decisions directory exists to prevent. Fixed: §2 item 3
   now cites 0036 as governing and says T1 inherits rather than mints; the
   "first component with optional keys" claim is corrected in place; T1's Mints
-  line now carries an explicit **does not mint** clause; and **Q3 is retired,
-  taking the list from ten questions to nine**, with the retirement and its
-  reason stated at the head of §10 and every downstream `Q<n>` reference
-  renumbered. The residual 0036 genuinely does not reach — whether a slot needs
-  a third state, "empty but blocked by a two-hander" — is **conditional on the
-  handedness question and is now asked inside it** (Q8) rather than standing
-  alone; a "no, two-handers do not block" answer leaves the encoding binary and
-  fully settled. Two clauses of the round-2 caveat stand as written, since the
-  reviewer independently verified them: the mechanism is real, and it has no
-  live exposure (zero undefined-valued component keys on `main`, live hash equals
-  round-trip hash across all eight scenarios). One consequence *is* new and is
-  recorded as a consequence rather than a question: an emptied `Equipment`
-  cannot be removed the way an emptied `StatusEffects` is, because it also
-  carries the base statline, so "wears nothing" is `slots: {}` with the
-  component present.
+  line now carries an explicit **does not mint** clause; and **the encoding
+  question is retired, taking the list from ten questions to nine**, with the
+  retirement and its reason stated at the head of §10 and every downstream
+  `Q<n>` reference renumbered. The residual 0036 genuinely does not reach —
+  whether a slot needs a third state, "empty but blocked by a two-hander" — is
+  **conditional on the handedness question and is now asked inside it** (the
+  shipped Q8) rather than standing alone; a "no, two-handers do not block"
+  answer leaves the encoding binary and fully settled. Two clauses of the
+  round-2 caveat stand as written, since the reviewer independently verified
+  them: the mechanism is real, and it has no live exposure (zero
+  undefined-valued component keys on `main`, live hash equals round-trip hash
+  across all eight scenarios).
+
+- **Integrator round 3 (PR #96), one blocking finding — a false constraint, and
+  the most consequential of the three rounds.** Round 2's fix said an emptied
+  `Equipment` "cannot" be removed and that "no other placement of the base
+  statline satisfies §1 and 0059 together" — while the *same section*, four
+  paragraphs later, named a second placement and called its consequence
+  identical. **The plan contradicted itself and told the owner a constraint
+  existed where a recommendation does.** Decision 0059 constrains only that the
+  player's components survive; a separate `BaseStats` component satisfies it
+  exactly as well, so the divergence from 0036 follows from **E1, which §2
+  recommends** — it is chosen. Fixed, and the equivalence is now `MEASURED`
+  rather than argued: both placements were attached to the crawl avatar and each
+  moves **1 of 6** goldens, `8ebc4ce46170c4c2` (E1) versus `684089851e49d6bc`
+  (split). **Kept as a recorded consequence rather than routed as a tenth
+  question** — see the next bullet for why. Also fixed in the same pass: two
+  stale references naming the *retired* question by its old number while the
+  shipped Q3 is the live recompute question (both now name it without a number,
+  matching §10's head note); the per-task blocker list, which had dropped two of
+  T3's four blockers when round 2 rewrote it — it is now a table taken from
+  §10's own *Blocked* fields, and §9's T3 header matches it; and T1's absolute
+  "nothing in it is undecided", which was true only under Q8's *derived* branch.
+
+- **The judgement call this round asked for, stated plainly: the base-statline
+  placement stays a recorded consequence and the list stays at nine.** Three
+  reasons, in order of weight. (1) **There is nothing to trade off** — measured
+  above, the two placements cost the same one re-bless, change no behaviour, and
+  are invisible to a player; a question with no decision in it is not a question.
+  (2) **This plan already adopts a split that puts it on the implementer's
+  side**: `tasks/done/0650-progression-scouting.md` §8 lists "the exact component
+  name and field names of the progression component" as the implementer's and
+  reserves the owner's for anything setting the *feel*. Routing this would
+  contradict the rule the rest of the document is following. (3) **The owner
+  keeps a veto that is not a question**: T1 mints a decision entry naming the
+  shape, and `CLAUDE.md` establishes `docs/decisions/` as the surface "the human
+  owner reviews to steer the game" — so the choice is visible and reversible at
+  review time without spending a ruling in advance. What changed is that the
+  plan now *says* all of this instead of asserting a constraint: §2 names the
+  alternative, states the measured equivalence, and labels E1 a recommendation
+  the owner may override, and T1's Mints line requires the decision entry to
+  carry the alternative and its equivalence so a later reader cannot mistake it
+  for forced.
 
 - **Scope deviations:** None. No code, no schema, no content, no new files, no
   decision entry minted. No constant was tuned. Every number carries a
@@ -680,10 +728,22 @@ nothing** outside this file.
   `Equipment` is a component belonging to the character, so T1 builds a thing
   whose existence is settled; and T2's widening of `RolledItem`/`LootItemBase` is
   free before task 0750 lands and costs a `dungeon-crawl.seed1.json` re-bless
-  after, so it is worth doing regardless of how §10 Q5 is answered (§6's
-  ordering argument). **T3 onward is blocked on an owner ruling** and should not
-  be dispatched until one arrives — T3 on §10 Q3 and Q4, T4 on Q3, T5 on Q1, Q2
-  and Q6, T6 on Q7. §9 marks each task's status in its own header and its
+  after, so it is worth doing regardless of how §10 Q5 is answered — Q5 decides
+  only whether the *gate is enforced* in this chain, not whether the widening
+  happens (§6's ordering argument). **T3 onward is blocked on an owner ruling**
+  and should not be dispatched until one arrives. The complete per-task
+  blockers, taken from §10's own *Blocked* fields:
+
+  | task | blocked on |
+  |---|---|
+  | **T1** | *nothing* — startable now |
+  | **T2** | *nothing* — startable now |
+  | **T3** | **Q3** (recompute), **Q4** (may an equip heal), **Q5** (does it enforce the `levelRequirement` gate), **Q8** (may `equip()` refuse an off-hand — "answer it before T3 ships") |
+  | **T4** | **Q3** |
+  | **T5** | **Q1** (inventory), **Q2** (what picks up), **Q6** (pickup radius) |
+  | **T6** | **Q7** (client phase order) |
+
+  §9 marks each task's status in its own header and its
   closing dependency line says the same; all three statements agree.
 
 ---
@@ -1144,14 +1204,40 @@ optional keys are *many and player-authored* rather than one and
 recipe-authored, so the convention is worth an explicit test rather than an
 inherited habit.
 
-**One place equipment deliberately diverges from 0036, and it is forced rather
-than chosen.** 0036 removes an emptied `StatusEffects` component entirely. An
-emptied `Equipment` **cannot** be removed, because under E1 it also carries
-`base: CombatantBaseStats` — the statline §1 proved nothing else stores, which
-must exist from spawn and must survive a map unload under decision 0059. So
-"wears nothing" is `slots: {}` **with the component present**, not an absent
-component. That is a consequence to record in T1's entry, not a question to
-ask: no other placement of the base statline satisfies §1 and 0059 together.
+**One place equipment diverges from 0036 — and it follows from E1, which is a
+recommendation, not a constraint.** 0036 removes an emptied `StatusEffects`
+component entirely. An emptied `Equipment` is **not** removed under E1, because
+E1 also carries `base: CombatantBaseStats` — the statline §1 proved nothing else
+stores, which must exist from spawn and must survive a map unload under decision
+0059. So under E1, "wears nothing" is `slots: {}` **with the component
+present**.
+
+**Do not read that as forced.** Decision 0059 says the player's *components*
+survive — it names `Progression` and `Equipment` as examples and constrains
+nothing else — so a **second** player-only component satisfies it exactly as
+well. The alternative is real and is named in "Does the base statline live here
+too?" below: a slots-only `Equipment` plus a separate `BaseStats`, under which
+an emptied `Equipment` **can** be removed and 0036's whole-component convention
+is followed without divergence. Measured, both placements on the crawl avatar
+(`MEASURED`, and the two hashes differ while the cost does not):
+
+| placement | crawl hash | goldens moved |
+|---|---|---|
+| **E1** — `Equipment { base, slots: {} }` | `8ebc4ce46170c4c2` | **1 of 6** |
+| **split** — `Equipment { slots: {} }` + `BaseStats { base }` | `684089851e49d6bc` | **1 of 6** |
+
+**Why this is recorded as a consequence rather than routed to §10.** Not because
+the owner's attention is scarce, but because of the split this plan already
+follows: `tasks/done/0650-progression-scouting.md` §8 puts "the exact component
+name and field names of the progression component" on the **implementer's** side
+and reserves the owner's for anything that sets the *feel*. This choice is
+invisible to the player, changes no behaviour, and costs the same one re-bless
+either way — there is nothing to trade off. **And the owner still has a veto
+path that is not a question**: T1 mints a decision entry naming the shape, and
+`CLAUDE.md` establishes `docs/decisions/` as exactly the surface "the human
+owner reviews to steer the game". If E1 is wrong, that entry is where it is
+caught, without spending a ruling in advance on a choice with no measured
+consequence.
 
 ### What of §2 transfers, and what does not
 
@@ -1187,12 +1273,23 @@ copy embeds the rolled values again — and it is the right cost.
 
 **Does the base statline live here too?** §1's finding says something must hold
 it. Two placements, and this is an encoding choice rather than a design one:
-a `base: CombatantBaseStats` field on the same `Equipment` component, or a
-separate player-only `BaseStats` component. Measured consequence: **identical**
-— both are player-only, both move `dungeon-crawl.seed1.json` and nothing else,
-and Hash B is the price either way. Recommend the same component, because the
-two are written and read together and a second component doubles the
-attach-sites without buying separation.
+a `base: CombatantBaseStats` field on the same `Equipment` component (**E1**),
+or a separate player-only `BaseStats` component (**the split**). **Measured
+blast radius: identical — 1 of 6 either way** (`MEASURED`, both rows in the
+table above; the hashes differ, `8ebc4ce46170c4c2` vs `684089851e49d6bc`, but
+the re-bless cost does not). Neither is player-visible and neither changes
+behaviour.
+
+**Recommendation: E1**, on two grounds and against one real cost.
+*For:* the base statline and the worn items are written and read in the same
+breath — every refit (§3) needs both — so a second component doubles the attach
+sites and adds a query join for nothing; and E1 keeps "the character's
+equipment state" in one place a reader can find.
+*Against, stated because it is the honest cost:* E1 is the one shape that cannot
+follow 0036's "an emptied component is removed entirely", because the base
+statline outlives the gear. The split follows 0036 exactly.
+This is the implementer's call under `tasks/done/0650` §8's split, reviewable in
+T1's decision entry — see the paragraph above for why it is not a §10 question.
 
 ### The candidates, ranked
 
@@ -1817,11 +1914,23 @@ starts. Open tasks at time of writing: 0390, 0410, 0420, 0490, 0500, 0510, 0560,
 
 ### T1. The `Equipment` component and the stored base statline
 
-*Role: systems. **Not blocked on any owner ruling, and nothing in it is
-undecided.** Decision 0059 already ratifies that `Equipment` is a component
-belonging to the character, and decision 0036 already rules the empty-slot
-encoding (absent key, never `null`, never `undefined` — §2 item 3). This task
-cites both; it does not supersede either.*
+*Role: systems. **Not blocked on any owner ruling.** Decision 0059 already
+ratifies that `Equipment` is a component belonging to the character, and
+decision 0036 already rules the empty-slot encoding (absent key, never `null`,
+never `undefined` — §2 item 3). This task cites both; it does not supersede
+either.*
+
+*Two things in it are chosen rather than settled, and neither blocks starting:*
+- *Where the base statline lives — E1 (one component) or the split (two).
+  Measured-identical cost, implementer's call under `tasks/done/0650` §8,
+  reviewable in this task's decision entry (§2).*
+- *The slot value type. `Partial<Record<EquipmentSlot, RolledItem>>` is correct
+  under both "two-handers do not block" and "they block, derived on read from
+  the main-hand's class". **Only the third branch — blocking stored as a state
+  in the slot — would widen it later** (to something like
+  `RolledItem | 'blocked'`). That branch is §10 Q8's, so T1 should ship the
+  narrow type and Q8's answer may cost a one-line widening. Say so in the doc
+  comment rather than pre-widening for a branch that may never be taken.*
 
 **Files in scope, complete:**
 - `packages/core/src/loot/equipment.ts` (**new**) — `Equipment`, a player-only
@@ -1877,10 +1986,17 @@ they were this task's).
 **Does not mint, and must not:** the empty-slot encoding. **Decision 0036
 governs it** (`:18-20`, `:42`) and `Projectile.status` already implements it; a
 second entry would duplicate or silently contradict a ratified one. The entry
-*cites* 0036 and records one **consequence** of composing it with decision 0059:
-an emptied `Equipment` is **not** removed the way an emptied `StatusEffects` is,
-because it also carries the base statline, so "wears nothing" is `slots: {}`
-with the component present (§2).
+*cites* 0036.
+
+**Records, as a choice the owner may override:** that under E1 an emptied
+`Equipment` is **not** removed the way an emptied `StatusEffects` is, because it
+also carries the base statline — so "wears nothing" is `slots: {}` with the
+component present. **State the alternative in the same breath** (a slots-only
+`Equipment` plus a separate `BaseStats`, which does follow 0036's
+whole-component convention) **and its measured equivalence** (1 of 6 either way;
+`8ebc4ce46170c4c2` vs `684089851e49d6bc`, §2). A reader of the entry must be
+able to see that this was a recommendation with a named alternative, not a
+constraint.
 
 **Collision:** `packages/core/src/index.ts` is also named by 0420, 0590 and
 0630. One-line conflict; rebase, keep both exports.
@@ -1920,8 +2036,16 @@ new fields — flag it in both.
 
 ### T3. `refitCombatant` and the pure equip/unequip functions
 
-*Role: systems. **Blocked on §10 Q3 and Q4** (recompute-on-equip, and what
-happens to `life`). Depends on T1 and on `tasks/open/0590` (`itemMods`).*
+*Role: systems. **Blocked on §10 Q3, Q4, Q5 and Q8** — Q3 recompute-on-equip,
+Q4 what happens to `life`, Q5 whether `equip()` enforces the `levelRequirement`
+gate, Q8 whether `equip()` may refuse an off-hand while a two-hander is worn
+(Q8 says "answer it before T3 ships"). Depends on T1 and on `tasks/open/0590`
+(`itemMods`).*
+
+*Q3 and Q4 shape `refitCombatant`; Q5 and Q8 shape `equip()`'s legality
+predicate. If the owner answers Q3/Q4 but not Q5/Q8, T3 can still be cut with
+`equip()` accepting everything and the predicate deferred — say so explicitly in
+the task file rather than inventing either rule.*
 
 **Files:** `packages/core/src/combat/components.ts` (add `refitCombatant`),
 `packages/core/src/combat/components.test.ts`,
