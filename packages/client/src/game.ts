@@ -7,8 +7,10 @@ import {
   Combatant,
   createXpAwardSystem,
   deathSystem,
+  Equipment,
   Faction,
   makeCombatant,
+  makeEquipment,
   makeProgression,
   makeSkillRecipe,
   moveOrderSystem,
@@ -127,6 +129,17 @@ export function createGame(registry: ContentRegistry, seed: number | string = 1)
   // and they diverge from the first kill on; mirroring them would grant combat
   // power that decision 0051 does not license.
   world.add(player, Progression, makeProgression(PLAYER_LEVEL))
+  // The player can wear gear; it wears none yet. THE INVARIANT: `Equipment.base`
+  // is the same statline the `Combatant` above was built from — both are
+  // PLAYER_STATS, and they must stay that way. A refit (task 0830) recomputes
+  // the whole combatant from `base` plus the worn set, so if these two ever
+  // disagree the first equip silently rebuilds the player as a different
+  // character. `makeEquipment` copies the statline (decision 0073), so the
+  // component cannot write back through the shared constant. Note that this
+  // file's PLAYER_STATS is the client's own copy of the crawl scenario's
+  // constant (see its doc comment above) — the invariant is per-world, between
+  // these two adjacent lines, not between the two files.
+  world.add(player, Equipment, makeEquipment(PLAYER_STATS))
 
   world.addSystem(moveOrderSystem)
   world.addSystem(approachSystem)

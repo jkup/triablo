@@ -49,7 +49,8 @@ The guard sentence for the blessed file's `note`, which CI requires because it
 Run on this worktree at `main` = `c59869a`, with **`tasks/open/0730` and
 `tasks/open/0750` not yet landed**, by adding exactly one line after
 `world.add(avatar, Progression, makeProgression(PLAYER_LEVEL))`
-(`dungeon-crawl.ts:497`):
+(`packages/sim/src/scenarios/dungeon-crawl.ts#makeProgression`; it was line 497
+at `c59869a` and the wiring below moved it to 499):
 
 ```ts
     world.add(avatar, Equipment, { base: PLAYER_STATS, slots: {} })
@@ -98,7 +99,9 @@ you attached it to the wrong entity — find it, do not bless it.
   is a design choice nobody has made, and it would destroy this task's "every
   metric identical" proof.
 - **Registering any system.** This task adds none. `world.systemNames` in
-  `packages/client/src/game.test.ts:144-154` must be **unchanged** — that is an
+  `packages/client/src/game.test.ts#systemNames` (lines 145-155 as landed; it
+  was 144-154 before this task's own test shifted it) must be **unchanged** —
+  that is an
   acceptance criterion, not a side note.
 - **Calling `refitCombatant`, `equip`, `unequip` or `equippedMods`.** Nothing
   changes stats here. Task 0860 wires the verbs.
@@ -110,11 +113,13 @@ you attached it to the wrong entity — find it, do not bless it.
 
 1. **Crawl:** attach `Equipment` to the avatar, built with task 0810's
    `makeEquipment(PLAYER_STATS)` — the same `PLAYER_STATS` constant
-   (`dungeon-crawl.ts:85-92`) that the line above it hands to `makeCombatant`.
+   (`packages/sim/src/scenarios/dungeon-crawl.ts#PLAYER_STATS`, lines 87-94 as
+   landed) that the line above it hands to `makeCombatant`.
    Add it **after** `Progression` so the existing entity ids and their
    component sets are otherwise untouched.
 2. **Client:** the same, with `client/game.ts`'s own `PLAYER_STATS`
-   (`game.ts:53-60`). The two copies are deliberate — the client may not import
+   (`packages/client/src/game.ts#PLAYER_STATS`, lines 55-62 as landed). The two
+   copies are deliberate — the client may not import
    sim, and both files already say so.
 3. **State the invariant that makes this safe, in a comment at both sites:**
    `Equipment.base` is the same statline the `Combatant` beside it was built
@@ -172,11 +177,170 @@ you attached it to the wrong entity — find it, do not bless it.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** two `world.add(..., Equipment, makeEquipment(PLAYER_STATS))`
+  lines — one after the avatar's `Progression` in
+  `packages/sim/src/scenarios/dungeon-crawl.ts`, one after the player's in
+  `packages/client/src/game.ts` — each under a comment stating the invariant
+  (`Equipment.base` is the statline the `Combatant` beside it was built from; a
+  drift makes the first refit rebuild a different character). One new client
+  test, the blessed golden and its `note`. No core change, no system registered,
+  no gear worn.
 
-- **What changed:**
-- **Replays re-blessed:** `packages/sim/replays/dungeon-crawl.seed1.json`
-  because `<the avatar carries a new component; state both hashes and that no
-  metric moved>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **Verified:** the four acceptance measurements below, `npm run verify` green
+  (exit 0), and the three mutations named under *Mutation-tested*. Not checked:
+  anything in the browser — there is no jsdom here — and the crawl side has no
+  unit test of its own (no sim test file is in scope); the blessed hash is what
+  pins it.
+
+  `npm run verify` — `exit=0`, `Test Files 38 passed (38)`,
+  `Tests 657 passed (657)`, `citations: 1 anchored, 263 by line / citations ok`,
+  smoke `ok` on all 8 scenarios × 20 seeds, `replay:check` `ok` on all 6.
+
+  **Before** (`npm run sim -- run dungeon-crawl --seed 1`, at branch point
+  `2fec461`, no edits):
+
+  ```
+  dungeon-crawl  seed=1  ticks=3600
+
+    monstersRemaining     0
+    monstersAuthored      8
+    avatarLife            59/200
+    avatarDamageDealt     362
+    totalMonsterLife      362
+    avatarTile            (20, 15)
+    exitTile              (20, 15)
+    lastMonsterDeathTick  1466
+    waypointsReached      7/7
+    avatarLevel           5
+    avatarXp              119/500
+
+    ticks completed  3600
+    state hash       a3171faa7f656eed
+  ```
+
+  **After** (same command, with both attaches in place, before blessing):
+
+  ```
+  dungeon-crawl  seed=1  ticks=3600
+
+    monstersRemaining     0
+    monstersAuthored      8
+    avatarLife            59/200
+    avatarDamageDealt     362
+    totalMonsterLife      362
+    avatarTile            (20, 15)
+    exitTile              (20, 15)
+    lastMonsterDeathTick  1466
+    waypointsReached      7/7
+    avatarLevel           5
+    avatarXp              119/500
+
+    ticks completed  3600
+    state hash       8ebc4ce46170c4c2
+  ```
+
+  Every reported line is identical; only the hash moved — which is the whole
+  claim of this task. The predicted `8ebc4ce46170c4c2` reproduced to the digit.
+
+  **Death ticks** — `--verbose | grep dies`, after the change; `diff` against the
+  before-capture printed nothing (identical):
+
+  ```
+    [  244] zombie (2) dies
+    [  484] zombie (3) dies
+    [  649] skeleton-warrior (4) dies
+    [  784] skeleton-archer (7) dies
+    [  920] skeleton-warrior (5) dies
+    [ 1290] grave-hulk (8) dies
+    [ 1362] skeleton-archer (9) dies
+    [ 1466] bone-mage (6) dies
+  ```
+
+  **Exactly one golden moved** — `npm run replay:check` before blessing:
+
+  ```
+  replays: 6
+
+    ok    content-seam.seed1.json
+    ok    duel.seed1.json
+    FAIL  dungeon-crawl.seed1.json  expected a3171faa7f656eed, got 8ebc4ce46170c4c2
+    ok    harness-selftest.seed1.json
+    ok    skill-strike.seed1.json
+    ok    status-dot.seed1.json
+  ```
+
+  and the diffstat of the **whole branch**,
+  `git diff --stat origin/main...HEAD -- packages/sim/replays/` (branch-relative
+  on purpose: a `HEAD~1` form goes stale the moment another commit lands, which
+  is the same trap as the stale capture described below):
+
+  ```
+   packages/sim/replays/dungeon-crawl.seed1.json | 4 ++--
+   1 file changed, 2 insertions(+), 2 deletions(-)
+  ```
+
+  **Two lines move, not one: `hash` and `note`.** The `hash` line is the bless;
+  the `note` line is requirement 5's appended guard sentence, and it is a
+  *modification* of the existing note line rather than a new one because the note
+  is a single JSON string. The four changed lines are exactly:
+
+  ```
+  -  "hash": "a3171faa7f656eed",
+  -  "note": "Guards the phase-2 exit criterion: a bot clears the five-room charnel-vaults d…
+  +  "hash": "8ebc4ce46170c4c2",
+  +  "note": "Guards the phase-2 exit criterion: a bot clears the five-room charnel-vaults d…
+  ```
+
+  An earlier draft of this Outcome pasted `1 file changed, 1 insertion(+), 1
+  deletion(-)` here. That capture was real but **taken before the note append**
+  and never re-taken after the change that invalidated it — the file count was
+  right, the line count was stale. **A capture is only evidence of the state it
+  was taken in**, so a capture taken before a later edit has to be re-run, not
+  reused. Tasks 0730, 0750 and 0760 re-bless this same golden and are pointed at
+  this file's shape: expect **two** moved lines, and preserve the note history
+  rather than overwriting it.
+
+  **The feature is invisible in the trace, as intended.**
+  `npm run sim -- run dungeon-crawl --seed 1 --verbose | grep -ci equip` prints
+  `0`. Nothing wears anything and no system was registered, so there is nothing
+  for the trace to show; `equip()` is task 0830 and its wiring task 0860. The
+  hash move and the client test are the evidence, and no trace line was dressed
+  up to stand in for a feature that does not exist yet.
+
+  **Mutation-tested** (new test `gives the player an Equipment that wears
+  nothing and remembers PLAYER_STATS`, each mutation applied to
+  `packages/client/src/game.ts` and reverted):
+  - attach deleted → `expected undefined to be defined`;
+  - `makeEquipment(PLAYER_STATS)` → `{ base: PLAYER_STATS, slots: {} }` (the
+    reference, not the copy) → `expected 1199 to be 200`;
+  - also attached to every `Combatant` → `expected 9 to be 1`.
+
+  **`world.systemNames` pin:** unchanged and *not re-asserted*. The nine-name
+  assertion already exists in `packages/client/src/game.test.ts` and passes
+  untouched (`git diff` shows no edit inside it). Adding a second copy would
+  have been one of the vacuous criteria `tasks/README.md` warns about — a pin
+  that already existed upstream.
+
+- **Replays re-blessed:** `packages/sim/replays/dungeon-crawl.seed1.json` from
+  **`a3171faa7f656eed`** to **`8ebc4ce46170c4c2`** because the avatar now carries
+  an `Equipment` component that `snapshot()` serializes verbatim; no behaviour
+  changed — all eleven reported metrics and all eight death ticks reproduced
+  byte-identically, because the worn set is empty and no stat moved. It is the
+  only golden of the six that moves, because `Equipment` is player-only
+  (decision 0073) and `dungeon-crawl` is the only scenario that spawns a
+  `PlayerControlled` entity.
+
+- **Scope deviations:** none. Four files touched, all in scope; no `packages/core`
+  edit was needed, no system registered, no new `docs/decisions/` entry — decision
+  0073 already rules the component's shape, its player-only placement and the
+  copied `base`, and this task settled nothing beyond it.
+
+- **Follow-ups worth a new task:** `PLAYER_STATS` is duplicated verbatim in
+  `packages/sim/src/scenarios/dungeon-crawl.ts` and `packages/client/src/game.ts`
+  and **nothing pins the two equal** — no test compares them and no test can
+  cheaply, since the client may not import sim and the reverse would invert the
+  layering. Both copies now feed two things each (a `Combatant` and an
+  `Equipment.base`), so a one-sided edit silently gives the browser avatar and
+  the crawl avatar different characters. The real fix is the phase-3 class
+  content their doc comments already promise; until then a content-owned player
+  statline, or a shared constant in core, would close it.

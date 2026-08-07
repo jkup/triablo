@@ -5,6 +5,7 @@ import {
   CastPlan,
   CastState,
   Combatant,
+  Equipment,
   Faction,
   makeProgression,
   MAX_CHARACTER_LEVEL,
@@ -158,6 +159,43 @@ describe('createGame', () => {
     expect(game.skills.cleave.id).toBe('cleave')
     expect(game.skills.groundStomp.id).toBe('ground-stomp')
     expect(game.skills.rend.effects[0]?.type).toBe('melee-hit')
+  })
+
+  it('gives the player an Equipment that wears nothing and remembers PLAYER_STATS', () => {
+    const game = createGame(registry, 1)
+    const { world, player } = game
+
+    const equipment = world.get(player, Equipment)
+    expect(equipment).toBeDefined()
+    if (equipment === undefined) return
+
+    // Wears nothing. An empty slot is an absent key (decision 0036), so the
+    // whole record is `{}` — never nine explicit nulls, which would be a
+    // different hash for the same naked character.
+    expect(equipment.slots).toEqual({})
+
+    // Player-only (decision 0073). The eight authored monsters carry a
+    // `Combatant` and no `Equipment`; that asymmetry is why attaching this
+    // costs one golden replay rather than five, so it is worth an assertion.
+    expect(world.count(Equipment)).toBe(1)
+    expect(world.count(Combatant)).toBe(authoredSpawns.length + 1)
+
+    // THE INVARIANT: `Equipment.base` is the statline the `Combatant` beside it
+    // was built from. A refit (task 0830) recomputes the character from `base`
+    // plus the worn set, so a drift here silently rebuilds a different person.
+    expect(equipment.base).toEqual(PLAYER_STATS)
+    const combatant = world.get(player, Combatant)
+    expect(combatant?.maxLife).toBe(equipment.base.life)
+    expect(combatant?.moveSpeed).toBe(equipment.base.moveSpeed)
+
+    // And it is a *copy* of the module constant, not a reference to it
+    // (`makeEquipment` copies). Storing the reference would let a write through
+    // one world's component retune every avatar the process builds afterwards.
+    const authoredLife = PLAYER_STATS.life
+    equipment.base.life = authoredLife + 999
+    expect(PLAYER_STATS.life).toBe(authoredLife)
+    const later = createGame(registry, 1)
+    expect(later.world.get(later.player, Equipment)?.base.life).toBe(authoredLife)
   })
 
   it('survives sixty seconds headless with no input; monsters outside aggro stay put', () => {
