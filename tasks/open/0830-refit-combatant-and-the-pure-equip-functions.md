@@ -244,7 +244,7 @@ export function unequip(equipment: Equipment, slot: EquipmentSlot): { equipment:
 ### 4. The numbers to pin, measured
 
 Run on this worktree with the real `makeCombatant` and task 0590's worked-example
-chest (`tasks/open/0590-item-mods-pure-function.md:89-95`: armor flat 24 + 12,
+chest (task 0590's worked example, now in `tasks/done/`: armor flat 24 + 12,
 max-life flat 48 + 48, vitality flat 9) against the decision-0030 slice avatar
 (level 5, life 200, armor 14, damage 18, 1.2 s, moveSpeed 2.4):
 
