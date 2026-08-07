@@ -172,11 +172,146 @@ you attached it to the wrong entity — find it, do not bless it.
 
 ## Outcome
 
-*Filled in by the agent that completes the task. Leave blank until then.*
+- **What changed:** two `world.add(..., Equipment, makeEquipment(PLAYER_STATS))`
+  lines — one after the avatar's `Progression` in
+  `packages/sim/src/scenarios/dungeon-crawl.ts`, one after the player's in
+  `packages/client/src/game.ts` — each under a comment stating the invariant
+  (`Equipment.base` is the statline the `Combatant` beside it was built from; a
+  drift makes the first refit rebuild a different character). One new client
+  test, the blessed golden and its `note`. No core change, no system registered,
+  no gear worn.
 
-- **What changed:**
-- **Replays re-blessed:** `packages/sim/replays/dungeon-crawl.seed1.json`
-  because `<the avatar carries a new component; state both hashes and that no
-  metric moved>`
-- **Scope deviations:**
-- **Follow-ups worth a new task:**
+- **Verified:** the four acceptance measurements below, `npm run verify` green
+  (exit 0), and the three mutations named under *Mutation-tested*. Not checked:
+  anything in the browser — there is no jsdom here — and the crawl side has no
+  unit test of its own (no sim test file is in scope); the blessed hash is what
+  pins it.
+
+  `npm run verify` — `exit=0`, `Test Files 38 passed (38)`,
+  `Tests 657 passed (657)`, `citations: 1 anchored, 263 by line / citations ok`,
+  smoke `ok` on all 8 scenarios × 20 seeds, `replay:check` `ok` on all 6.
+
+  **Before** (`npm run sim -- run dungeon-crawl --seed 1`, at branch point
+  `2fec461`, no edits):
+
+  ```
+  dungeon-crawl  seed=1  ticks=3600
+
+    monstersRemaining     0
+    monstersAuthored      8
+    avatarLife            59/200
+    avatarDamageDealt     362
+    totalMonsterLife      362
+    avatarTile            (20, 15)
+    exitTile              (20, 15)
+    lastMonsterDeathTick  1466
+    waypointsReached      7/7
+    avatarLevel           5
+    avatarXp              119/500
+
+    ticks completed  3600
+    state hash       a3171faa7f656eed
+  ```
+
+  **After** (same command, with both attaches in place, before blessing):
+
+  ```
+  dungeon-crawl  seed=1  ticks=3600
+
+    monstersRemaining     0
+    monstersAuthored      8
+    avatarLife            59/200
+    avatarDamageDealt     362
+    totalMonsterLife      362
+    avatarTile            (20, 15)
+    exitTile              (20, 15)
+    lastMonsterDeathTick  1466
+    waypointsReached      7/7
+    avatarLevel           5
+    avatarXp              119/500
+
+    ticks completed  3600
+    state hash       8ebc4ce46170c4c2
+  ```
+
+  Every reported line is identical; only the hash moved — which is the whole
+  claim of this task. The predicted `8ebc4ce46170c4c2` reproduced to the digit.
+
+  **Death ticks** — `--verbose | grep dies`, after the change; `diff` against the
+  before-capture printed nothing (identical):
+
+  ```
+    [  244] zombie (2) dies
+    [  484] zombie (3) dies
+    [  649] skeleton-warrior (4) dies
+    [  784] skeleton-archer (7) dies
+    [  920] skeleton-warrior (5) dies
+    [ 1290] grave-hulk (8) dies
+    [ 1362] skeleton-archer (9) dies
+    [ 1466] bone-mage (6) dies
+  ```
+
+  **Exactly one golden moved** — `npm run replay:check` before blessing:
+
+  ```
+  replays: 6
+
+    ok    content-seam.seed1.json
+    ok    duel.seed1.json
+    FAIL  dungeon-crawl.seed1.json  expected a3171faa7f656eed, got 8ebc4ce46170c4c2
+    ok    harness-selftest.seed1.json
+    ok    skill-strike.seed1.json
+    ok    status-dot.seed1.json
+  ```
+
+  and `git diff --stat packages/sim/replays/` after blessing:
+
+  ```
+   packages/sim/replays/dungeon-crawl.seed1.json | 2 +-
+   1 file changed, 1 insertion(+), 1 deletion(-)
+  ```
+
+  **The feature is invisible in the trace, as intended.**
+  `npm run sim -- run dungeon-crawl --seed 1 --verbose | grep -ci equip` prints
+  `0`. Nothing wears anything and no system was registered, so there is nothing
+  for the trace to show; `equip()` is task 0830 and its wiring task 0860. The
+  hash move and the client test are the evidence, and no trace line was dressed
+  up to stand in for a feature that does not exist yet.
+
+  **Mutation-tested** (new test `gives the player an Equipment that wears
+  nothing and remembers PLAYER_STATS`, each mutation applied to
+  `packages/client/src/game.ts` and reverted):
+  - attach deleted → `expected undefined to be defined`;
+  - `makeEquipment(PLAYER_STATS)` → `{ base: PLAYER_STATS, slots: {} }` (the
+    reference, not the copy) → `expected 1199 to be 200`;
+  - also attached to every `Combatant` → `expected 9 to be 1`.
+
+  **`world.systemNames` pin:** unchanged and *not re-asserted*. The nine-name
+  assertion already exists in `packages/client/src/game.test.ts` and passes
+  untouched (`git diff` shows no edit inside it). Adding a second copy would
+  have been one of the vacuous criteria `tasks/README.md` warns about — a pin
+  that already existed upstream.
+
+- **Replays re-blessed:** `packages/sim/replays/dungeon-crawl.seed1.json` from
+  **`a3171faa7f656eed`** to **`8ebc4ce46170c4c2`** because the avatar now carries
+  an `Equipment` component that `snapshot()` serializes verbatim; no behaviour
+  changed — all eleven reported metrics and all eight death ticks reproduced
+  byte-identically, because the worn set is empty and no stat moved. It is the
+  only golden of the six that moves, because `Equipment` is player-only
+  (decision 0073) and `dungeon-crawl` is the only scenario that spawns a
+  `PlayerControlled` entity.
+
+- **Scope deviations:** none. Four files touched, all in scope; no `packages/core`
+  edit was needed, no system registered, no new `docs/decisions/` entry — decision
+  0073 already rules the component's shape, its player-only placement and the
+  copied `base`, and this task settled nothing beyond it.
+
+- **Follow-ups worth a new task:** `PLAYER_STATS` is duplicated verbatim in
+  `packages/sim/src/scenarios/dungeon-crawl.ts` and `packages/client/src/game.ts`
+  and **nothing pins the two equal** — no test compares them and no test can
+  cheaply, since the client may not import sim and the reverse would invert the
+  layering. Both copies now feed two things each (a `Combatant` and an
+  `Equipment.base`), so a one-sided edit silently gives the browser avatar and
+  the crawl avatar different characters. The real fix is the phase-3 class
+  content their doc comments already promise; until then a content-owned player
+  statline, or a shared constant in core, would close it.
