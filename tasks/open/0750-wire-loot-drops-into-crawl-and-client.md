@@ -6,6 +6,20 @@
 - **Depends on:** 0420-loot-drop-on-death.md,
   0680-wire-progression-into-crawl-and-client.md, 0730-wire-level-life-grant.md
 
+> **Amendment 2026-08-07 (planner, task-cut for the equipment chain).** Two
+> notes; **no requirement below is retracted.**
+>
+> 1. `tasks/open/0820-rolled-items-carry-their-gate-and-class.md` widens
+>    `LootItemBase` with two **required** fields, `levelRequirement: number`
+>    and `itemClass: string`. If it is on `main` when you start, Requirement 1's
+>    `LootDomain` base list must copy both from `registry.item(id)` (which
+>    already carries them) or this task will not typecheck.
+> 2. Requirement 4's new invariant, `groundItems + livingMonsters ===
+>    authoredSpawnCount`, is correct as written **and stops being true once the
+>    avatar can pick items up**. `tasks/open/0860-the-crawl-bot-collects-what-it-kills.md`
+>    corrects it in place to `groundItems + itemsEquipped + livingMonsters ===
+>    authoredSpawnCount`. Write it as specified below; do not pre-empt 0860.
+
 ## Goal
 
 Task 0420 lands `lootDropSystem`, `LootDomain`, `LootSource` and `GroundItem`

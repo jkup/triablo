@@ -5,6 +5,17 @@
 - **Priority:** 2 (lower runs first)
 - **Depends on:** none
 
+> **Amendment 2026-08-07 (planner, task-cut for the equipment chain).**
+> **Nothing in this task changes** — keep the pure function pure and do not add
+> the component. One sentence in Out of scope below is now stale and is
+> corrected here rather than silently: *"That needs an inventory ruling the
+> owner has not made."* **The owner has now ruled** — there is no inventory in
+> v1, the ground is the bag, and picking up an item for an occupied slot swaps
+> (decision 0067-series; `tasks/done/0800-scout-the-equipment-chain.md` §10 Q1).
+> The ECS half is cut as tasks 0810–0890, and task 0830 consumes `itemMods`
+> exactly as specified here. The rest of that Out of scope bullet still stands:
+> this task ships the pure function and stops.
+
 ## Goal
 
 `rollItem` produces a `RolledItem` and nothing in the repo can turn one into

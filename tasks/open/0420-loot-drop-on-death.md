@@ -5,6 +5,16 @@
 - **Priority:** 3
 - **Depends on:** none
 
+> **Amendment 2026-08-07 (planner, task-cut for the equipment chain).**
+> `tasks/open/0820-rolled-items-carry-their-gate-and-class.md` widens
+> `LootItemBase` (`packages/core/src/loot/roll.ts:66-72`) with two **required**
+> fields, `levelRequirement: number` and `itemClass: string`. If 0820 is
+> already on `main` when you start, the `LootDomain`'s embedded item bases must
+> copy both across — `registry.item(id)` already carries them, so it is two
+> more lines in the same value-copy — or this task will not typecheck. If 0820
+> is not yet landed, nothing here changes and 0820 will absorb the merge.
+> Everything else below stands unaltered.
+
 ## Goal
 
 Phase 3's "Loot tables, rarity tiers, item power scaling" bullet, first
