@@ -599,12 +599,42 @@ nothing** outside this file.
   does not. A new §2 subsection, "What of §2 transfers, and what does not", says
   which claims are fixture-independent and states that no downstream task should
   pin a literal from a fixture it does not construct. (2) The Outcome said
-  nothing in the cut should be dispatched before Q1–Q4 while §9 said T1 and T2
-  need no ruling. **§9 was right and the Outcome was wrong** — decision 0059
-  already ratifies that `Equipment` is a character-owned component, so T1 builds
-  something whose existence is settled, and T2's widening is free before task
-  0750 lands regardless of Q6. The Outcome now says so and all three statements
-  agree.
+  nothing in the cut should be dispatched before the owner ruled, while §9 said
+  T1 and T2 need no ruling. **§9 was right and the Outcome was wrong** —
+  decision 0059 already ratifies that `Equipment` is a character-owned
+  component, so T1 builds something whose existence is settled, and T2's
+  widening is free before task 0750 lands whichever way the
+  `levelRequirement` gate goes. The Outcome now says so and all three
+  statements agree.
+
+- **Integrator round 2 (PR #96), one blocking finding — again not a
+  measurement.** The plan claimed equipment would be "the first component with
+  optional keys" and asked the owner to rule the empty-slot encoding (its §10
+  Q3). **Both were wrong, and the reviewer was right to block.**
+  `Projectile.status` is already optional (`packages/core/src/skills/components.ts:109`,
+  doc comment "Absent — not null — when the recipe carries none"),
+  `packages/core/src/skills/systems.ts:436-437` already implements the guard,
+  and **decision 0036 already ratified the rule** (`:18-20`, and `:42` for the
+  whole-component form). Asking would have spent an owner ruling on settled
+  ground and risked a second entry contradicting a ratified one — the exact
+  failure `CLAUDE.md`'s decisions directory exists to prevent. Fixed: §2 item 3
+  now cites 0036 as governing and says T1 inherits rather than mints; the
+  "first component with optional keys" claim is corrected in place; T1's Mints
+  line now carries an explicit **does not mint** clause; and **Q3 is retired,
+  taking the list from ten questions to nine**, with the retirement and its
+  reason stated at the head of §10 and every downstream `Q<n>` reference
+  renumbered. The residual 0036 genuinely does not reach — whether a slot needs
+  a third state, "empty but blocked by a two-hander" — is **conditional on the
+  handedness question and is now asked inside it** (Q8) rather than standing
+  alone; a "no, two-handers do not block" answer leaves the encoding binary and
+  fully settled. Two clauses of the round-2 caveat stand as written, since the
+  reviewer independently verified them: the mechanism is real, and it has no
+  live exposure (zero undefined-valued component keys on `main`, live hash equals
+  round-trip hash across all eight scenarios). One consequence *is* new and is
+  recorded as a consequence rather than a question: an emptied `Equipment`
+  cannot be removed the way an emptied `StatusEffects` is, because it also
+  carries the base statline, so "wears nothing" is `slots: {}` with the
+  component present.
 
 - **Scope deviations:** None. No code, no schema, no content, no new files, no
   decision entry minted. No constant was tuned. Every number carries a
@@ -650,11 +680,11 @@ nothing** outside this file.
   `Equipment` is a component belonging to the character, so T1 builds a thing
   whose existence is settled; and T2's widening of `RolledItem`/`LootItemBase` is
   free before task 0750 lands and costs a `dungeon-crawl.seed1.json` re-bless
-  after, so it is worth doing regardless of how §10 Q6 is answered (§6's
-  ordering argument). **T3 onward is blocked on §10 Q1–Q5** and should not be
-  dispatched until those are answered. §9 marks each task's status in its own
-  header and its closing dependency line says the same; all three statements
-  agree.
+  after, so it is worth doing regardless of how §10 Q5 is answered (§6's
+  ordering argument). **T3 onward is blocked on an owner ruling** and should not
+  be dispatched until one arrives — T3 on §10 Q3 and Q4, T4 on Q3, T5 on Q1, Q2
+  and Q6, T6 on Q7. §9 marks each task's status in its own header and its
+  closing dependency line says the same; all three statements agree.
 
 ---
 
@@ -1068,26 +1098,60 @@ Three things follow, and the third is a real hazard:
    objects and passes everything else through. So a nested
    `Record<slot, RolledItem>` needs nothing special. Restore imposes no shape
    constraint; the *hash* does.
-3. **The empty-slot encoding is part of the replay contract, and one of the
-   three obvious encodings corrupts a save.** An absent key, a `null` and an
-   `undefined` are three different hashes for the same worn gear
-   (`a5c64958cc839b2b` / `f76100e2dfe0cfdf` / `0d6fbe2fe8bd052c`), and the
-   `undefined` form **changes its own hash across a JSON save/load round trip**
-   (`0d6fbe2fe8bd052c` live → `a5c64958cc839b2b` restored) because
-   `JSON.stringify` drops undefined-valued keys while `stableStringify` encodes
-   them as the literal `undefined` (`hash.ts:44-46`). That is a silent
-   save-divergence and it is exactly what `CLAUDE.md`'s "components must survive
-   the save/hash round trip" forbids. **Whichever shape is chosen, the empty
-   slot must be an absent key** (`Partial<Record<EquipmentSlot, RolledItem>>`),
-   never `null` and never `undefined`, and that ruling needs a decision entry —
-   it is an encoding rule future work builds on and it has a measured failure
-   mode.
+3. **The empty-slot encoding is part of the replay contract, one of the three
+   obvious encodings corrupts a save — and the repo has already ruled which one
+   to use.** An absent key, a `null` and an `undefined` are three different
+   hashes for the same worn gear (`a5c64958cc839b2b` / `f76100e2dfe0cfdf` /
+   `0d6fbe2fe8bd052c`), and the `undefined` form **changes its own hash across a
+   JSON save/load round trip** (`0d6fbe2fe8bd052c` live → `a5c64958cc839b2b`
+   restored) because `JSON.stringify` drops undefined-valued keys while
+   `stableStringify` encodes them as the literal `undefined` (`hash.ts:44-46`).
+   That is a silent save-divergence and exactly what `CLAUDE.md`'s "components
+   must survive the save/hash round trip" forbids.
+
+   **The governing precedent is decision 0036, and equipment inherits it — no
+   new ruling is needed.** 0036 already decided this for optional component
+   fields: *"an absent rider stays absent, so status-free recipes and
+   projectiles serialize byte-identically to before (existing replay hashes are
+   untouched)"* (`docs/decisions/0036:18-20`). It is implemented, not just
+   written down: `Projectile.status` is an optional field
+   (`packages/core/src/skills/components.ts:109`) whose doc comment says
+   *"Absent — not null — when the recipe carries none"* (`:104-108`), and
+   `packages/core/src/skills/systems.ts:436-437` is the guard that enforces it:
+
+   ```ts
+         // Attached only when present: a status-free skill's projectiles must
+         // serialize exactly as they did before DoTs existed (hash stability).
+         if (effect.status !== undefined) projectile.status = effect.status
+   ```
+
+   0036 states the same principle a second time for whole components —
+   *"an emptied `StatusEffects` component is removed entirely (absence is the
+   clean state)"* (`:42`), the line `combat/components.ts:148` already cites.
+   **So: the empty slot is an absent key**
+   (`Partial<Record<EquipmentSlot, RolledItem>>`), never `null`, never
+   `undefined`, **by decision 0036, which T1 cites rather than supersedes.** The
+   measurement above is not a new finding; it is 0036's reasoning reproduced in
+   equipment's units, which is worth having because it converts a convention
+   into an executable test (§9 T1).
 
 **Latent, not live.** The `undefined` hazard is a property of the shape, not a
 bug on `main`: no component in the repo carries an undefined-valued key today,
-so every scenario's live hash already equals its round-trip hash. It is
-recorded here because equipment is the first component with *optional* keys and
-would be the first to trip it.
+so every scenario's live hash already equals its round-trip hash. **And
+equipment is not the first component with optional keys** — `Projectile.status`
+is, and 0036 is why it has never tripped. What is new is only that equipment's
+optional keys are *many and player-authored* rather than one and
+recipe-authored, so the convention is worth an explicit test rather than an
+inherited habit.
+
+**One place equipment deliberately diverges from 0036, and it is forced rather
+than chosen.** 0036 removes an emptied `StatusEffects` component entirely. An
+emptied `Equipment` **cannot** be removed, because under E1 it also carries
+`base: CombatantBaseStats` — the statline §1 proved nothing else stores, which
+must exist from spawn and must survive a map unload under decision 0059. So
+"wears nothing" is `slots: {}` **with the component present**, not an absent
+component. That is a consequence to record in T1's entry, not a question to
+ask: no other placement of the base statline satisfies §1 and 0059 together.
 
 ### What of §2 transfers, and what does not
 
@@ -1272,7 +1336,7 @@ must not choose alone:
    +132 max-life at `59/200` gives `59/332` (`DERIVED`), and unequipping it at
    `300/332` gives `200/200`. The alternatives are proportional scaling
    (`98/332` — a stealth heal) and delta-matching (`191/332` — a large stealth
-   heal, and decision 0060's resource by another name). **This is §10 Q5.**
+   heal, and decision 0060's resource by another name). **This is §10 Q4.**
 2. **`ticksUntilAttack`: preserved verbatim.** Equipping a faster weapon does
    not skip the current swing; it shortens the next one. If the new
    `attackIntervalTicks` is *below* the preserved `ticksUntilAttack`, clamp
@@ -1281,7 +1345,7 @@ must not choose alone:
 3. **`damageDealt`: never written by a refit.** Non-negotiable; `dungeon-crawl.ts:406`
    and `duel.ts:167` are executable tests of it.
 
-**And the ruling still goes to §10 unconditionally** (Q4), because "do your
+**And the ruling still goes to §10 unconditionally** (Q3), because "do your
 stats change the instant you equip, or only when you next enter a map" is the
 feel of the game and decision 0060 is the owner having already taken the
 adjacent question.
@@ -1319,7 +1383,7 @@ A `pickupSystem` in core: each tick, ascending entity id, for every entity with
 - **Radius:** `ASSUMED` — no repo artifact supplies one. `MELEE_RANGE_TILES = 1`
   and `AGGRO_RADIUS_TILES = 10` (`combat/systems.ts:35,69`) and
   `REND_PICK_RADIUS_TILES = 1.5` (`client/input.ts:33`) are the three existing
-  radii. §10 Q7.
+  radii. §10 Q6.
 - **Its real cost:** auto-pickup and equipping are the same act only if there is
   no inventory (§5). With a bag, "pick up" and "equip" separate cleanly; with
   no bag, K1 must decide *at pickup time* whether the item is worn, and that is
@@ -1379,7 +1443,7 @@ The minimum readable surface, split by the three questions a player asks:
 | *I picked it up* | one more `GameStatus` field, e.g. `itemsCarried`, exactly the additive shape 0780 used for `playerLevel`/`playerXp` | ~10 lines + one test | 3 |
 | *what am I wearing* | a character sheet: nine slots, their items, their mods | a real UI | **5** — `docs/ROADMAP.md:60` is "Inventory, skill tree, character sheet UI" |
 
-**This plan's read** (routed to §10 Q8, not decided here): the first two are
+**This plan's read** (routed to §10 Q7, not decided here): the first two are
 phase 3 and cost almost nothing; the third is phase 5 by the roadmap's own
 words. The consequence of splitting them is that a phase-3 player can equip
 gear and see their life go up without being able to inspect what they are
@@ -1497,7 +1561,7 @@ Core stays ignorant.
   `ARCHITECTURE.md:121-126` says is the highest-value one here. It also
   duplicates the check in two callers, the divergence trap §9 flags.
 
-**Recommendation (routed to §10 Q6, not settled here): W1**, because it is the
+**Recommendation (routed to §10 Q5, not settled here): W1**, because it is the
 only option under which "no character wears an item above its level" is a
 property of the data rather than a property of every caller — and because W1's
 widening is **free right now** and is not free later. Which brings the
@@ -1528,9 +1592,9 @@ and it needs a task-file sentence for the guard — but the guard failure is
 avoidable entirely by doing it first.
 
 **Therefore: cut the widening as an early, standalone task and land it before
-0750.** §9 makes that T2 and marks it unblocked. If the owner rules in §10 Q6
+0750.** §9 makes that T2 and marks it unblocked. If the owner rules in §10 Q5
 that the runtime gate itself is later, **the widening should still land now** —
-the field costs nothing today and a re-bless later, and `itemClass` (§10 Q9)
+the field costs nothing today and a re-bless later, and `itemClass` (§10 Q8)
 rides along in the same diff.
 
 ### Which level does the gate compare against?
@@ -1753,10 +1817,11 @@ starts. Open tasks at time of writing: 0390, 0410, 0420, 0490, 0500, 0510, 0560,
 
 ### T1. The `Equipment` component and the stored base statline
 
-*Role: systems. **Not blocked on any owner ruling** — decision 0059 already
-ratifies that `Equipment` is a component belonging to the character. Blocked
-only on §10 Q3's encoding sub-question being answered *by this task's own
-decision entry*, which it may mint.*
+*Role: systems. **Not blocked on any owner ruling, and nothing in it is
+undecided.** Decision 0059 already ratifies that `Equipment` is a component
+belonging to the character, and decision 0036 already rules the empty-slot
+encoding (absent key, never `null`, never `undefined` — §2 item 3). This task
+cites both; it does not supersede either.*
 
 **Files in scope, complete:**
 - `packages/core/src/loot/equipment.ts` (**new**) — `Equipment`, a player-only
@@ -1789,23 +1854,33 @@ a relational assertion also survives an unrelated change to `hashString` or
   **unequal** to the same world without it.
 - **Key order is free:** two worlds whose slot records carry the same entries in
   opposite insertion order hash **equal**.
-- **The empty-slot encoding, pinned as three inequalities and one equality:**
-  absent ≠ `null` ≠ `undefined` ≠ absent for the same worn gear, **and**
+- **The empty-slot encoding, pinned as three inequalities and one equality**
+  (this makes decision **0036**'s convention executable for equipment; the test
+  and the doc comment both cite 0036, and the `Projectile.status` guard at
+  `skills/systems.ts:436-437` is the shape to copy): absent ≠ `null` ≠
+  `undefined` ≠ absent for the same worn gear, **and**
   `World.restore(JSON.parse(JSON.stringify(w.snapshot()))).hash()` on the
   `undefined` form **equals the absent-key world's hash** — i.e. the save
-  silently rewrites the state, which is the whole reason the ruling exists.
+  silently rewrites the state, which is why 0036 chose absence.
 - **Round trip is stable for the legal shape:**
   `World.restore(w.snapshot()).hash() === w.hash()` on a populated `Equipment`.
 - All six golden replays byte-unchanged.
 
 **Replay impact: none** (`MEASURED`, §2 Hash A = baseline).
 
-**Mints:** that equipped state is a player-only component and never a
-`Combatant` field, **with the 1-of-6 vs 5-of-6 golden counts in the entry** (the
-counts are what transfers; §2's literal hashes belong to its fixture and should
-be cited as "measured in task 0800 §2", not restated as if they were this
-task's); and that an empty slot is an absent key, with the JSON-round-trip
-measurement as the reason.
+**Mints:** exactly one thing — that equipped state is a player-only component
+and never a `Combatant` field, **with the 1-of-6 vs 5-of-6 golden counts in the
+entry** (the counts are what transfers; §2's literal hashes belong to its
+fixture and should be cited as "measured in task 0800 §2", not restated as if
+they were this task's).
+
+**Does not mint, and must not:** the empty-slot encoding. **Decision 0036
+governs it** (`:18-20`, `:42`) and `Projectile.status` already implements it; a
+second entry would duplicate or silently contradict a ratified one. The entry
+*cites* 0036 and records one **consequence** of composing it with decision 0059:
+an emptied `Equipment` is **not** removed the way an emptied `StatusEffects` is,
+because it also carries the base statline, so "wears nothing" is `slots: {}`
+with the component present (§2).
 
 **Collision:** `packages/core/src/index.ts` is also named by 0420, 0590 and
 0630. One-line conflict; rebase, keep both exports.
@@ -1845,7 +1920,7 @@ new fields — flag it in both.
 
 ### T3. `refitCombatant` and the pure equip/unequip functions
 
-*Role: systems. **Blocked on §10 Q4 and Q5** (recompute-on-equip, and what
+*Role: systems. **Blocked on §10 Q3 and Q4** (recompute-on-equip, and what
 happens to `life`). Depends on T1 and on `tasks/open/0590` (`itemMods`).*
 
 **Files:** `packages/core/src/combat/components.ts` (add `refitCombatant`),
@@ -1878,7 +1953,7 @@ not run the three concurrently; this chain wants 0640 landed first anyway (§7).
 
 ### T4. Wire `Equipment` onto the crawl avatar and the browser player
 
-*Role: systems. **Blocked on §10 Q4** (and on T1, T3, 0590, 0640). This is the
+*Role: systems. **Blocked on §10 Q3** (and on T1, T3, 0590, 0640). This is the
 task that pays the re-bless.*
 
 **Files:** `packages/sim/src/scenarios/dungeon-crawl.ts`,
@@ -1936,7 +2011,7 @@ lands second states the other's hash as its "before".
 
 ### T5. Pickup
 
-*Role: systems. **Blocked on §10 Q1, Q2 and Q7.** Depends on T4, and on
+*Role: systems. **Blocked on §10 Q1, Q2 and Q6.** Depends on T4, and on
 `tasks/open/0420` **and** `tasks/open/0750` being on `main` — there is nothing
 to pick up until drops are wired.*
 
@@ -1957,7 +2032,7 @@ slot-occupied rule if the owner picks V1 (§5).
 
 ### T6. The phase-3 client surface
 
-*Role: client. **Blocked on §10 Q8.** Depends on T4.*
+*Role: client. **Blocked on §10 Q7.** Depends on T4.*
 
 **Files:** `packages/client/src/game.ts` (`GameStatus` + `gameStatus`),
 `packages/client/src/game.test.ts`, `packages/client/src/main.ts` (the status
@@ -1994,6 +2069,19 @@ moved exactly one file, the crawl's).
 
 Numbers first, one sentence answers each, recommendation on every one.
 
+> **One question was retired before this list reached you, and the list is
+> nine rather than ten.** A draft of this plan asked whether an empty equipment
+> slot should be an absent key, a `null` or an `undefined`. **Decision 0036
+> already rules it** — "an absent rider stays absent, so status-free recipes and
+> projectiles serialize byte-identically to before" (`:18-20`) — and
+> `Projectile.status` (`skills/components.ts:109`) plus its guard at
+> `skills/systems.ts:436-437` already implement it. Equipment inherits the
+> convention and T1 cites it; asking would have spent a ruling on settled ground
+> and risked a second entry contradicting a ratified one. The measurement
+> survives in §2 as an executable test, not as a question. The one part 0036
+> does *not* reach — whether a slot needs a third state, "empty but blocked" —
+> is entirely downstream of Q8 and is asked there.
+
 1. **Does v1 have an inventory?** `docs/ROADMAP.md:60` puts "Inventory, skill
    tree, character sheet UI" in **phase 5**, and there are **9 equipment slots**
    against **8 drops per crawl run** — so a no-inventory model that only fills
@@ -2021,16 +2109,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    exercise it without a second implementation; revisit at K3 when the phase-5
    UI lands.
 
-3. **May T1 rule the encoding, or do you want to see it?** The measured fact:
-   an absent key, a `null` and an `undefined` empty slot are **three different
-   hashes**, and the `undefined` form **changes its own hash across a JSON
-   save/load round trip** (`0d6fbe2fe8bd052c` → `a5c64958cc839b2b`, `MEASURED`,
-   §2). *Blocked:* nothing — T1 can mint it. *Consequences:* left unruled, two
-   implementers will pick differently and one of them corrupts saves.
-   **Recommendation: let T1 mint it** — absent key, never `null`, never
-   `undefined` — as an encoding ruling with the measurement in the entry.
-
-4. **Do stats recompute the instant you equip, or only at the next spawn?**
+3. **Do stats recompute the instant you equip, or only at the next spawn?**
    Measured: `makeCombatant` returns `life === maxLife`, `damageDealt 0`,
    `ticksUntilAttack 0` on **every** row (§1), and under decision **0059** the
    player entity is never re-spawned at all — so "spawn only" means an item
@@ -2042,7 +2121,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    invariant** (`MEASURED`). **Recommendation: recompute on equip.** §3 gives
    the full defence.
 
-5. **Given decision 0060, may an equip heal?** Measured: the 0590 chest takes
+4. **Given decision 0060, may an equip heal?** Measured: the 0590 chest takes
    `maxLife` 200 → 332, and a naive rebuild would take a `59/200` avatar to
    `332/332` — a **+273 life** free heal, repeatable at will (`DERIVED`).
    Decision 0060 rules a level-up heals and calls it "deliberately, a combat
@@ -2054,7 +2133,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    only rule that makes an equip neither a heal nor a hit, and it leaves 0060
    the only heal in the game.
 
-6. **Does `levelRequirement` gate at runtime in this chain, or later?**
+5. **Does `levelRequirement` gate at runtime in this chain, or later?**
    Measured: `RolledItem` and `LootItemBase` carry **neither `levelRequirement`
    nor `itemClass`** (`roll.ts:66-72, 91-98`), and widening them costs **zero
    replays today** and **one re-bless of `dungeon-crawl.seed1.json` after task
@@ -2071,7 +2150,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    (§6 — and note the suite cannot currently catch that mistake, because the
    crawl avatar never levels: 119 XP against 500).
 
-7. **What is the pickup radius?** **`ASSUMED`** — no repo artifact supplies one.
+6. **What is the pickup radius?** **`ASSUMED`** — no repo artifact supplies one.
    The three existing radii are `MELEE_RANGE_TILES = 1`,
    `REND_PICK_RADIUS_TILES = 1.5`, `AGGRO_RADIUS_TILES = 10` (`MEASURED`).
    *Blocked:* T5. *Consequences:* too small and the player misses drops walking
@@ -2080,7 +2159,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    player can already hit something, and a constant that already exists rather
    than a fourth radius.
 
-8. **Where in the phase order does the client surface sit?** Measured:
+7. **Where in the phase order does the client surface sit?** Measured:
    `GameStatus` already carries five fields after task 0780
    (`tick`, `playerLife`, `playerLevel`, `playerXp`, `monstersRemaining`), and
    a `GroundItem` already renders as a 10 px circle with **zero** new rendering
@@ -2091,7 +2170,7 @@ Numbers first, one sentence answers each, recommendation on every one.
    **Recommendation: split it** — one additive `GameStatus` field in phase 3
    (~10 lines, 0780's exact pattern), the character sheet in phase 5.
 
-9. **Handedness: what does a two-handed weapon do to the off-hand?**
+8. **Handedness: what does a two-handed weapon do to the off-hand?**
    Measured, and this is the part the prompt did not know: **the repo already
    ships one.** `rusted-cleaver` is `slot: main-hand`, `itemClass: axe`,
    `tags: ["starter", "two-handed"]` (`MEASURED`), and
@@ -2108,25 +2187,34 @@ Numbers first, one sentence answers each, recommendation on every one.
    `tags` or `itemClass` is the authority. *Consequences:* the rule is cheap now
    (one predicate in `equip()`, before any character wears anything) and a
    migration later (every saved `Equipment` becomes potentially illegal).
+   **And it is the one question that reaches the slot encoding**: "empty" and
+   "blocked by the two-hander in my main-hand" are different states, and
+   decision 0036's absent-key convention (see the note above this list) can
+   express only the first. A "yes, it blocks" answer therefore needs a third
+   state — derived on read from the main-hand's class, or stored — and that is a
+   modelling consequence 0036 does not reach. A "no" answer leaves the encoding
+   binary and settled.
    **No recommendation on the rule itself — this one is genuinely yours, and
    this plan deliberately does not invent it.** The recommendation is only on
    *when*: **answer it before T3 ships**, and answer only the two-hander
    question — the wider slot-conflict family (two rings, off-hand blocking) is
    already parked by `tasks/open/0590`'s Out of scope and should stay parked.
 
-10. **Is `spawn-only gear` genuinely closed by decision 0059, or did I mean
-    something else by "the player entity survives"?** Measured: the player
-    entity is constructed exactly once (`dungeon-crawl.ts:487`,
-    `client/game.ts:118`) and 0059 says its components survive a map unload, so
-    there is no second spawn for gear to apply at (§3, R4). *Blocked:* whether
-    Q4's "spawn only" answer is even available. *Consequences:* if 0059 was
-    meant to imply the character is *rebuilt* on entering a map, that rebuild
-    full-heals and wipes `damageDealt` once per transition and fails the crawl's
-    own invariant. **Recommendation: confirm 0059 as written** — the player
-    entity persists, there is no respawn, and Q4 is therefore a choice between
-    recompute-on-equip and gear that never applies.
+9. **Is `spawn-only gear` genuinely closed by decision 0059, or did I mean
+   something else by "the player entity survives"?** Measured: the player
+   entity is constructed exactly once (`dungeon-crawl.ts:487`,
+   `client/game.ts:118`) and 0059 says its components survive a map unload, so
+   there is no second spawn for gear to apply at (§3, R4). *Blocked:* whether
+   Q3's "spawn only" answer is even available. *Consequences:* if 0059 was
+   meant to imply the character is *rebuilt* on entering a map, that rebuild
+   full-heals and wipes `damageDealt` once per transition and fails the crawl's
+   own invariant. **Recommendation: confirm 0059 as written** — the player
+   entity persists, there is no respawn, and Q3 is therefore a choice between
+   recompute-on-equip and gear that never applies.
 
-**Net: ten live questions. Q1, Q2, Q4 and Q5 block the chain outright; Q6 and
-Q9 are cheap now and expensive later; Q3, Q7, Q8 and Q10 can be answered in a
-line each. Two `ASSUMED` numbers exist in this document — the inventory capacity
-(Q1) and the pickup radius (Q7) — and both appear above.**
+**Net: nine live questions — one fewer than this plan first carried, because
+decision 0036 already answers the empty-slot encoding (note above). Q1, Q2, Q3
+and Q4 block the chain outright; Q5 and Q8 are cheap now and expensive later;
+Q6, Q7 and Q9 can be answered in a line each. Two `ASSUMED` numbers exist in
+this document — the inventory capacity (Q1) and the pickup radius (Q6) — and
+both appear above.**
