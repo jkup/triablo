@@ -61,7 +61,9 @@ do not merge them.
   re-bless.
 - **Any change to `packages/core/src/combat/components.ts`.** In particular,
   do not add a field to `Combatant` — measurement below says that costs 5 of 6
-  goldens instead of 1, and it has been proposed and reverted five times.
+  goldens instead of 1, and `CLAUDE.md:86` records that it "has been proposed
+  and reverted **four** times". (Four proposals, five of six goldens: two
+  different counts that sit next to each other and are easy to conflate.)
   `refitCombatant` belongs to task 0830.
 - **`equip()` / `unequip()` / `itemMods` / any stat recompute.** Task 0830.
 - **Pickup, inventory, dropping, the client status line.** Tasks 0850, 0860,
@@ -130,7 +132,7 @@ optional component data ("an absent rider stays absent, so status-free recipes
 and projectiles serialize byte-identically to before", `:18-20`), and
 `Projectile.status` (`packages/core/src/skills/components.ts:104-109`, doc
 comment "Absent — not null — when the recipe carries none") plus its guard at
-`packages/core/src/skills/systems.ts:436-437` already implement it:
+`packages/core/src/skills/systems.ts:435-437` already implement it:
 
 ```ts
       // Attached only when present: a status-free skill's projectiles must
@@ -228,7 +230,7 @@ with a named alternative, not a constraint.
       `World.restore(JSON.parse(JSON.stringify(w.snapshot()))).hash()` on the
       `undefined` world **equals the absent-key world's live hash** while the
       `undefined` world's own live hash does not. The test comment cites
-      decision 0036 and `skills/systems.ts:436-437`.
+      decision 0036 and `skills/systems.ts:435-437`.
 - [ ] **Round trip is stable for the legal shape:**
       `World.restore(w.snapshot()).hash() === w.hash()` on an `Equipment`
       carrying at least one item in every one of the nine slots.

@@ -114,13 +114,13 @@ save/hash round trip.
 
 No refusal is reachable today — the three bases the shipped tables can drop are
 `rusted-cleaver`, `tattered-tunic` and `copper-band`
-(`tasks/open/0750:305-306`), whose `levelRequirement`s are 1, 1 and 3 against a
+(`tasks/open/0750:322-323`), whose `levelRequirement`s are 1, 1 and 3 against a
 level-5 avatar. **Build the guard anyway**, and say in the trace when it fires,
 because "unreachable today" is how this becomes a mystery hang later.
 
 ### 3. Report and invariant
 
-- `crawlReport` (`dungeon-crawl.ts:403`) gains **`itemsEquipped`** (the count of
+- `crawlReport` (`dungeon-crawl.ts:418`) gains **`itemsEquipped`** (the count of
   occupied `Equipment` slots on the avatar) and **`groundItemsRemaining`**. It
   returns `Record<string, string | number>`, so both are additive.
 - **Task 0750's invariant no longer holds and you must correct it, not delete
@@ -177,10 +177,26 @@ working and the bot policy needs the trace read, not the criterion lowered.
 - [ ] `npm run sim -- run dungeon-crawl --seed 1 --verbose | grep -i pickup`
       shows the collection trace lines. Paste them, and confirm each names a
       base id and a slot.
-- [ ] **The seed-independence check.** `npm run sim -- run dungeon-crawl --seed
-      2` also reports `monstersRemaining 0`, `waypointsReached 7/7` and
-      `avatarDamageDealt 362`, while its collected items differ from seed 1's in
-      at least one base id — loot rng varies, the clear does not.
+- [ ] **Combat is seed-independent — this one is deterministic and must hold.**
+      `npm run sim -- run dungeon-crawl --seed 2` reports the identical eight
+      death ticks, `avatarDamageDealt 362`, `monstersRemaining 0` and
+      `waypointsReached 7/7`. Paste both runs. This is the proof that loot rng
+      did not leak into combat.
+- [ ] **Loot is seed-driven — asserted over a sweep, not over one comparison.**
+      Record `itemsEquipped` and the ordered list of collected base ids **and
+      rarities** for **seeds 1 through 5**, and assert they are **not all five
+      identical**. Paste all five.
+
+      **Do not assert that seed 2 differs from seed 1.** The shipped loot tables
+      reference exactly **three** item ids — measured with `grep -h '"item"'
+      packages/content/data/loot-tables/*.json | sort -u`: `rusted-cleaver`,
+      `tattered-tunic`, `copper-band` — so two particular seeds drawing the same
+      eight bases is an ordinary outcome, and a criterion resting on it makes a
+      pass depend on chance and invites reinterpreting "differ" until it holds.
+      Over five seeds the claim is a property of the code rather than of a coin
+      flip: if all five collections are identical, the loot draw is not
+      consuming `world.rng` at all. **That is a real finding — report it, and do
+      not weaken this criterion to get green.**
 - [ ] The corrected `groundItems + itemsEquipped + livingMonsters ===
       authoredSpawnCount` invariant is registered and the run reports no
       violation.

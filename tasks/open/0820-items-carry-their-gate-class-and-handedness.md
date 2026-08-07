@@ -45,19 +45,24 @@ can move anything. Decision 0069 states the same cost with its measuring stick:
 
 After 0750 lands, `dungeon-crawl.seed1.json` embeds a `LootDomain` of item bases
 plus eight `GroundItem`s each holding a whole `RolledItem`
-(`tasks/open/0750:307-331`). Each of the three fields would then appear once per
-embedded base — **3 or 11 of them**, depending on how 0750's implementer
-resolves its own domain-shrinking instruction at `tasks/open/0750:336-345`
-("that is 3 bases instead of 11") — **plus once in each of the eight embedded
-`RolledItem`s.** Whichever way that lands, it is a re-bless plus a guard
+(`tasks/open/0750:324-348`, "after this task, content edits can move a golden
+replay"). Each of the three fields would then appear once per embedded base —
+**3 or 11 of them**, depending on how 0750's implementer resolves its own
+domain-shrinking instruction at `tasks/open/0750:341-345` ("that is 3 bases
+instead of 11") — **plus once in each of the eight embedded `RolledItem`s.** Whichever way that lands, it is a re-bless plus a guard
 explanation that doing this first avoids entirely. **Do not derive a single
 occurrence count from this paragraph; the count depends on a task that has not
 landed.**
 
 Authoring `handedness: 'two-handed'` on `rusted-cleaver` is in **this** task for
-the same reason: `rusted-cleaver` is one of the three bases the shipped loot
-tables can drop (`tasks/open/0750:305-306`), so changing its value after 0750
-moves the golden a second time. The default means the other ten bases validate
+the same reason. `rusted-cleaver` is one of the three bases the shipped loot
+tables can drop — `tasks/open/0750:322-323` ("The three bases the shipped tables
+can drop are `rusted-cleaver` … `tattered-tunic` … `copper-band`"), and
+independently measured here: `grep -h '"item"'
+packages/content/data/loot-tables/*.json | sort -u` returns exactly those three
+ids. So changing its value after 0750 would move the golden a second time,
+through the embedded `LootDomain` base **and** through every embedded rolled
+cleaver, since `RolledItem` carries `handedness` after this task. The default means the other ten bases validate
 unchanged (decision 0071: "10 validate unchanged and only `rusted-cleaver`
 gains the field").
 

@@ -125,7 +125,7 @@ both commands.
 
 ### 4. Register `pickupSystem` after `move-order`
 
-The client's order today (`game.ts:130-142`, plus whatever tasks 0750 and 0840
+The client's order today (`game.ts:131-142`, plus whatever tasks 0750 and 0840
 left) is `move-order → approach → attack → skill-cast → skill-resolve →
 projectile-flight → status-tick → xp-award → death`. Insert `pickup`
 **immediately after `move-order`**, the slot task 0850's doc comment prescribes,
