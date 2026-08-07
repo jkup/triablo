@@ -28,11 +28,17 @@ free replay window.
   content drops `"two-handed"` from `rusted-cleaver`'s tags so there is exactly
   one source of truth.
 - **`itemClass` is not the authority either.** `ITEM_CLASSES`
-  (`schemas/common.ts:32-44`) has 11 members, of which `sword`, `axe` and `mace`
-  each cover one- **and** two-handed weapons in the genre. Deriving handedness
-  from class would either force every axe two-handed or split five weapon
-  classes into paired members. `itemClass` still crosses the seam per 0069 — it
-  is just not what the block reads.
+  (`schemas/common.ts:32-44`) has **11 members, 7 of them weapon classes**, and
+  **exactly 3 are handedness-ambiguous**: `sword`, `axe` and `mace` each cover
+  one- **and** two-handed weapons in the genre, while `dagger` and `wand` are
+  one-handed only and `bow` and `staff` are two-handed only. *Counted over:* the
+  enum's members, not the authored bases — only 6 of the 11 are used by content
+  today. Deriving handedness from class would either force every axe two-handed
+  or split those 3 into paired members. **Three pairs is a small price and it is
+  not the reason this loses**: the pairing has to be decided again for every
+  weapon class added afterwards, and a class enum would then be carrying two
+  independent facts. One defaulted field carries one fact. `itemClass` still
+  crosses the seam per 0069 — it is just not what the block reads.
 - **The name `hands: 1 | 2` was rejected** because `hands` is already an
   equipment slot (`scarred-gloves`), so `item.hands` beside `item.slot ===
   'hands'` would read as the same thing.
