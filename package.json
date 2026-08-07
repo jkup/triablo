@@ -19,7 +19,8 @@
     "sim:smoke": "tsx packages/sim/src/cli.ts smoke",
     "replay:check": "tsx packages/sim/src/cli.ts replay",
     "replay:bless": "tsx packages/sim/src/cli.ts replay --bless",
-    "verify": "npm run typecheck && npm run lint && npm run test && npm run content:validate && npm run content:bake && npm run sim:smoke && npm run replay:check"
+    "verify": "npm run typecheck && npm run lint && npm run test && npm run citations:check && npm run content:validate && npm run content:bake && npm run sim:smoke && npm run replay:check",
+    "citations:check": "tsx scripts/check-citations.ts"
   },
   "dependencies": {
     "zod": "^3.25.76"

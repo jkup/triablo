@@ -47,6 +47,31 @@ The `qa` split is deliberate. An agent that writes both the implementation and
 the test that validates it will make them agree with each other rather than
 with reality.
 
+## Citing source: anchor, don't point at line numbers
+
+A citation in a task file is a claim about the repo **as it is right now**, and
+an agent will follow it. Two forms:
+
+```
+`packages/core/src/loot/roll.ts#RolledItem`     preferred — cannot rot
+`packages/core/src/loot/roll.ts:91-98`          fragile — rots silently
+```
+
+`npm run citations:check` verifies both: the file must exist, and an anchored
+symbol must actually appear in it. Line ranges are only checked against the end
+of the file, because a line citation that points at the *wrong* content is not
+machine-detectable — the number is not wrong in any way a checker can see.
+
+That is exactly how it fails in practice. Measured 2026-08-07: `tasks/` carried
+542 line citations, and two PRs that week spent seven review cycles between them
+mostly on drifted ones — including a PR whose own edit to a file invalidated its
+own citations into that file (twice), and a quoted comment that did not contain
+the quoted words. Anchors do not have this failure mode: edits above a symbol
+move nothing.
+
+**A file you intend to create is not a citation.** Name it in prose. Anchoring
+it asserts it is there today, which is the claim being checked.
+
 ## Lifecycle
 
 1. Work the task you were **assigned** in your spawn prompt. Only self-select
