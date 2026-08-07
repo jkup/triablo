@@ -242,16 +242,58 @@ against, so a test that reproduces them keeps the two documents honest.
 
   **The one acceptance criterion that is weaker than it reads**, stated plainly
   rather than papered over: the order-independence criterion
-  (`computeStats(base, mods)` equals `computeStats(base, reversed)`) **cannot be
-  made to fail by any mutation of `itemMods`** — reversing the emitted order is
-  precisely what decision 0005 licenses, and the fixture's values are small
-  integers whose sum is exact in either order, so it would not catch
-  `computeStats` losing its canonical sort either. It is kept because the task
-  asked for it and it documents the contract at the item level; its only live
-  guard is the `expect(reversed).not.toEqual(forward)` line, which fails if the
-  fixture is ever trimmed to something whose reversal is itself. The
-  load-bearing guard for the fold is the 100-trial shuffle property in
-  `packages/core/src/combat/stats.test.ts`. The test comment says all of this.
+  (`computeStats(base, mods)` equals `computeStats(base, reversed)`).
+
+  Precisely — an earlier draft of this Outcome said "cannot be made to fail by
+  any mutation of `itemMods`", which is too strong: the `slice(0, 1)` mutant in
+  the battery above *does* fail it, and so does anything that drops mods. What
+  it cannot catch is a **reordering**, which is exactly what decision 0005
+  licenses, and — because the fixture's values are small integers whose sum is
+  exact in either order — it cannot catch `computeStats` losing its canonical
+  sort either. Its only guard against going vacuous is the
+  `expect(reversed).not.toEqual(forward)` line, which fails if the fixture is
+  trimmed to something whose reversal is itself.
+
+  **Correction, and the reason this Outcome was revised.** The first version
+  ended by redirecting the reader: "the load-bearing guard for the fold is the
+  100-trial shuffle property in `packages/core/src/combat/stats.test.ts`". That
+  is false, and I asserted it without testing it — the exact error the rest of
+  this section was written to avoid. An integrator caught it; I reproduced it on
+  this branch. Deleting **both** canonical sorts in
+  `packages/core/src/combat/stats.ts` — `sumCanonical`'s `.slice().sort(ascending)`
+  and `foldStat`'s `const more = bucket.more.slice().sort(ascending)`, between
+  them every `sort(` in that file — leaves the suite entirely green:
+
+  ```
+  ### remaining sort( calls in stats.ts:
+    (none)
+
+  ### the named property test alone
+        Tests  27 passed (27)
+
+  ### full suite
+   Test Files  39 passed (39)
+        Tests  670 passed (670)
+  ```
+
+  The property test is well-formed — `rng.shuffle` genuinely permutes — just not
+  sensitive: `roundStat`'s 1/10000 quantum absorbs the difference at the
+  magnitudes it draws.
+
+  The sort is nonetheless load-bearing. Replicating `foldStat`/`roundStat`
+  verbatim over the same shapes that property draws — **2–25 values, range
+  `(-2, 4)`, base 500, quantum 1/10000**, which are the measuring sticks:
+
+  ```
+  more  : 16 of 50000 permutation pairs disagree after rounding
+  flat  : 0 of 200000 permutation pairs disagree after rounding
+  ```
+
+  (The integrator's independent sweep found 15 of 50,000 with 0 of 200,000 flat;
+  different PRNG draws, same magnitude and same conclusion.) So a real,
+  reachable order-dependence exists in `more` folding, and nothing tests it.
+  Both this file and the test comment at
+  `packages/core/src/loot/mods.test.ts` now say so; neither redirects.
 
   Not verified by me: anything about how 0830/0850 will consume this — no
   caller exists on this branch.
@@ -315,5 +357,20 @@ against, so a test that reproduces them keeps the two documents honest.
      a code-organisation call, recorded here and in the module header, not a
      ruling future balance work reads.
 
-- **Follow-ups worth a new task:** none new. The two consumers are already
-  written: task 0830's `equippedMods` remainder and task 0850's `pickupSystem`.
+- **Follow-ups worth a new task:**
+
+  **Decision 0005's canonical fold order has no effective test.** Owner: whoever
+  owns `packages/core/src/combat/stats.ts` — **explicitly out of scope for 0590,
+  which changed nothing in that file and must not.** Measured above: both
+  canonical sorts can be deleted with the full suite green (670/670, and the
+  shuffle property that exists to catch this at 27/27), while 16 of 50,000
+  permutation pairs of 2–25 `more` values in `(-2, 4)` on base 500 disagree
+  after 1/10000 rounding. Flat sums show 0 of 200,000, so the gap is specific to
+  the `more` product, not the flat sum. A fix needs the property to draw where
+  the quantum cannot absorb the difference — larger magnitudes, or more
+  multiplicands — rather than more trials at the current scale. This matters
+  beyond stats: an order-dependent fold is a replay-hash divergence, which is
+  the class of bug the state-hash invariants exist to catch.
+
+  The two consumers of `itemMods` are already written and need no new task: task
+  0830's `equippedMods` remainder and task 0850's `pickupSystem`.

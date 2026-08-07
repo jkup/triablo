@@ -215,10 +215,23 @@ describe('itemMods', () => {
    * fixture is ever trimmed to something whose reversal is itself (one mod, or
    * none), which is how this kind of test goes quietly vacuous. It would *not*
    * catch `computeStats` losing its canonical sort — these values are small
-   * integers, so their sum is exact in either order. The load-bearing guard for
-   * that is the 100-trial shuffle property in `../combat/stats.test.ts`; this
-   * one pins the consequence for an item, so a reader of *this* file knows the
-   * order below is display order and nothing else.
+   * integers, so their sum is exact in either order.
+   *
+   * **And nothing else would either.** Do not read the line above as "covered
+   * elsewhere": deleting *both* canonical sorts in `../combat/stats.ts`
+   * (`sumCanonical`'s and `foldStat`'s `more` sort, which are every `sort(` in
+   * that file) leaves the shuffle property in `../combat/stats.test.ts` passing
+   * 27/27 and the full suite passing 670/670 — measured on this branch.
+   * `roundStat`'s 1/10000 quantum absorbs the difference at the magnitudes that
+   * property draws.
+   *
+   * The sort is still load-bearing: replicating `foldStat` over 50,000 draws of
+   * 2-25 `more` values in that property's own `(-2, 4)` range, folded onto base
+   * 500, **16 permutation pairs disagreed after rounding** (flat sums: 0 of
+   * 200,000). So decision 0005's canonical fold has a real, reachable failure
+   * mode and no effective test. That gap belongs to whoever owns
+   * `combat/stats.ts` — it is out of scope for task 0590, which changed nothing
+   * there, and is recorded as a follow-up in that task's Outcome.
    */
   it('folds order-independently (decision 0005)', () => {
     const base = { 'max-life': 200, armor: 14, damage: 18, 'move-speed': 2.4 }
