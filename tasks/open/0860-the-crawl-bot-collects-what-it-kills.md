@@ -188,11 +188,12 @@ working and the bot policy needs the trace read, not the criterion lowered.
       identical**. Paste all five.
 
       **Do not assert that seed 2 differs from seed 1.** The shipped loot tables
-      reference exactly **three** item ids — measured with `grep -h '"item"'
-      packages/content/data/loot-tables/*.json | sort -u`: `rusted-cleaver`,
-      `tattered-tunic`, `copper-band` — so two particular seeds drawing the same
-      eight bases is an ordinary outcome, and a criterion resting on it makes a
-      pass depend on chance and invites reinterpreting "differ" until it holds.
+      reference exactly **three** item ids — `rusted-cleaver`, `tattered-tunic`,
+      `copper-band`, measured with `grep -ho '"item": "[a-z-]*"'
+      packages/content/data/loot-tables/*.json | sort -u`, which returns three
+      lines, one per id — so two particular seeds drawing the same eight bases
+      is an ordinary outcome, and a criterion resting on it makes a pass depend
+      on chance and invites reinterpreting "differ" until it holds.
       Over five seeds the claim is a property of the code rather than of a coin
       flip: if all five collections are identical, the loot draw is not
       consuming `world.rng` at all. **That is a real finding — report it, and do

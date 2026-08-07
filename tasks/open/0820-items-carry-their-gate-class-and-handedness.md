@@ -58,9 +58,11 @@ Authoring `handedness: 'two-handed'` on `rusted-cleaver` is in **this** task for
 the same reason. `rusted-cleaver` is one of the three bases the shipped loot
 tables can drop — `tasks/open/0750:322-323` ("The three bases the shipped tables
 can drop are `rusted-cleaver` … `tattered-tunic` … `copper-band`"), and
-independently measured here: `grep -h '"item"'
-packages/content/data/loot-tables/*.json | sort -u` returns exactly those three
-ids. So changing its value after 0750 would move the golden a second time,
+independently measured here: `grep -ho '"item": "[a-z-]*"' packages/content/data/loot-tables/*.json
+| sort -u` returns exactly **three** lines,
+one per id. (Match on the id alone, not on the whole entry: the same id carries
+different weights in the two tables, so a broader grep returns six lines for
+three ids.) So changing its value after 0750 would move the golden a second time,
 through the embedded `LootDomain` base **and** through every embedded rolled
 cleaver, since `RolledItem` carries `handedness` after this task. The default means the other ten bases validate
 unchanged (decision 0071: "10 validate unchanged and only `rusted-cleaver`

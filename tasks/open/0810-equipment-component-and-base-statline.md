@@ -94,9 +94,10 @@ export const Equipment = defineComponent<Equipment>('Equipment')
   corrupt a shared constant for every entity built from it. Assert the copy in
   a test.
 - Everything in the component is plain JSON — `CombatantBaseStats` is six
-  primitives and a `RolledItem` is "strings, numbers, and arrays only, so it
-  survives the save/hash round trip untouched" (`loot/roll.ts:83-85`). Do not
-  put an entity id, a function, or a registry reference in it.
+  primitives, and a `RolledItem` is "strings, numbers, and arrays only, so it
+  survives the save/hash round trip untouched" (`loot/roll.ts:87-88`, the doc
+  comment heading the interface at `loot/roll.ts:91-98`). Do not put an entity
+  id, a function, or a registry reference in it.
 
 ### 2. The slot vocabulary is a core-side mirror, and the mirror is tested
 
@@ -110,9 +111,13 @@ head, chest, hands, legs, feet, main-hand, off-hand, ring, amulet
 
 Export `EQUIPMENT_SLOTS`, the `EquipmentSlot` union, and an
 `isEquipmentSlot(value: string): value is EquipmentSlot` guard. Head the
-declaration with the same "content is the follower if they diverge" comment
-`LootItemBase` (`loot/roll.ts:19-24`) and `CombatantBaseStats`
-(`combat/components.ts:60-63`) already carry.
+declaration with the same rule the two existing core-side mirrors carry, and
+copy `roll.ts`'s wording because it is the stronger of the two: `LootItemBase`
+(`loot/roll.ts:19-24`) says core and content "are duplicated by design; the
+content schema is the **follower** if they diverge", while `CombatantBaseStats`
+(`combat/components.ts:62-66`) states only the mirroring — "Core cannot import
+content (the dependency points the other way), so the shape is mirrored here by
+design" — and does not name a follower. Say which side wins a divergence.
 
 **Then make the mirror mechanical.** `packages/content/src/core-sync.test.ts`
 exists for exactly this — its header says it lives in content "because content

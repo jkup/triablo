@@ -85,9 +85,10 @@ cannot rest on landing first. It rests on two facts instead:
    (decision 0071), and this task adds a *predicate*, not a field. It authors no
    content value either — task 0820 owns the one that exists.
 2. **The block cannot fire in any scenario, because no off-hand item can drop.**
-   Measured on this worktree: `grep -h '"item"' packages/content/data/loot-tables/*.json
-   | sort -u` returns exactly **three** distinct ids — `rusted-cleaver`
-   (`main-hand`), `tattered-tunic` (`chest`) and `copper-band` (`ring`).
+   Measured on this worktree: `grep -ho '"item": "[a-z-]*"'
+   packages/content/data/loot-tables/*.json | sort -u` returns exactly **three**
+   lines, one per id — `rusted-cleaver` (`main-hand`), `tattered-tunic`
+   (`chest`) and `copper-band` (`ring`).
    `splintered-buckler` is the only `off-hand` base shipped (decision 0070) and
    **no loot table references it**, so even after task 0860 has the crawl bot
    looting, nothing it can pick up will ever be refused by this rule and no
