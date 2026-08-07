@@ -300,6 +300,32 @@ failure mode in this repo.
 
 ## Notes for the implementer
 
+- **`unequip()` must `delete` the slot key, never assign `undefined`.** This is
+  a determinism bug the gate cannot catch, so it is called out before anything
+  else.
+
+  `Equipment.slots` is `Partial<Record<EquipmentSlot, RolledItem>>`, so
+  `slots[slot] = undefined` typechecks. But `stableStringify`
+  (`packages/core/src/hash.ts#stableStringify`) serialises `undefined` as the
+  literal string `undefined`, while `JSON.stringify` **drops** undefined-valued
+  keys entirely. So a slot emptied by assignment hashes one way live and a
+  different way after a save/load round trip — the same world, two hashes.
+
+  `npm run replay:check` will **not** catch this: within one process the hash is
+  self-consistent. It only diverges across a save and reload.
+
+  Measured in `tasks/done/0800-scout-the-equipment-chain.md` §2: an absent key,
+  a `null` and an `undefined` are three different hashes, and the `undefined`
+  form's round trip lands on the absent-key hash. At the time it was latent —
+  no shipped component stored an optional key. `Equipment` is the first one that
+  can, which is why it lands here.
+
+  Decision **0036** already rules the convention: an absent rider stays absent.
+  `packages/core/src/skills/systems.ts` implements it for `Projectile.status`
+  with a presence guard rather than an assignment. Follow that shape, cite 0036,
+  and add a test that an unequipped slot's world hashes equal to one where the
+  item was never equipped — a criterion that fails if you assign `undefined`.
+
 - **Read first:** decisions **0068** and **0069** (this task's specification,
   with their measuring sticks), then
   `tasks/done/0800-scout-the-equipment-chain.md` §3 in full (it names the four
