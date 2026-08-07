@@ -9,8 +9,10 @@ import {
   deathSystem,
   defineComponent,
   DungeonMap,
+  Equipment,
   Faction,
   makeCombatant,
+  makeEquipment,
   makeProgression,
   MELEE_RANGE_TILES,
   MoveOrder,
@@ -495,6 +497,16 @@ export const dungeonCrawl: Scenario = {
     // combat power through decision 0004's armor curve, which decision 0051
     // does not license (a level grants +6 max-life, at the computeStats seam).
     world.add(avatar, Progression, makeProgression(PLAYER_LEVEL))
+    // The avatar can wear gear; it wears none yet. THE INVARIANT: `Equipment.base`
+    // is the same statline the `Combatant` above was built from — both are
+    // PLAYER_STATS, and they must stay that way. A refit (task 0830) recomputes
+    // the whole combatant from `base` plus the worn set, so if these two ever
+    // disagree the first equip silently rebuilds the avatar as a different
+    // character. `makeEquipment` copies the statline (decision 0073), so the
+    // component cannot write back through the shared constant. Only the player
+    // carries this: it is what keeps the cost at one golden replay rather than
+    // five, and decision 0059 keeps it alive across a map unload.
+    world.add(avatar, Equipment, makeEquipment(PLAYER_STATS))
 
     const monitor = world.spawn()
     world.add(monitor, CrawlRecord, {
