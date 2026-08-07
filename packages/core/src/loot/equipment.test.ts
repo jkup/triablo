@@ -19,13 +19,23 @@ const AVATAR_STATS: CombatantBaseStats = {
   moveSpeed: 2.4,
 }
 
-/** A rolled item for `slot`, shaped like a real `rollItem` result. */
+/**
+ * A rolled item for `slot`, shaped like a real `rollItem` result.
+ *
+ * `levelRequirement`, `itemClass` and `handedness` arrived with task 0820 and
+ * are required on `RolledItem`; the values are inert here — this file tests
+ * where a worn item is *stored*, not whether it may be worn. The gate is task
+ * 0830 and the off-hand block is task 0890.
+ */
 function itemFor(slot: EquipmentSlot): RolledItem {
   return {
     baseId: `test-${slot}`,
     slot,
     itemLevel: 5,
     rarity: 'magic',
+    levelRequirement: 1,
+    itemClass: 'sword',
+    handedness: 'one-handed',
     implicits: [{ stat: 'damage', mode: 'flat', value: 8 }],
     affixes: [
       {

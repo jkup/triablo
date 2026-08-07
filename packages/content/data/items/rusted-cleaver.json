@@ -4,8 +4,9 @@
   "slot": "main-hand",
   "itemClass": "axe",
   "levelRequirement": 1,
+  "handedness": "two-handed",
   "implicits": [
     { "stat": "damage", "mode": "flat", "min": 3, "max": 6 }
   ],
-  "tags": ["starter", "two-handed"]
+  "tags": ["starter"]
 }

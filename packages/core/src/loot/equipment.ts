@@ -58,7 +58,7 @@
  *
  * Everything here is plain JSON and survives the save/hash round trip. A
  * `RolledItem` is "strings, numbers, and arrays only" by construction
- * (`./roll.ts:86-90`) and `CombatantBaseStats` is six primitives. Do not put an
+ * (`./roll.ts:108-112`) and `CombatantBaseStats` is six primitives. Do not put an
  * entity id, a function, or a registry reference in this component: a restored
  * world has no systems (task 0170), so anything not stored here is gone.
  */
@@ -74,7 +74,7 @@ import type { RolledItem } from './roll'
  * (`packages/content/src/schemas/common.ts:18-28`). Core cannot import content
  * (the dependency points the other way), so the two copies are duplicated by
  * design; **the content schema is the follower if they diverge** — the same
- * rule `LootItemBase` carries (`./roll.ts:18-23`). The mirror is not left to
+ * rule `LootItemBase` carries (`./roll.ts:23-28`). The mirror is not left to
  * reviewer eyeballs: `packages/content/src/core-sync.test.ts` asserts the two
  * lists are equal *in order* and fails `npm run verify` if either side is
  * reordered or extended alone.
@@ -105,7 +105,7 @@ const EQUIPMENT_SLOT_SET: ReadonlySet<string> = new Set(EQUIPMENT_SLOTS)
  * Whether a string names an equipment slot.
  *
  * The narrowing entry point for data crossing the seam: a `RolledItem.slot` is
- * an opaque `string` in core (`./roll.ts:91-98`), so anything that wants to use
+ * an opaque `string` in core (`./roll.ts:113-128`), so anything that wants to use
  * one as a key into `Equipment.slots` has to pass it through here first.
  */
 export function isEquipmentSlot(value: string): value is EquipmentSlot {

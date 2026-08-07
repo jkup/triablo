@@ -31,6 +31,16 @@ export const ItemBaseSchema = z
     slot: SlotSchema,
     itemClass: ItemClassSchema,
     levelRequirement: LevelSchema,
+    /**
+     * How many hands the item occupies — decision 0071. An explicit,
+     * enum-constrained field rather than a `tags` entry (free-form, so
+     * `"two-hand"` would validate and silently disable decision 0070's block)
+     * or a reading of `itemClass` (3 of `ITEM_CLASSES`' 11 members — `sword`,
+     * `axe`, `mace` — cover both handednesses). Defaulted, so only the one
+     * two-handed base authors it. Adding a third member here is a revisit
+     * trigger: `core-sync.test.ts` pins the member list.
+     */
+    handedness: z.enum(['one-handed', 'two-handed']).default('one-handed'),
     /** Modifiers every instance of this base rolls, before affixes. */
     implicits: z.array(StatModRangeSchema).default([]),
     tags: z.array(IdSchema).default([]),

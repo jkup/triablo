@@ -21,6 +21,19 @@ const simpleAffix = (
 const sword: LootItemBase = {
   id: 'test-sword',
   slot: 'main-hand',
+  levelRequirement: 3,
+  itemClass: 'sword',
+  handedness: 'one-handed',
+  implicits: [range('damage', 'flat', 3, 6)],
+}
+
+/** The other side of every field the roller copies but never judges. */
+const cleaver: LootItemBase = {
+  id: 'test-cleaver',
+  slot: 'main-hand',
+  levelRequirement: 42,
+  itemClass: 'axe',
+  handedness: 'two-handed',
   implicits: [range('damage', 'flat', 3, 6)],
 }
 
@@ -66,6 +79,9 @@ describe('determinism and serializability', () => {
     const fixedBase: LootItemBase = {
       id: 'fixed',
       slot: 'ring',
+      levelRequirement: 1,
+      itemClass: 'jewelry',
+      handedness: 'one-handed',
       implicits: [range('armor', 'flat', 4, 4)],
     }
     const rng = createRng('untouched')
@@ -74,6 +90,59 @@ describe('determinism and serializability', () => {
     expect(rng.getState()).toEqual(before)
     expect(item.implicits).toEqual([{ stat: 'armor', mode: 'flat', value: 4 }])
     expect(item.affixes).toEqual([])
+  })
+})
+
+describe('fields the roller carries but never judges (decisions 0069, 0071)', () => {
+  it('copies levelRequirement, itemClass and handedness verbatim across levels and rarities', () => {
+    // Two item levels and two rarities against the same base: if any of the
+    // three were scaled, defaulted or derived from the roll, one of these
+    // four items would disagree with its base.
+    const rng = createRng('carried-fields')
+    for (const itemLevel of [1, 60]) {
+      for (const rarity of ['common', 'rare'] as const) {
+        for (const base of [sword, cleaver]) {
+          const item = rollItem(base, bigPool, itemLevel, rarity, rng)
+          expect(item.levelRequirement).toBe(base.levelRequirement)
+          expect(item.itemClass).toBe(base.itemClass)
+          expect(item.handedness).toBe(base.handedness)
+          // …and the level that *is* the roll's own is untouched by the copy.
+          expect(item.itemLevel).toBe(itemLevel)
+        }
+      }
+    }
+    // Spelled out once, so a silent swap of two same-typed fields fails too.
+    const cleaverItem = rollItem(cleaver, bigPool, 60, 'rare', rng)
+    expect(cleaverItem.levelRequirement).toBe(42)
+    expect(cleaverItem.itemClass).toBe('axe')
+    expect(cleaverItem.handedness).toBe('two-handed')
+  })
+
+  it('keeps the widened item plain JSON', () => {
+    const item = rollItem(cleaver, bigPool, 20, 'rare', createRng('widened-round-trip'))
+    expect(JSON.parse(JSON.stringify(item)) as RolledItem).toEqual(item)
+  })
+
+  it('consumes no draw for the three copied fields', () => {
+    // Copying is not rolling: the draw order is part of the replay contract
+    // (see rollItem's header), so a widening that spent a draw would move
+    // every future golden. Compared between two runs rather than against a
+    // literal state, so this stays true if the rng implementation changes.
+    const rngA = createRng('no-extra-draw')
+    const rngB = createRng('no-extra-draw')
+    const a = rollItem(cleaver, bigPool, 20, 'rare', rngA)
+    const b = rollItem(cleaver, bigPool, 20, 'rare', rngB)
+    expect(a).toEqual(b)
+    expect(rngA.getState()).toEqual(rngB.getState())
+
+    // And the stream position does not depend on what the three fields hold:
+    // the same seed against a base differing only in them lands in the same
+    // place, with the same rolls.
+    const rngC = createRng('no-extra-draw')
+    const c = rollItem(sword, bigPool, 20, 'rare', rngC)
+    expect(rngC.getState()).toEqual(rngA.getState())
+    const erased = { baseId: '', levelRequirement: 0, itemClass: '', handedness: '' }
+    expect({ ...a, ...erased }).toEqual({ ...c, ...erased })
   })
 })
 
@@ -194,6 +263,9 @@ describe('rolled values stay within [min, max]', () => {
     const base: LootItemBase = {
       id: 'sweep-sword',
       slot: 'main-hand',
+      levelRequirement: 5,
+      itemClass: 'sword',
+      handedness: 'one-handed',
       implicits: [range('damage', 'flat', 2, 9), range('crit-damage', 'increased', 0.1, 0.35)],
     }
     const rng = createRng('sweep')
@@ -235,6 +307,9 @@ describe('rolled values stay within [min, max]', () => {
     const base: LootItemBase = {
       id: 'huge',
       slot: 'ring',
+      levelRequirement: 1,
+      itemClass: 'jewelry',
+      handedness: 'one-handed',
       implicits: [range('max-life', 'flat', 0.5, 1e300)],
     }
     const item = rollItem(base, [], 10, 'common', createRng('huge'))
@@ -248,6 +323,9 @@ describe('rolled values stay within [min, max]', () => {
     const base: LootItemBase = {
       id: 'quantized',
       slot: 'ring',
+      levelRequirement: 1,
+      itemClass: 'jewelry',
+      handedness: 'one-handed',
       implicits: [range('crit-chance', 'flat', 0.01, 0.03)],
     }
     const rng = createRng('quantized')
@@ -355,6 +433,9 @@ describe('input validation', () => {
     const badMin: LootItemBase = {
       id: 'bad',
       slot: 'ring',
+      levelRequirement: 1,
+      itemClass: 'jewelry',
+      handedness: 'one-handed',
       implicits: [range('armor', 'flat', Number.NaN, 5)],
     }
     expect(() => rollItem(badMin, [], 10, 'common', createRng(1))).toThrow(/implicits\[0\]\.min/)
@@ -362,6 +443,9 @@ describe('input validation', () => {
     const inverted: LootItemBase = {
       id: 'bad',
       slot: 'ring',
+      levelRequirement: 1,
+      itemClass: 'jewelry',
+      handedness: 'one-handed',
       implicits: [range('armor', 'flat', 6, 3)],
     }
     expect(() => rollItem(inverted, [], 10, 'common', createRng(1))).toThrow(/min 6 > max 3/)
