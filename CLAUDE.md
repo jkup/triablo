@@ -51,10 +51,13 @@ Useful subsets while iterating:
 
 ```
 npm run typecheck             # fastest signal, catches most agent mistakes
-npm run test -- <pattern>     # a single test file
+npx vitest run <pattern>      # a single test file — NOT `npm run test -- <pattern>`,
+                              # which carries --coverage and fails the global
+                              # thresholds on any filtered subset, on every branch
 npm run sim -- --list         # what scenarios exist
 npm run sim -- run <scenario> --seed 7 --verbose   # read what actually happened
 npm run content:validate      # schema-check every content file
+npm run citations:check       # resolve every file citation in tasks/ and docs/
 ```
 
 ## Layers
