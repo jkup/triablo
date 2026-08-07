@@ -113,6 +113,8 @@ export type {
   StatModRange,
 } from './loot/roll'
 
+export { itemMods } from './loot/mods'
+
 export { Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment } from './loot/equipment'
 export type { EquipmentSlot } from './loot/equipment'
 
