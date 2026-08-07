@@ -4,7 +4,7 @@
 - **Phase:** 3
 - **Priority:** 2 (lower runs first)
 - **Depends on:** 0810-equipment-component-and-base-statline.md,
-  0820-rolled-items-carry-their-gate-and-class.md,
+  0820-items-carry-their-gate-class-and-handedness.md,
   0590-item-mods-pure-function.md
 
 ## Goal
@@ -28,25 +28,26 @@ After this task core exports three pure functions and one sibling of
   order.
 
 Nothing calls any of them yet, so **no replay moves.** This is T3 of
-`tasks/done/0800-scout-the-equipment-chain.md` §9, under the owner's rulings on
-recompute (§10 Q3), healing (Q4) and the runtime gate (Q5) — decisions
-0067-series.
+`tasks/done/0800-scout-the-equipment-chain.md` §9, under decisions **0068** and
+**0069**.
 
 ## The rulings this task implements
 
-Cite these by their decision numbers once the 0067-series entries are on
-`main`; check `docs/decisions/` and the open PRs when you start, because the
-grouping is not fixed.
+Read both entries in full before you start; they carry the measuring sticks and
+this section is a summary, not the authority.
 
-1. **Stats recompute the instant gear changes** (Q3). Not at spawn — under
-   decision **0059** the player entity is created once and never re-spawned, so
-   "spawn only" means an item picked up during play never applies at all.
-2. **An equip never heals** (Q4): `life = min(life, newMaxLife)`, otherwise
-   unchanged. Decision **0060** rules that a level-up fully heals and calls it
-   "deliberately, a combat resource"; a swap-heal would make that resource free
-   and unlimited.
+1. **Stats recompute the moment gear changes** (decision **0068**). "Apply at
+   spawn only" is not an available option: decision **0059** is confirmed as
+   written — the player entity is constructed once and never re-spawned — so
+   gear picked up mid-run would never apply at all.
+2. **An equip never heals** (decision **0068**): `life = min(life, newMaxLife)`,
+   otherwise unchanged, leaving decision **0060**'s level-up heal the only heal
+   in the game. 0068 measures the rejected alternative at **+273 life**, per
+   equip and repeatable at will, on the decision-0030 avatar at `59/200`
+   rebuilt with task 0590's chest fixture.
 3. **The gate compares against `Progression.level`, never `Combatant.level`**
-   (Q5). They are deliberately different quantities — see Requirement 3.
+   (decision **0069**). They are deliberately different quantities — see
+   Requirement 3.
 
 ## Files in scope
 
@@ -57,7 +58,7 @@ grouping is not fixed.
   `equippedMods`
 - `packages/core/src/loot/equipment.test.ts`
 - `packages/core/src/index.ts` — re-exports only
-- `docs/decisions/` — one or two new numbered entries (Requirement 5)
+- `docs/decisions/` — one new numbered entry (Requirement 5)
 
 ## Out of scope
 
@@ -66,13 +67,15 @@ grouping is not fixed.
   tasks 0850/0860 make anything call these.
 - **Any change under `packages/sim` or `packages/client`.** Zero.
 - **Handedness.** `equip()` does **not** refuse an off-hand while a two-handed
-  main-hand is worn in this task —
+  main-hand is worn in this task.
   `tasks/open/0890-two-handed-weapons-block-the-off-hand.md` owns that
-  predicate and is blocked on an owner sentence this task does not need. Leave
-  the seam: `equip()`'s refusal type must be a discriminated union with a
-  `reason` field so 0890 adds a case rather than changing the signature. Say so
-  in the doc comment.
-- **Inventory.** There is none in v1 (the owner's Q1 ruling): the ground is the
+  predicate — it is ruled (decisions **0070** and **0071**) and unblocked, it is
+  simply a separate sitting and it needs task 0820's `handedness` field to read.
+  **Leave the seam clean for it:** `equip()`'s refusal type must be a
+  discriminated union with a `reason` field so 0890 adds a case rather than
+  changing the signature, and `displaced` is a list for the same reason (see
+  Requirement 3). Say so in the doc comment.
+- **Inventory.** There is none in v1 (decision **0067**): the ground is the
   bag. Do not add a bag, a capacity, or an item list.
 - **Changing `makeCombatant`'s observable behaviour.** Requirement 1 is a pure
   extraction; if any replay moves, you changed something.
@@ -180,7 +183,7 @@ export function unequip(equipment: Equipment, slot: EquipmentSlot): { equipment:
   can arrive from a save file, and `secondsToTicks`' throw
   (`packages/core/src/time.ts:31-37`) is the right shape for programmer error,
   not for content.
-- **Swapping is the normal case, and it is the owner's Q1 ruling.** There is no
+- **Swapping is the normal case, and decision 0067 rules it.** There is no
   inventory in v1; picking up an item for an occupied slot swaps, and the worn
   item goes back to the ground. So `equip()` on an occupied slot succeeds and
   returns the outgoing item in `displaced`. It is the **caller's** job to do
@@ -238,18 +241,26 @@ A `59/200` avatar equipping that chest, under the four candidate life rules:
 
 Unequipping it at `300/332` gives **`200/200`** under the clamp.
 
-### 5. Decisions
+### 5. Decisions — write one, and keep it to what is genuinely yours
 
-At least one entry, and it must record: the three volatile-field rules
-(`life` clamped and never raised, `ticksUntilAttack` preserved and clamped
-down, `damageDealt` never written) with `dungeon-crawl.ts:406-412` and
-`duel.ts:167-172` named as the executable reason; and that the equip gate reads
-the character level, with the "invisible in every current golden" fact above so
-a future reader knows why the divergence test exists. Split into two entries if
-that reads better. Check which numbers are free — the highest on `main` was
-**0066** when this was written, and a `systems-dev` agent is minting the
-0067-series in parallel; re-check `docs/decisions/` and `gh pr list` when you
-start.
+**Most of this is already ruled and must be cited, not restated.** Decision
+0068 rules the recompute, the `life = min(life, newMaxLife)` clamp and that
+`damageDealt` is never written; decision 0069 rules the gate and the level it
+reads, including that "the wrong-level mistake is invisible in every current
+golden" and that "the implementing task must add a test where the two differ".
+
+What 0068 explicitly leaves to you, in its own words: *"The exact
+`ticksUntilAttack` rule on refit — in particular clamping down when the new
+interval is shorter — is the implementing task's to settle and record."* That is
+the entry. Record the rule, why preservation matters (a reset repeals decision
+0010's cadence), and why the clamp-down matters (without it a slow-to-fast swap
+is momentarily slower than either weapon).
+
+**0073 is the next free number** at time of writing; re-check
+`docs/decisions/` and `gh pr list` when you start. If you conclude nothing here
+needs an entry beyond `ticksUntilAttack`, say so in your Outcome rather than
+padding one out — a redundant entry paraphrasing a ratified one is a known
+failure mode in this repo.
 
 ## Acceptance criteria
 
@@ -289,11 +300,13 @@ start.
 
 ## Notes for the implementer
 
-- **Read first:** `tasks/done/0800-scout-the-equipment-chain.md` §3 in full (it
-  is this task's specification, and it names the four parts of the rebuild
-  trap), decisions **0005** (the fold), **0060** (the level-up heal you must
-  not duplicate), **0059** (the player entity persists), **0010** (attack
-  cadence), and `packages/core/src/combat/components.ts:26-58`.
+- **Read first:** decisions **0068** and **0069** (this task's specification,
+  with their measuring sticks), then
+  `tasks/done/0800-scout-the-equipment-chain.md` §3 in full (it names the four
+  parts of the rebuild trap), then decisions **0005** (the fold), **0060** (the
+  level-up heal you must not duplicate), **0059** (the player entity persists),
+  **0010** (attack cadence), and
+  `packages/core/src/combat/components.ts:26-58`.
 - **The trap.** `makeCombatant` is a *constructor* and a refit is not a
   construction. Every one of the three volatile fields it zeroes is load-bearing
   somewhere that will fail a scenario rather than a unit test, which means the

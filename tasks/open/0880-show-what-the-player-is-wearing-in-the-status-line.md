@@ -18,16 +18,23 @@ After this task `GameStatus` carries a sixth field, `playerEquipped`, reading
 is the whole task: one additive field, one line on the page, tests. It is
 deliberately not a character sheet.
 
-This is T6 of `tasks/done/0800-scout-the-equipment-chain.md` §9, under the
-owner's Q7 ruling: **split the client surface — one additive `GameStatus` field
-in phase 3, the character sheet in phase 5** (decision 0067-series).
+This is T6 of `tasks/done/0800-scout-the-equipment-chain.md` §9, under decision
+**0072**: **split the client surface — one additive `GameStatus` field in phase
+3, the character sheet in phase 5.** 0072 measures the baseline it is additive
+against: `GameStatus` has **5 fields** after task 0780, so this is "a 6th field
+on one client-side interface, not a new surface".
 
 ## Why this is the whole surface, and not more
 
 `docs/ROADMAP.md:60` puts "Inventory, skill tree, character sheet UI" in **phase
-5**. The owner ruled the split rather than waiting: a phase-3 player gets a
+5**. Decision 0072 rules the split rather than waiting: a phase-3 player gets a
 counter that proves the pickup landed, and the sheet that shows *what* they are
-wearing arrives with the rest of the UI. Do not anticipate it.
+wearing arrives with the rest of the UI. Do not anticipate it. 0072 records the
+accepted cost — "a phase-3 player equips gear, sees their life and damage move,
+and cannot inspect what they are wearing" — so that cost is not a finding for
+you to re-raise. It also states why this task is replay-neutral by
+construction: "`GameStatus` is derived client state, not snapshot state, so
+this moves no replay".
 
 `tasks/done/0780-show-level-and-xp-in-the-status-line.md` is the landed pattern
 and it is on `main` as commit `3a037f0`. It added `playerLevel` and `playerXp`
@@ -111,10 +118,13 @@ before you edit around it.
 
 ## Notes for the implementer
 
-- **Read first:** `tasks/done/0780-show-level-and-xp-in-the-status-line.md` as
-  landed, and `packages/client/src/game.ts:157-210`.
+- **Read first:** decision **0072**,
+  `tasks/done/0780-show-level-and-xp-in-the-status-line.md` as landed, and
+  `packages/client/src/game.ts:157-210`.
 - **The trap.** Reaching for the item names because the counter feels thin. It
-  is thin on purpose; the owner ruled the split. A slot-by-slot readout is the
+  is thin on purpose; decision 0072 ruled the split and named its revisit
+  trigger (phase 5, or a playtest where players report equipping items they
+  cannot identify). A slot-by-slot readout is the
   character sheet and it lands in phase 5 with the inventory.
 - **Note what this reads before task 0870 lands:** `0/9`, forever, because
   nothing can pick anything up yet. That is expected and is not a reason to

@@ -32,12 +32,14 @@ Two things people expect to block it do not:
   names it: "The player entity and its components — `Progression`, `Equipment`
   when it exists — survive" a map unload. This task builds the component 0059
   named; it does not extend that ruling.
-- **The slot type is final under the owner's handedness ruling.** The owner
-  ruled that a two-handed weapon blocks the off-hand (the handedness ruling,
-  decision 0067-series, scout §10 Q8), and the scout warned that a *stored*
-  third slot state would widen this type later. **It does not, because the
-  blocked state is derived on read, not stored** — see "The third slot state"
-  below. Ship the narrow type.
+- **The slot type is final, and a ratified decision says so.** Decision **0070**
+  rules that a two-handed weapon blocks the off-hand and accepts that a slot
+  therefore has three states; decision **0071** rules how the third is
+  represented — *"`Equipment` stores worn items only; 'blocked' is a pure
+  predicate over the main hand's `handedness` … derived, decision 0036's
+  absent-key convention holds unchanged."* The scout warned that a *stored*
+  third state would widen this type later; 0071 rules it out, so **ship the
+  narrow type and it will not move.** See "The third slot state" below.
 
 ## Files in scope
 
@@ -144,11 +146,18 @@ that will.
 
 ### 4. The third slot state is derived, not stored
 
-The owner ruled that a two-handed main-hand blocks the off-hand, and accepted
-that a slot therefore has three states rather than two: occupied, empty, and
-blocked. **Only the first two are stored.** "Blocked" is computed on read from
-the main-hand item's class, so the serialized shape of `Equipment` is identical
-under both branches and task 0890 needs no migration of saved state.
+Decision **0070** rules that a two-handed main-hand blocks the off-hand and
+accepts that a slot therefore has three states rather than two: occupied,
+empty, and blocked. Decision **0071** rules that **only the first two are
+stored**: "blocked" is a pure predicate over the main hand's `handedness` field
+(**not** its `itemClass` — 0071 rejects that authority by name, because 3 of
+`ITEM_CLASSES`' 11 members cover both handednesses). The serialized shape of
+`Equipment` is therefore the same either way, and task 0890 needs no migration
+of saved state.
+
+You do not implement the predicate here — task 0890 does, and it needs task
+0820's `handedness` field to read. What this task owes it is a slot type that
+will not have to change.
 
 Measured, on this worktree, with one `Equipment { base, slots }` on one entity
 in a fresh `World({ seed: 1 })` — four encodings of *the same worn gear* (a
@@ -156,7 +165,7 @@ main-hand item, off-hand not worn):
 
 | off-hand encoding | world hash | round-trips? |
 |---|---|---|
-| **absent key (this task's rule)** | `0826fb5f17e4d326` | yes |
+| **absent key (this task's rule, per 0036/0071)** | `0826fb5f17e4d326` | yes |
 | `'blocked'` sentinel stored | `5445f10efdaa7f7c` | yes |
 | `null` | `b13fc0f18c93080e` | yes |
 | `undefined` | `175d7b722b77c0f2` | **no — `restore` lands on `0826fb5f17e4d326`** |
@@ -232,7 +241,8 @@ with a named alternative, not a constraint.
 
 - **Read first:** decision **0059** (the ruling that `Equipment` belongs to the
   character and survives a map unload), decision **0036** (the absent-key
-  convention you inherit), `tasks/done/0800-scout-the-equipment-chain.md` §1
+  convention you inherit), decision **0071** (which ratifies that the third slot
+  state is derived, never stored — it is why your slot type is final), `tasks/done/0800-scout-the-equipment-chain.md` §1
   and §2 (the census and the hashes), and
   `packages/core/src/progression/components.ts:19-31` — the worked precedent
   for a player-only component with its replay reasoning written out.
@@ -250,8 +260,10 @@ with a named alternative, not a constraint.
   property of the fixture that produced it. Cite §2's literals as "measured in
   task 0800 §2" if you cite them at all.
 - **`packages/core/src/index.ts` is a known one-line collision** with tasks
-  0420, 0590, 0630 and 0820. Rebase onto `main` before opening the PR and keep
-  both export lines.
+  0420, 0590 and 0630. Rebase onto `main` before opening the PR and keep both
+  export lines. `packages/content/src/core-sync.test.ts` is also named by task
+  0820 — different assertions in the same file, so expect a small merge and
+  keep both.
 - Size this against `tasks/done/0660-progression-component-and-xp-curve.md`.
   If it is growing past that, you have picked up something from tasks 0830+.
 

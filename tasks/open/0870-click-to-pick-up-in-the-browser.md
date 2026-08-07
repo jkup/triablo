@@ -20,20 +20,23 @@ there is not, it is the ordinary move order it has always been.
 
 This is the browser half of T5 in
 `tasks/done/0800-scout-the-equipment-chain.md` §9, re-cut for the owner's
-click-to-pickup ruling (decision 0067-series, scout §10 Q2). The headless half
+click-to-pickup ruling (decision **0067**, task 0800 §10 Q2). The headless half
 is task 0860.
 
 ## The rulings this implements
 
-- **Q2 — K3, click to pick up, *not* K1 proximity auto-pickup.** The owner
-  departed from the scout's own recommendation here. The reason is Q1: with no
-  inventory, an occupied slot swaps, so walking over a worse item would silently
-  downgrade you. A pickup must be deliberate.
-- **Q6 — two existing constants, no new ones.** The click tolerance is
-  `REND_PICK_RADIUS_TILES = 1.5` (`packages/client/src/input.ts:28-33`,
-  decision 0033) — **reuse the exported constant itself, do not declare a
-  second 1.5.** Collection distance is `MELEE_RANGE_TILES = 1`, and that is
-  core's, already implemented by task 0850; nothing in this task mentions it.
+- **Decision 0067 — click to pick up, *not* proximity auto-pickup.** The owner
+  departed from task 0800's own recommendation here, and the entry says "**Do
+  not 'correct' this back to auto-pickup**". The reason is the swap: with no
+  inventory, walking over a worse item would silently downgrade you, so a
+  pickup must be deliberate.
+- **Decision 0067 — two existing constants, no new ones.** The targeting
+  tolerance is **1.5 tiles**, *measured in* world tiles from the cursor world
+  point to the item position, *reused from* `REND_PICK_RADIUS_TILES`
+  (`packages/client/src/input.ts:33`, decision 0033) — **reuse the exported
+  constant itself, do not declare a second 1.5.** The entry states "No
+  `PICKUP_RADIUS_TILES` is minted." Collection distance is
+  `MELEE_RANGE_TILES = 1`, core's, already implemented by task 0850.
 
 ## Files in scope
 
@@ -53,7 +56,7 @@ is task 0860.
 - **A new keybind.** Decision 0033 owns the keybinds (`1`/`2`/`3` plus
   click-to-move) and this task adds none. Left click does both jobs, chosen by
   what is under the cursor.
-- **A fourth radius constant.** See Q6 above.
+- **A third radius constant.** Decision 0067 mints none; see above.
 - **Rendering.** No loot sprite kind, no highlight, no hover outline, no drop
   animation. `packages/client/src/scene.ts`, `raster.ts` and `effects.ts` are
   **not** in scope — `tasks/open/0750` puts that behind decisions 0027/0034 and
@@ -85,7 +88,7 @@ export function clickToPickup(
 - The radius is `REND_PICK_RADIUS_TILES`, imported, not re-declared. Its doc
   comment currently says it is rend's pick radius; extend that comment to say it
   is now the input layer's one "how close does a click have to be" number,
-  covering both rend targeting and item picking, per the owner's Q6 ruling.
+  covering both rend targeting and item picking, per decision 0067.
 - `walkTo` is `tileOf(itemPosition)` — the same one position→tile rounding
   decision 0029 fixes, already exported by core.
 - Returns `null` when no `GroundItem` is in range, which is the ordinary
@@ -174,10 +177,12 @@ testable lives in `input.ts`.
       `clickToPickup`, apply it, step until the avatar arrives, and assert the
       `GroundItem` entity is gone, the player's `Equipment.slots` holds the item,
       and the player's `Combatant.damageDealt` is unchanged by the collection.
-- [ ] The decision entry records that a left click near a drop picks it up
-      rather than moving, that 1.5 tiles is the shared input tolerance and 1 tile
-      is the collection distance, and that a plain move click cancels a pending
-      pickup.
+- [ ] The decision entry records only what decision 0067 does not: that a
+      **left** click near a drop picks up rather than moves (no new keybind —
+      decision 0033 owns those), and that a plain move click cancels a pending
+      pickup. Cite 0067 for the tolerance and the collection range rather than
+      restating them. **0073 is the next free number** at time of writing;
+      re-check `docs/decisions/` and `gh pr list` when you start.
 
 ## Notes for the implementer
 

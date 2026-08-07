@@ -63,7 +63,8 @@ The guard sentence for the `note`:
   choosing between two drops on quality. Pillar 2 says an automatic "better" is
   the thing that should not exist; the bot is a determinism harness, not a
   player.
-- Handedness (task 0890), the status line (task 0880), inventory.
+- Handedness (task 0890), the status line (task 0880), inventory (there is
+  none — decision 0067).
 
 ## Requirements
 
@@ -87,8 +88,12 @@ never interrupts a fight**):
   existing early return covers the first).
 - Otherwise, find the nearest **untried** `GroundItem` within
   `AGGRO_RADIUS_TILES` (`packages/core/src/combat/systems.ts:69`, value 10) —
-  an existing constant, per the owner's "two existing constants, no new ones"
-  ruling. Ties break to the **lowest entity id** (`nearestHostile`'s convention
+  an existing constant, in the spirit of decision 0067's "two existing
+  constants, no new ones" and its "No `PICKUP_RADIUS_TILES` is minted". This is
+  the *bot's* search range, not a pickup radius: 0067's two constants are the
+  client's 1.5-tile targeting tolerance and core's 1-tile collection range, and
+  neither is what a headless bot uses to decide where to walk. Say that in the
+  comment so a later reader does not read it as a third radius. Ties break to the **lowest entity id** (`nearestHostile`'s convention
   at `packages/client/src/input.ts:78-108`: only a strictly nearer candidate
   replaces the incumbent, and component entries arrive sorted).
 - If one exists, issue **both** a `MoveOrder` to its tile (`tileOf` on its

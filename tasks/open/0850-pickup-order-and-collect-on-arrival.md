@@ -22,21 +22,26 @@ replay moves; task 0860 registers it in the crawl and task 0870 wires the
 browser click.
 
 This is T5 of `tasks/done/0800-scout-the-equipment-chain.md` §9, **re-cut for
-the owner's K3 ruling** (click to pick up, decision 0067-series, scout §10 Q2)
+decision 0067** (click to pick up — task 0800 §10 Q2)
 — the scout's §9 T5 was written for K1 proximity auto-pickup and is superseded.
 
 ## The rulings this implements, and why the shape changed
 
-- **Q2 — click, not proximity.** The owner chose K3 over the scout's own K1
-  recommendation. The reason is Q1: with no inventory, walking over a worse
-  item would silently downgrade you, so a pickup must be deliberate.
-- **Q1 — no inventory, and an occupied slot swaps.** The ground is the bag
-  (`docs/ROADMAP.md:60` puts inventory in phase 5). The worn item drops.
-- **Q6 — two existing constants, no new ones.** Collection happens at
-  `MELEE_RANGE_TILES = 1` (`packages/core/src/combat/systems.ts:35`). The click
-  tolerance of `1.5` is the **client's**, task 0870's, and is not in this file.
-- **Q3/Q4 — recompute on equip, and never heal.** Task 0830 already implements
-  both; this system calls `refitCombatant` and adds no rule of its own.
+- **Decision 0067 — click, not proximity.** The owner chose task 0800's K3
+  over that task's own K1 recommendation, and the entry says so in as many
+  words: "**this departs from that task's recommendation of K1** … auto-pickup
+  plus swap-on-pickup means walking over a worse item silently downgrades you …
+  **Do not 'correct' this back to auto-pickup.**"
+- **Decision 0067 — no inventory, and an occupied slot swaps.** The ground is
+  the bag; the worn item drops. Empty-only was rejected on a measured count:
+  **9 slots against 8 drops per `dungeon-crawl` run**, so it dies in run two.
+- **Decision 0067 — two existing constants, no new ones.** Collection happens
+  at `MELEE_RANGE_TILES = 1` (`packages/core/src/combat/systems.ts:35`); the
+  targeting tolerance of 1.5 tiles is the **client's**, task 0870's, and is not
+  in this file. The entry is explicit: "No `PICKUP_RADIUS_TILES` is minted."
+- **Decision 0068 — recompute on equip, and never heal.** Task 0830 already
+  implements both; this system calls `refitCombatant` and adds no rule of its
+  own.
 
 ## This grows core's command surface, and that is stated, not buried
 
@@ -148,8 +153,8 @@ Position, Equipment, Progression)` — ascending entity id, decision 0016:
      slot, and what was displaced.
 
 **`Progression` is required by the query, deliberately.** The gate compares
-against the *character* level, never `Combatant.level` (task 0830's rule,
-decision 0067-series Q5). A character with no `Progression` has no character
+against the *character* level, never `Combatant.level` (decision **0069**, and
+task 0830's rule). A character with no `Progression` has no character
 level, so it cannot equip: it never matches the query and its order is never
 consumed. State that in the doc comment — a silent fallback to `Combatant.level`
 or to level 1 is exactly the invisible bug this rule exists to prevent.
@@ -170,18 +175,25 @@ or to level 1 is exactly the invisible bug this rule exists to prevent.
   — reading a stale position would collect from a tile the collector has already
   left — while the slot against `xp-award` and `loot-drop` is.
 
-### 4. The decision entry
+### 4. The decision entry — only what 0067 does not already rule
 
-Record: that pickup is core's **third** command component and why (the sim
-harness has no client, so the *order* must be core's even though the
-*targeting* is the client's); that collection happens at `MELEE_RANGE_TILES`
-and reuses that existing constant rather than adding a fourth radius; that an
-occupied slot swaps and the displaced item drops at the collector's feet, with
-decision **0059** noted ("Ground loot left behind on a cleared map is destroyed
-with it" — so a swapped-out item you walk away from is gone); that a refusal
-leaves the item on the floor; and the standing-still cancellation rule from
-step 3, which is the thing a future reader is most likely to find surprising.
-Check which decision numbers are free when you start.
+**Do not restate decision 0067.** It already rules click-not-proximity, the
+swap, the two reused constants and their measuring sticks, and it already notes
+decision 0059's consequence ("the item you swapped *out* is also on the floor
+and also dies with the map"). Cite it.
+
+What is genuinely this task's and belongs in an entry:
+
+- that pickup is core's **third** command component, and why the *order* must
+  live in core even though the *targeting* is the client's — the sim harness
+  has no client;
+- **the standing-still cancellation rule** from step 3, which is the thing a
+  future reader is most likely to find surprising, together with the deadlock
+  it exists to prevent (see the first trap in Notes);
+- that a refusal clears the order and leaves the item on the floor untouched.
+
+**0073 is the next free number** at time of writing; re-check
+`docs/decisions/` and `gh pr list` when you start.
 
 ## Acceptance criteria
 
