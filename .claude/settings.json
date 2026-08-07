@@ -39,18 +39,17 @@
       "Bash(git rebase *)",
       "Bash(git push*)",
       "Bash(git worktree *)",
-      "Bash(gh pr view*)",
-      "Bash(gh pr list*)",
-      "Bash(gh pr diff*)",
-      "Bash(gh pr checks*)",
-      "Bash(gh pr create*)",
-      "Bash(gh pr merge*)",
-      "Bash(gh pr comment*)",
-      "Bash(gh pr ready*)",
-      "Bash(gh pr update-branch*)",
-      "Bash(gh run list*)",
-      "Bash(gh run view*)",
-      "Bash(gh run watch*)",
+      "Bash(gh pr *)",
+      "Bash(gh run *)",
+      "Bash(gh api *)",
+      "Bash(gh issue *)",
+      "Bash(gh label *)",
+      "Bash(gh workflow *)",
+      "Bash(gh repo *)",
+      "Bash(gh search *)",
+      "Bash(gh cache *)",
+      "Bash(gh browse *)",
+      "Bash(gh auth status)",
       "Bash(ls *)",
       "Bash(rg *)",
       "Bash(find *)",
@@ -68,14 +67,24 @@
       "Bash(git push -f*)",
       "Bash(git push --delete*)",
       "Bash(npm publish*)",
-      "Bash(gh api *)",
-      "Bash(gh repo *)",
-      "Bash(gh pr edit*)",
-      "Bash(gh label *)",
       "Bash(gh secret *)",
-      "Bash(gh workflow *)",
       "Read(./.env)",
       "Read(./.env.*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh *)",
+            "command": "node -e 'let s=\"\";process.stdin.on(\"data\",d=>s+=d).on(\"end\",()=>{let c=\"\";try{c=(JSON.parse(s).tool_input||{}).command||\"\"}catch(e){c=s}const mutates=/-X\\s*(DELETE|PUT|PATCH|POST)\\b/i.test(c);const sensitive=/branches\\/[^ ]*\\/protection|\\/actions\\/secrets|\\/collaborators|\\/actions\\/permissions/i.test(c);const lifecycle=/gh repo (delete|archive|rename|edit)\\b|gh workflow (disable|delete)\\b/i.test(c);if((mutates&&sensitive)||lifecycle){process.stdout.write(JSON.stringify({hookSpecificOutput:{hookEventName:\"PreToolUse\",permissionDecision:\"ask\",permissionDecisionReason:\"Mutates branch protection, secrets, or repo/workflow lifecycle - the controls that make the gate meaningful. Reads are unaffected. Confirm before proceeding.\"}}))}})'",
+            "statusMessage": "Checking gh command scope"
+          }
+        ]
+      }
     ]
   }
 }

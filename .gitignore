@@ -18,4 +18,12 @@ shots/
 # Local, per-machine Claude Code overrides.
 .claude/settings.local.json
 
+# Agent worktrees. Each is a real git worktree, so `git add -A` in the primary
+# checkout stages them as embedded repositories ("adding embedded git
+# repository" warnings) and commits a bare gitlink pointing at a path that
+# exists on one machine only. Observed 2026-08-07 while staging this very
+# commit. Worktrees are created and removed by the dispatch loop; nothing here
+# is ever a source artifact.
+.claude/worktrees/
+
 .DS_Store
