@@ -6,6 +6,23 @@
 - **Depends on:** 0420-loot-drop-on-death.md,
   0680-wire-progression-into-crawl-and-client.md, 0730-wire-level-life-grant.md
 
+> **Amendment 2026-08-07 (planner, task-cut for the equipment chain; revised
+> after decisions 0069/0071 landed).** Two notes; **no requirement below is
+> retracted.**
+>
+> 1. `tasks/open/0820-items-carry-their-gate-class-and-handedness.md` widens
+>    `LootItemBase` with **three** required fields — `levelRequirement: number`,
+>    `itemClass: string` and `handedness: string` (decisions **0069** and
+>    **0071**). If it is on `main` when you start, Requirement 1's `LootDomain`
+>    base list must copy all three from `registry.item(id)` or this task will
+>    not typecheck. That widening is deliberately scheduled **before** this
+>    task, so the expected order is 0820 then 0750.
+> 2. Requirement 4's new invariant, `groundItems + livingMonsters ===
+>    authoredSpawnCount`, is correct as written **and stops being true once the
+>    avatar can pick items up**. `tasks/open/0860-the-crawl-bot-collects-what-it-kills.md`
+>    corrects it in place to `groundItems + itemsEquipped + livingMonsters ===
+>    authoredSpawnCount`. Write it as specified below; do not pre-empt 0860.
+
 ## Goal
 
 Task 0420 lands `lootDropSystem`, `LootDomain`, `LootSource` and `GroundItem`

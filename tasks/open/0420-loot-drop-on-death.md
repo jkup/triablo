@@ -5,6 +5,18 @@
 - **Priority:** 3
 - **Depends on:** none
 
+> **Amendment 2026-08-07 (planner, task-cut for the equipment chain; revised
+> after decisions 0069/0071 landed).**
+> `tasks/open/0820-items-carry-their-gate-class-and-handedness.md` widens `LootItemBase`
+> (`packages/core/src/loot/roll.ts:66-72`) with **three** required fields —
+> `levelRequirement: number`, `itemClass: string` and `handedness: string`
+> (decisions **0069** and **0071**, which require all three in one diff). If
+> 0820 is already on `main` when you start, the `LootDomain`'s embedded item
+> bases must copy all three across — `registry.item(id)` carries them once 0820
+> lands, so it is three more lines in the same value-copy — or this task will
+> not typecheck. If 0820 is not yet landed, nothing here changes and 0820 will
+> absorb the merge. Everything else below stands unaltered.
+
 ## Goal
 
 Phase 3's "Loot tables, rarity tiers, item power scaling" bullet, first
