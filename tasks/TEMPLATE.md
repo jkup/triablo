@@ -26,11 +26,19 @@ Explicitly not part of this task, even though it may look adjacent.
 
 ## Acceptance criteria
 
-Each must be a command someone can run, or an observation from its output.
+Each must be a command **an agent** can run, or an observation from its output.
+An agent cannot see the browser: there is no jsdom and no browser automation, so
+"run `npm run dev` and report what you saw" cannot be satisfied — it gets
+satisfied by invention instead. Put visual confirmation under **Owner playtest**
+and give the agent a checkable substitute (assert the fields, not the pixels).
 
 - [ ] `npm run verify` passes.
 - [ ] `npm run sim -- run <scenario> --seed 1` reports <specific thing>.
 - [ ] New test `<name>` fails when the change is reverted.
+
+**Owner playtest** (not an agent deliverable):
+
+- [ ] ...
 
 ## Notes for the implementer
 
@@ -44,6 +52,9 @@ the naive approach does not work.
 *Filled in by the agent that completes the task. Leave blank until then.*
 
 - **What changed:**
+- **Verified:** name the subset you actually checked, never "everything" —
+  e.g. *"resolved all 16 citations in this file; 14 exact, 2 wrong"*. Paste
+  captured output; never retype it.
 - **Replays re-blessed:** none | `<file>` because `<behavior change>`
 - **Scope deviations:**
 - **Follow-ups worth a new task:**

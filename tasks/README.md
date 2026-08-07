@@ -72,6 +72,52 @@ move nothing.
 **A file you intend to create is not a citation.** Name it in prose. Anchoring
 it asserts it is there today, which is the claim being checked.
 
+## Claims: label them, and don't overstate what you checked
+
+Every factual claim in a task file is labelled:
+
+- **`MEASURED`** — you ran something and **the raw output is pasted in this
+  file**. Redirect to a file and splice it in; do not retype it. If the output
+  is not here, it is not `MEASURED`.
+- **`DERIVED`** — computed from a measured number. Show the arithmetic.
+- **`ASSUMED`** — neither. Say so, and say what would settle it.
+
+This is not bookkeeping. Sorting every correction from PRs #96 and #99: **every
+claim that was measured survived independent re-checking; every claim that was
+argued was wrong.** "It's forced." "First component with optional keys."
+"Retuning moves no replay." "Five weapon classes." All reasoned, all corrected.
+Three separate agents reproduced the same golden-replay counts to the digit.
+
+**Never write a blanket verification claim.** "I re-checked every citation" and
+"all invariants pass" are worthless if untrue and unverifiable if true — and
+both have been written here and been false. Name the subset: *"resolved all 16
+`file:line` citations in this file; 14 exact, 2 wrong."* A reviewer can check
+that. It also costs you nothing when you are right.
+
+Pasting output you composed rather than captured is the worst version of this.
+It has happened once: a `loot-smoke` block with four lines the CLI never prints.
+The run was real and the hash was genuine, which is exactly what made the
+composed framing dangerous.
+
+## Length: cite rulings, don't restate them
+
+Task files average 457 lines and climbing; they were 111. `tasks/` now holds
+more lines of prose than `packages/` holds of source. Long files are not more
+rigorous — they are harder to review, and the multi-pass PRs in this repo have
+all been prose, never code.
+
+Two habits carry most of the weight:
+
+- **Cite a ratified decision; never re-argue it.** If `docs/decisions/` settles
+  something, one sentence and the number is the whole treatment. Restating the
+  reasoning invites a future agent to "improve" it into disagreement with the
+  entry it paraphrases.
+- **Write the finding, not the search.** The reader needs the number and its
+  measuring stick, not the path you took to it.
+
+If a task needs more than ~150 lines to specify, it is more than one task. A
+scouting plan is the exception — but a scout's job is to produce *short* tasks.
+
 ## Lifecycle
 
 1. Work the task you were **assigned** in your spawn prompt. Only self-select
