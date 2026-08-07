@@ -113,6 +113,9 @@ export type {
   StatModRange,
 } from './loot/roll'
 
+export { Equipment, EQUIPMENT_SLOTS, isEquipmentSlot, makeEquipment } from './loot/equipment'
+export type { EquipmentSlot } from './loot/equipment'
+
 export { Grid } from './world/grid'
 export type { GridJSON, Tile } from './world/grid'
 
