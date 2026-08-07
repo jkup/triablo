@@ -376,6 +376,13 @@ mutually exclusive pair at today's roster size.
   `git diff --stat origin/main -- packages/sim/replays/` empty, and
   `loot-smoke` seed 1 still hashes `fc270473004d6cd5` — the merge disturbed
   nothing.
+
+  `main` then moved again (`4c282db`, PR #102), which adds `citations:check` to
+  `verify`. Merged that too; it reports `citations: 0 anchored, 263 by line` →
+  `citations ok`, which independently confirms the three `equipment.ts` repairs
+  above. Its only warnings are pre-existing archived prose in
+  `tasks/done/0650` and `tasks/done/0670` pointing at `combat/systems.ts`,
+  unrelated to this task and explicitly non-blocking.
 - **Two defects in this task file, for whoever copies its phrasing:**
   - The "no draw" acceptance criterion is **vacuous as worded**. Two
     identically-seeded runs produce identical items and identical end states
