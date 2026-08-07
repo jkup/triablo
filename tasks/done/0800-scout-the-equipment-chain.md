@@ -581,6 +581,31 @@ nothing** outside this file.
   the next; `npm run replay:check` reports all six `ok` on the committed tree
   and `npm run verify` passes.
 
+  **Re-run after integrator review** (see the next bullet): the three fixtures
+  now pasted verbatim into §2 and §9 T4 were re-applied exactly as written and
+  reproduced exactly — `2821999485709688` for §2's B′ literal,
+  `f747421b5d967ce0` with `avatarLife 254/332` for T4's chest edit, and all four
+  shape-question hashes from §2's pasted script. All reverted again; the tree is
+  clean.
+
+- **Integrator round 1 (PR #96), two findings, both internal consistency — no
+  measurement was wrong.** (1) §2's four shape-question hashes were labelled
+  `MEASURED` but the fixture that produced them appeared nowhere, so a reviewer
+  could reproduce every structural *relation* and none of the literals. Fixed
+  both ways the reviewer offered: the fixture is now pasted verbatim (script and
+  `ITEM` literal, key order included), **and** §9's T1/T4 acceptance sketches now
+  pin *relations* rather than 16-hex-digit values — a relational assertion
+  survives an unrelated change to `hashString`/`stableStringify` and a literal
+  does not. A new §2 subsection, "What of §2 transfers, and what does not", says
+  which claims are fixture-independent and states that no downstream task should
+  pin a literal from a fixture it does not construct. (2) The Outcome said
+  nothing in the cut should be dispatched before Q1–Q4 while §9 said T1 and T2
+  need no ruling. **§9 was right and the Outcome was wrong** — decision 0059
+  already ratifies that `Equipment` is a character-owned component, so T1 builds
+  something whose existence is settled, and T2's widening is free before task
+  0750 lands regardless of Q6. The Outcome now says so and all three statements
+  agree.
+
 - **Scope deviations:** None. No code, no schema, no content, no new files, no
   decision entry minted. No constant was tuned. Every number carries a
   `MEASURED` / `DERIVED` / `ASSUMED` label and every `ASSUMED` one appears in
@@ -620,11 +645,16 @@ nothing** outside this file.
   Everything else in the prompt reproduced exactly, including all eight
   ground-truth items and the `a3171faa7f656eed` crawl baseline.
 
-- **Follow-ups worth a new task:** the ordered cut in §9. Nothing in it should
-  be dispatched before the owner answers §10 Q1–Q4; **§9 T1 and T2 are
-  startable the moment those four are answered**, and T2 is startable *now* if
-  the owner wants it (see §6's ordering argument — it is free before task 0750
-  lands and costs a re-bless after).
+- **Follow-ups worth a new task:** the ordered cut in §9. **T1 and T2 are
+  startable now and need no owner ruling** — decision 0059 already ratifies that
+  `Equipment` is a component belonging to the character, so T1 builds a thing
+  whose existence is settled; and T2's widening of `RolledItem`/`LootItemBase` is
+  free before task 0750 lands and costs a `dungeon-crawl.seed1.json` re-bless
+  after, so it is worth doing regardless of how §10 Q6 is answered (§6's
+  ordering argument). **T3 onward is blocked on §10 Q1–Q5** and should not be
+  dispatched until those are answered. §9 marks each task's status in its own
+  header and its closing dependency line says the same; all three statements
+  agree.
 
 ---
 
@@ -880,8 +910,15 @@ export const Equipment = defineComponent<Equipment>('Equipment')
 `size === 0` — and `ecs.ts:401`, which skips a store whose live entries are
 empty.
 
-**B. `Equipment` added to the crawl avatar only** (`dungeon-crawl.ts:497`,
-after `Progression`), empty:
+**B. `Equipment` added to the crawl avatar only.** One line inserted in
+`packages/sim/src/scenarios/dungeon-crawl.ts` immediately after
+`world.add(avatar, Progression, makeProgression(PLAYER_LEVEL))` (line **497** on
+`main`), plus `Equipment` added to that file's `@triablo/core` import list and
+to `packages/core/src/index.ts:26`'s re-export:
+
+```ts
+    world.add(avatar, Equipment, { slots: {} })
+```
 
 ```
   ok    content-seam.seed1.json
@@ -892,12 +929,31 @@ after `Progression`), empty:
   ok    status-dot.seed1.json
 ```
 
-**Hash B = `f80fca561ca42445`. 1 of 6 goldens moves** (`MEASURED`). Repeated
-with a realistic payload — one `RolledItem` (`notched-shortsword`, magic, one
-implicit, one `brutal` affix) in the `main-hand` key — gives
-`2821999485709688`, **still 1 of 6** (`MEASURED`). The payload changes the hash
-and not the blast radius: **the cost of a player-only equipment component is one
-re-bless of `dungeon-crawl.seed1.json`, whatever it holds.** That is
+**Hash B = `f80fca561ca42445`. 1 of 6 goldens moves** (`MEASURED`).
+
+**B′.** The same line, with a realistic payload. This exact literal, key order
+included:
+
+```ts
+    world.add(avatar, Equipment, {
+      slots: {
+        'main-hand': {
+          baseId: 'notched-shortsword',
+          slot: 'main-hand',
+          itemLevel: 5,
+          rarity: 'magic',
+          implicits: [{ stat: 'damage', mode: 'flat', value: 8 }],
+          affixes: [
+            { affixId: 'brutal', kind: 'prefix', tier: 3, mods: [{ stat: 'damage', mode: 'flat', value: 20 }] },
+          ],
+        },
+      },
+    })
+```
+
+gives `2821999485709688`, **still 1 of 6** (`MEASURED`). The payload changes the
+hash and not the blast radius: **the cost of a player-only equipment component
+is one re-bless of `dungeon-crawl.seed1.json`, whatever it holds.** That is
 ground-truth item 8's expected answer, now proved for this shape rather than
 inferred from `Progression`.
 
@@ -935,9 +991,55 @@ Summary, all `MEASURED`:
 ### The shape questions
 
 **Is a slot a key in one component's record, or one component per slot?**
-Both work and both survive save/load. Measured on a two-entity world with the
-same `RolledItem` in `main-hand` (`MEASURED`, throwaway script over
-`packages/core/src/ecs.ts`):
+Both work and both survive save/load. Measured with the script below —
+**pasted verbatim, because the hashes it prints are meaningless without it**
+(`npx tsx` against `packages/core/src/ecs.ts`; each world is a fresh
+`new World({ seed: 1 })` with one spawned entity, so the hashes differ only in
+the component payload):
+
+```ts
+import { World, defineComponent } from '<repo>/packages/core/src/ecs'
+
+const Equipment = defineComponent<{ slots: Record<string, unknown> }>('Equipment')
+const EquipMainHand = defineComponent<{ item: unknown }>('EquipMainHand')
+
+const ITEM = {
+  baseId: 'notched-shortsword',
+  slot: 'main-hand',
+  itemLevel: 5,
+  rarity: 'magic',
+  implicits: [{ stat: 'damage', mode: 'flat', value: 8 }],
+  affixes: [
+    { affixId: 'brutal', kind: 'prefix', tier: 3, mods: [{ stat: 'damage', mode: 'flat', value: 20 }] },
+  ],
+}
+
+// A: one component, slot is a record key
+const a = new World({ seed: 1 })
+const pa = a.spawn()
+a.add(pa, Equipment, { slots: { 'main-hand': ITEM } })
+// key order deliberately reversed on the second build
+const a2 = new World({ seed: 1 })
+const pa2 = a2.spawn()
+a2.add(pa2, Equipment, { slots: { 'off-hand': null, 'main-hand': ITEM } })
+const a3 = new World({ seed: 1 })
+const pa3 = a3.spawn()
+a3.add(pa3, Equipment, { slots: { 'main-hand': ITEM, 'off-hand': null } })
+
+// B: one component per slot
+const b = new World({ seed: 1 })
+const pb = b.spawn()
+b.add(pb, EquipMainHand, { item: ITEM })
+
+// C: the third empty-slot encoding
+const c = new World({ seed: 1 })
+const pc = c.spawn()
+c.add(pc, Equipment, { slots: { 'main-hand': ITEM, 'off-hand': undefined } })
+
+const jsonRound = (w: World) => World.restore(JSON.parse(JSON.stringify(w.snapshot()))).hash()
+```
+
+Its output:
 
 ```
 A  record-keyed Equipment          : a5c64958cc839b2b
@@ -980,6 +1082,34 @@ Three things follow, and the third is a real hazard:
    never `null` and never `undefined`, and that ruling needs a decision entry —
    it is an encoding rule future work builds on and it has a measured failure
    mode.
+
+**Latent, not live.** The `undefined` hazard is a property of the shape, not a
+bug on `main`: no component in the repo carries an undefined-valued key today,
+so every scenario's live hash already equals its round-trip hash. It is
+recorded here because equipment is the first component with *optional* keys and
+would be the first to trip it.
+
+### What of §2 transfers, and what does not
+
+**The transferable findings are the counts and the relations, not the
+literals.** Every 16-hex-digit value above is a property of *its fixture* — the
+exact component payload, the exact key order, the exact scenario state — and
+the fixtures are pasted above precisely so the numbers can be reproduced rather
+than trusted. What survives a change of fixture is:
+
+- **0 / 1 / 1 / 5 of six goldens** for defined-never-added / player-only-empty /
+  player-only-populated / `Combatant`-field.
+- **absent ≠ `null` ≠ `undefined`**, three distinct hashes for the same worn
+  gear.
+- **the `undefined` form's JSON round trip lands exactly on the absent-key
+  hash**, i.e. the save silently rewrites the state.
+- **record key order does not matter** (`A2 === A3`).
+
+**No task downstream of this plan should pin a literal hash from a fixture it
+does not itself construct.** §9's T1 and T4 pin the relations above instead,
+for that reason and for a second one: a relational assertion survives an
+unrelated change to `hashString` or `stableStringify`, while a literal breaks
+and tells its reader nothing about equipment.
 
 **Does the component hold the whole `RolledItem`, or an id into something
 else?** It must hold the whole `RolledItem`. A `RolledItem` is plain JSON by
@@ -1572,7 +1702,7 @@ Rows are the six files in `packages/sim/replays/`; columns are §9's tasks.
 |---|---|---|---|---|---|---|
 | `content-seam.seed1.json` | **unmoved** (M) — component defined, never added; Hash A identical | **unmoved** (M) — no golden rolls an item; `rollItem`'s only non-test caller is unpinned `loot-smoke` | **unmoved** (P) — pure functions, no caller | **unmoved** (M) — spawns no `PlayerControlled`; measurement B left it `ok` | **unmoved** (P) — no `GroundItem`, no player | **unmoved** (P) — client only, no golden is client-side |
 | `duel.seed1.json` | **unmoved** (M) | **unmoved** (M) | **unmoved** (P) | **unmoved** (M) | **unmoved** (P) | **unmoved** (P) |
-| `dungeon-crawl.seed1.json` | **unmoved** (M) — Hash A = `a3171faa7f656eed` | **unmoved if before 0750 (M); moved if after (P)** — 0750 embeds 11 bases in `LootDomain` and 8 `RolledItem`s in drops, so a new field appears 19 times | **unmoved** (P) — nothing calls them | **MOVED** (M) — `a3171faa7f656eed` → `f80fca561ca42445` empty, `2821999485709688` with one item; plus attack-speed and crit if gear carries them (§7) | **MOVED** (P) — the avatar takes items off the floor, so its `Equipment` and the `GroundItem` set both change | **unmoved** (P) |
+| `dungeon-crawl.seed1.json` | **unmoved** (M) — Hash A = `a3171faa7f656eed` | **unmoved if before 0750 (M); moved if after (P)** — 0750 embeds 11 bases in `LootDomain` and 8 `RolledItem`s in drops, so a new field appears 19 times | **unmoved** (P) — nothing calls them | **MOVED** (M) — `a3171faa7f656eed` → `f80fca561ca42445` empty, `2821999485709688` with one item **under §2's fixture, which is not T4's component shape — the transferable claim is "exactly one file", not the value (see T4)**; plus attack-speed and crit if gear carries them (§7) | **MOVED** (P) — the avatar takes items off the floor, so its `Equipment` and the `GroundItem` set both change | **unmoved** (P) |
 | `harness-selftest.seed1.json` | **unmoved** (M) | **unmoved** (M) | **unmoved** (P) | **unmoved** (M) — spawns no `Combatant` at all; it was the one survivor of measurement C | **unmoved** (P) | **unmoved** (P) |
 | `skill-strike.seed1.json` | **unmoved** (M) | **unmoved** (M) | **unmoved** (P) | **unmoved** (M) | **unmoved** (P) | **unmoved** (P) |
 | `status-dot.seed1.json` | **unmoved** (M) | **unmoved** (M) | **unmoved** (P) | **unmoved** (M) | **unmoved** (P) | **unmoved** (P) |
@@ -1644,23 +1774,37 @@ decision entry*, which it may mint.*
 touch any scenario. Same "define now, attach later" shape as
 `tasks/done/0660`'s `Progression`.
 
-**Acceptance sketch:** `makeEquipment(base)` returns `slots: {}`; an unknown
-slot key throws naming it (the `secondsToTicks` precedent, `time.ts:31-37`); a
-`World` with the component defined but never added hashes **identically** to
-one without it (assert the two hashes are equal, computed in the test — the
-`Progression` precedent at `progression/components.test.ts`); a
-`World.restore(world.snapshot())` round trip on a populated `Equipment`
-reproduces the hash; **and a test that pins the empty-slot encoding** — an
-absent key, a `null` and an `undefined` produce three different hashes
-(`a5c64958cc839b2b` / `f76100e2dfe0cfdf` / `0d6fbe2fe8bd052c` in §2's fixture),
-and the `undefined` form does not survive `JSON.parse(JSON.stringify(snapshot))`.
-All six golden replays byte-unchanged.
+**Acceptance sketch. Every hash assertion below is *relational* — two hashes
+computed in the test and compared. Do not pin a 16-hex-digit literal**: §2's
+literals belong to §2's throwaway fixture, this task builds a different one, and
+a relational assertion also survives an unrelated change to `hashString` or
+`stableStringify` while a literal would break and say nothing about equipment.
+
+- `makeEquipment(base)` returns `slots: {}`; an unknown slot key throws naming
+  it (the `secondsToTicks` precedent, `time.ts:31-37`).
+- **Defining is free:** a `World` with the component defined but never added
+  hashes **equal** to one without it — `expect(withDef.hash()).toBe(without.hash())`,
+  the `Progression` precedent at `progression/components.test.ts`.
+- **Attaching is visible:** the same world with `Equipment` on one entity hashes
+  **unequal** to the same world without it.
+- **Key order is free:** two worlds whose slot records carry the same entries in
+  opposite insertion order hash **equal**.
+- **The empty-slot encoding, pinned as three inequalities and one equality:**
+  absent ≠ `null` ≠ `undefined` ≠ absent for the same worn gear, **and**
+  `World.restore(JSON.parse(JSON.stringify(w.snapshot()))).hash()` on the
+  `undefined` form **equals the absent-key world's hash** — i.e. the save
+  silently rewrites the state, which is the whole reason the ruling exists.
+- **Round trip is stable for the legal shape:**
+  `World.restore(w.snapshot()).hash() === w.hash()` on a populated `Equipment`.
+- All six golden replays byte-unchanged.
 
 **Replay impact: none** (`MEASURED`, §2 Hash A = baseline).
 
 **Mints:** that equipped state is a player-only component and never a
-`Combatant` field, **with §2's five hashes and the 1-of-6 vs 5-of-6 counts in
-the entry**; and that an empty slot is an absent key, with the JSON-round-trip
+`Combatant` field, **with the 1-of-6 vs 5-of-6 golden counts in the entry** (the
+counts are what transfers; §2's literal hashes belong to its fixture and should
+be cited as "measured in task 0800 §2", not restated as if they were this
+task's); and that an empty slot is an absent key, with the JSON-round-trip
 measurement as the reason.
 
 **Collision:** `packages/core/src/index.ts` is also named by 0420, 0590 and
@@ -1741,20 +1885,46 @@ task that pays the re-bless.*
 `packages/sim/replays/dungeon-crawl.seed1.json` (hash **and** `note`),
 `packages/client/src/game.ts`, `packages/client/src/game.test.ts`.
 
-**Replay impact: `dungeon-crawl.seed1.json` moves; no other.** Measured both
-ways: empty set `a3171faa7f656eed` → **`f80fca561ca42445`**; with one rolled
-main-hand → **`2821999485709688`**; the other five replays report `ok` in both
-runs. A useful third measurement for whoever writes this task: spawning the
-avatar wearing the 0590 chest (i.e. passing a non-empty `mods` list to
-`makeCombatant`) gives crawl hash **`f747421b5d967ce0`** and
-`avatarLife 254/332` with `avatarDamageDealt 362` and
-`lastMonsterDeathTick 1466` unchanged — so **gear changes survivability without
-touching the combat trace**, which is the behaviour proof this task should
-paste.
+**Replay impact: exactly one file moves — `dungeon-crawl.seed1.json`. No other.**
+That count is the finding, and it held under both §2 payloads (empty and
+populated) with the other five reporting `ok` in both runs.
+
+**Do not pin §2's `f80fca561ca42445` or `2821999485709688` as this task's
+expected hash.** They were produced by a throwaway `{ slots: … }` fixture;
+T1 ships `{ base, slots }`, so T4's real hash differs from both by construction.
+Record the before/after you actually measure and explain the delta; the
+transferable claim is the one-file count, not the value.
+
+**The behaviour proof to reproduce instead**, which *is* fixture-specified and
+is what tells a right hash from a wrong one. Replace `dungeon-crawl.ts:488`'s
+
+```ts
+    world.add(avatar, Combatant, makeCombatant('avatar', PLAYER_LEVEL, PLAYER_STATS))
+```
+
+with the same call carrying task 0590's worked-example chest as `mods`:
+
+```ts
+    world.add(avatar, Combatant, makeCombatant('avatar', PLAYER_LEVEL, PLAYER_STATS, [
+      { stat: 'armor', mode: 'flat', value: 24 },
+      { stat: 'armor', mode: 'flat', value: 12 },
+      { stat: 'max-life', mode: 'flat', value: 48 },
+      { stat: 'max-life', mode: 'flat', value: 48 },
+      { stat: 'vitality', mode: 'flat', value: 9 },
+    ]))
+```
+
+`npm run sim -- run dungeon-crawl --seed 1` then reports `avatarLife 254/332`
+with `avatarDamageDealt 362` and `lastMonsterDeathTick 1466` **unchanged**
+(`MEASURED`; crawl hash `f747421b5d967ce0` under that exact edit). Damage taken
+falls from 141 to 78 (`DERIVED`) purely through armor 14 → 50. **Gear changes
+survivability without touching the combat trace** — that invariance, not the
+hash, is the proof this task should paste.
 
 **Acceptance sketch:** the avatar carries `Equipment` with its `base` equal to
 `PLAYER_STATS`; the crawl's eight death ticks (244, 484, 649, 784, 920, 1290,
-1362, 1466) and `avatarDamageDealt 362` are unchanged; `world.systemNames` in
+1362, 1466) and `avatarDamageDealt 362` are unchanged; `git diff --stat
+packages/sim/replays/` lists **exactly one file**; `world.systemNames` in
 `game.test.ts` is unchanged (this task registers no system); one re-blessed
 replay whose `note` carries the guard sentence from §8.
 
