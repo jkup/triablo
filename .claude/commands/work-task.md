@@ -10,8 +10,10 @@ Work exactly one task to completion: **$ARGUMENTS**
 1. Find the task file: match `tasks/open/$ARGUMENTS*.md` (a bare number like
    `0100` matches by prefix). Zero or multiple matches → list `tasks/open/`
    and stop.
-2. Read the task file completely, then `CLAUDE.md`. Read `docs/DESIGN.md` if
-   anything player-facing is involved.
+2. Read the task file completely, then `CLAUDE.md`, then `tasks/README.md` —
+   it carries the rules for claims, acceptance criteria and citations that this
+   repo's reviews enforce, and skipping it is how those reviews turn into
+   multiple rounds. Read `docs/DESIGN.md` if anything player-facing is involved.
 3. Check `Depends on:` — every dependency must already be in `tasks/done/`.
    If not, stop and say which is missing.
 4. Adopt the task's `Role:` discipline (the matching agent definition in
