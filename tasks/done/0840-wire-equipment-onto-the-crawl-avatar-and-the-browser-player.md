@@ -49,7 +49,8 @@ The guard sentence for the blessed file's `note`, which CI requires because it
 Run on this worktree at `main` = `c59869a`, with **`tasks/open/0730` and
 `tasks/open/0750` not yet landed**, by adding exactly one line after
 `world.add(avatar, Progression, makeProgression(PLAYER_LEVEL))`
-(`dungeon-crawl.ts:497`):
+(`packages/sim/src/scenarios/dungeon-crawl.ts#makeProgression`; it was line 497
+at `c59869a` and the wiring below moved it to 499):
 
 ```ts
     world.add(avatar, Equipment, { base: PLAYER_STATS, slots: {} })
@@ -98,7 +99,9 @@ you attached it to the wrong entity — find it, do not bless it.
   is a design choice nobody has made, and it would destroy this task's "every
   metric identical" proof.
 - **Registering any system.** This task adds none. `world.systemNames` in
-  `packages/client/src/game.test.ts:144-154` must be **unchanged** — that is an
+  `packages/client/src/game.test.ts#systemNames` (lines 145-155 as landed; it
+  was 144-154 before this task's own test shifted it) must be **unchanged** —
+  that is an
   acceptance criterion, not a side note.
 - **Calling `refitCombatant`, `equip`, `unequip` or `equippedMods`.** Nothing
   changes stats here. Task 0860 wires the verbs.
@@ -110,11 +113,13 @@ you attached it to the wrong entity — find it, do not bless it.
 
 1. **Crawl:** attach `Equipment` to the avatar, built with task 0810's
    `makeEquipment(PLAYER_STATS)` — the same `PLAYER_STATS` constant
-   (`dungeon-crawl.ts:85-92`) that the line above it hands to `makeCombatant`.
+   (`packages/sim/src/scenarios/dungeon-crawl.ts#PLAYER_STATS`, lines 87-94 as
+   landed) that the line above it hands to `makeCombatant`.
    Add it **after** `Progression` so the existing entity ids and their
    component sets are otherwise untouched.
 2. **Client:** the same, with `client/game.ts`'s own `PLAYER_STATS`
-   (`game.ts:53-60`). The two copies are deliberate — the client may not import
+   (`packages/client/src/game.ts#PLAYER_STATS`, lines 55-62 as landed). The two
+   copies are deliberate — the client may not import
    sim, and both files already say so.
 3. **State the invariant that makes this safe, in a comment at both sites:**
    `Equipment.base` is the same statline the `Combatant` beside it was built
@@ -264,12 +269,36 @@ you attached it to the wrong entity — find it, do not bless it.
     ok    status-dot.seed1.json
   ```
 
-  and `git diff --stat packages/sim/replays/` after blessing:
+  and the diffstat of the **whole branch**,
+  `git diff --stat origin/main...HEAD -- packages/sim/replays/` (branch-relative
+  on purpose: a `HEAD~1` form goes stale the moment another commit lands, which
+  is the same trap as the stale capture described below):
 
   ```
-   packages/sim/replays/dungeon-crawl.seed1.json | 2 +-
-   1 file changed, 1 insertion(+), 1 deletion(-)
+   packages/sim/replays/dungeon-crawl.seed1.json | 4 ++--
+   1 file changed, 2 insertions(+), 2 deletions(-)
   ```
+
+  **Two lines move, not one: `hash` and `note`.** The `hash` line is the bless;
+  the `note` line is requirement 5's appended guard sentence, and it is a
+  *modification* of the existing note line rather than a new one because the note
+  is a single JSON string. The four changed lines are exactly:
+
+  ```
+  -  "hash": "a3171faa7f656eed",
+  -  "note": "Guards the phase-2 exit criterion: a bot clears the five-room charnel-vaults d…
+  +  "hash": "8ebc4ce46170c4c2",
+  +  "note": "Guards the phase-2 exit criterion: a bot clears the five-room charnel-vaults d…
+  ```
+
+  An earlier draft of this Outcome pasted `1 file changed, 1 insertion(+), 1
+  deletion(-)` here. That capture was real but **taken before the note append**
+  and never re-taken after the change that invalidated it — the file count was
+  right, the line count was stale. **A capture is only evidence of the state it
+  was taken in**, so a capture taken before a later edit has to be re-run, not
+  reused. Tasks 0730, 0750 and 0760 re-bless this same golden and are pointed at
+  this file's shape: expect **two** moved lines, and preserve the note history
+  rather than overwriting it.
 
   **The feature is invisible in the trace, as intended.**
   `npm run sim -- run dungeon-crawl --seed 1 --verbose | grep -ci equip` prints
