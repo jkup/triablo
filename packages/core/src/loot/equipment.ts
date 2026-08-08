@@ -64,7 +64,9 @@
  */
 
 import type { CombatantBaseStats } from '../combat/components'
+import type { StatMod } from '../combat/stats'
 import { defineComponent } from '../ecs'
+import { itemMods } from './mods'
 import type { RolledItem } from './roll'
 
 /**
@@ -145,4 +147,186 @@ export const Equipment = defineComponent<Equipment>('Equipment')
  */
 export function makeEquipment(base: CombatantBaseStats): Equipment {
   return { base: { ...base }, slots: {} }
+}
+
+/**
+ * Every modifier a character's worn gear grants, in one fixed order.
+ *
+ * The other half of the refit input: `refitCombatant(combatant, equipment.base,
+ * equippedMods(equipment))` is a character wearing exactly what this component
+ * says it wears. Callers that also carry level grants concatenate them —
+ * `computeStats` folds the whole list at once and is not linear in it, so the
+ * lists must be joined before the fold, never folded separately and added.
+ *
+ * **The order is `EQUIPMENT_SLOTS`' declared order**, and within a slot
+ * `itemMods`' order (implicits, then affixes in roll order). Never
+ * `Object.keys(equipment.slots)`: that is an unordered collection whose order
+ * would feed a fold, which the determinism rules forbid outright. Two
+ * `Equipment` values wearing the same nine items therefore produce the same
+ * list whatever order the slots were written in — which `equip` alone does not
+ * guarantee, since a component can also be built by `World.restore` or by hand.
+ *
+ * Fixing the order does not change the *stats*: decision 0005's fold sorts each
+ * mode's values into a canonical order before summing, so any permutation of
+ * this list computes the same block. It is fixed anyway, because a consumer
+ * that *is* order-sensitive — a tooltip, an audit log, a damage breakdown —
+ * must get the same answer every time, and because "the fold does not care" is
+ * a property of today's only consumer.
+ *
+ * Returns **fresh mod objects**: `itemMods` copies field-by-field out of the
+ * `RolledItem`, so a caller adjusting a value in this list cannot reach into a
+ * worn item — and therefore cannot move a replay hash — by accident.
+ *
+ * Judges nothing. An item already in a slot is worn; whether it *may* be worn
+ * was {@link equip}'s question.
+ */
+export function equippedMods(equipment: Equipment): StatMod[] {
+  const mods: StatMod[] = []
+  for (const slot of EQUIPMENT_SLOTS) {
+    const worn = equipment.slots[slot]
+    if (worn !== undefined) mods.push(...itemMods(worn))
+  }
+  return mods
+}
+
+/**
+ * The outcome of an {@link equip} attempt.
+ *
+ * A **discriminated union on `reason`**, deliberately, so a new refusal is a new
+ * arm rather than a new signature. Task 0890 adds the two-handed off-hand block
+ * (decisions 0070 and 0071) as exactly that: one more `ok: false` case. Do not
+ * collapse this to a boolean or to `Equipment | null` — a caller has to be able
+ * to tell a player *why* the item did not go on.
+ *
+ * `displaced` is a **list** for the same reason, and it is not a candidate for
+ * "simplification" to a single optional item: a two-hander evicts both the old
+ * main-hand and the worn off-hand, so 0890 makes one `equip` displace two.
+ * Order is meaningful — the item leaving the equipped item's own slot comes
+ * first, and anything evicted from another slot follows.
+ */
+export type EquipResult =
+  | { ok: true; equipment: Equipment; displaced: RolledItem[] }
+  | { ok: false; reason: 'level-requirement'; required: number; characterLevel: number }
+  | { ok: false; reason: 'unknown-slot'; slot: string }
+
+/**
+ * Copy `slots`, dropping `omit` and overriding `put`, walking
+ * {@link EQUIPMENT_SLOTS} in its declared order.
+ *
+ * **This is the shape decision 0036 requires, and the reason it is a rebuild
+ * rather than a spread-and-`delete`.** An empty slot is an *absent key* — never
+ * `null`, never `undefined`. `slots[slot] = undefined` typechecks against
+ * `Partial<Record<…>>` and is a determinism bug no replay can catch:
+ * `stableStringify` writes `undefined` as a literal while `JSON.stringify`
+ * drops the key, so an assigned-empty slot hashes one way live and another
+ * after a save/load — the same world, two hashes. Within one process the hash
+ * is self-consistent, which is exactly why `replay:check` stays green over it.
+ * Building the record from the vocabulary with a presence guard — the shape
+ * `skills/systems.ts` uses for `Projectile.status` — cannot express the bug at
+ * all. `equipment.test.ts` pins it as a hash equality against a world that never
+ * wore the item.
+ *
+ * Walking `EQUIPMENT_SLOTS` rather than `Object.keys(slots)` also keeps key
+ * insertion order fixed, so a caller that reads the record in order gets the
+ * same answer every time. It does not affect the hash — `stableStringify` sorts
+ * keys — but an unordered iteration feeding a result is forbidden regardless.
+ */
+function rebuildSlots(
+  slots: Partial<Record<EquipmentSlot, RolledItem>>,
+  omit: EquipmentSlot,
+  put?: RolledItem,
+): Partial<Record<EquipmentSlot, RolledItem>> {
+  const next: Partial<Record<EquipmentSlot, RolledItem>> = {}
+  for (const slot of EQUIPMENT_SLOTS) {
+    if (slot === omit) {
+      if (put !== undefined) next[slot] = put
+      continue
+    }
+    const worn = slots[slot]
+    if (worn !== undefined) next[slot] = worn
+  }
+  return next
+}
+
+/**
+ * Put an item on, if the character may wear it.
+ *
+ * Pure: `equipment` is not mutated and the result carries a fresh `slots`
+ * record and a fresh `base`. Untouched slots share their `RolledItem`
+ * references, which is safe because a `RolledItem` is immutable by convention.
+ *
+ * **The slot comes from the item**, never from an argument — a chest cannot be
+ * worn on the head. An `item.slot` outside the nine is a refusal, not a throw:
+ * it is data that can arrive from a save file, and a throw is the right shape
+ * for programmer error only.
+ *
+ * **Swapping is the normal case** (decision 0067: there is no inventory in v1,
+ * the ground is the bag). Equipping into an occupied slot succeeds and returns
+ * the outgoing item in `displaced`. `equip` never destroys an item — doing
+ * something with the list is the caller's job, and task 0850 spawns each entry
+ * as a `GroundItem`.
+ *
+ * `characterLevel` is **`Progression.level`, never `Combatant.level`**
+ * (decision 0069). They are deliberately different quantities: `Combatant.level`
+ * is decision 0004's *attacker* level in the armor curve, and mirroring the two
+ * would grant combat power decision 0051 does not license. Nothing in this
+ * module can see a `Combatant`, which is the point.
+ *
+ * Refusals are checked in a fixed order — slot legality first, then the level
+ * gate — so an item that is malformed *and* over-level reports the malformity.
+ * Structure before rules: an unknown slot means the request cannot be addressed
+ * at all, while the gate is a judgement about a request that made sense. Task
+ * 0890's handedness refusal is the only one that depends on what is already
+ * worn, so it belongs after both of these.
+ *
+ * This task does **not** implement decision 0070's off-hand block: an off-hand
+ * equips here even while a two-handed main-hand is worn. Task 0890 owns that
+ * predicate and adds it as a third refusal arm.
+ */
+export function equip(equipment: Equipment, item: RolledItem, characterLevel: number): EquipResult {
+  if (!isEquipmentSlot(item.slot)) {
+    return { ok: false, reason: 'unknown-slot', slot: item.slot }
+  }
+  if (item.levelRequirement > characterLevel) {
+    return {
+      ok: false,
+      reason: 'level-requirement',
+      required: item.levelRequirement,
+      characterLevel,
+    }
+  }
+
+  const slot: EquipmentSlot = item.slot
+  const outgoing = equipment.slots[slot]
+  return {
+    ok: true,
+    equipment: { base: { ...equipment.base }, slots: rebuildSlots(equipment.slots, slot, item) },
+    displaced: outgoing === undefined ? [] : [outgoing],
+  }
+}
+
+/**
+ * Take an item off. The inverse of {@link equip}, and pure in the same way.
+ *
+ * An empty slot is not an error: `removed` is `null` and the returned
+ * `Equipment` is a fresh value equal to the input. There is no gate on taking
+ * something off — `levelRequirement` bounds what may go on, not what may come
+ * off, so a character can always strip.
+ *
+ * The emptied slot's key is **absent**, not `undefined` — see
+ * {@link rebuildSlots} for why that distinction is a save-visible hash bug and
+ * not a style preference (decision 0036).
+ *
+ * `removed` is a single item, not a list, because taking one slot off can only
+ * ever free one slot. `equip`'s `displaced` is a list for the opposite reason.
+ */
+export function unequip(
+  equipment: Equipment,
+  slot: EquipmentSlot,
+): { equipment: Equipment; removed: RolledItem | null } {
+  const removed = equipment.slots[slot]
+  return {
+    equipment: { base: { ...equipment.base }, slots: rebuildSlots(equipment.slots, slot) },
+    removed: removed ?? null,
+  }
 }

@@ -74,23 +74,33 @@ export interface CombatantBaseStats {
 }
 
 /**
- * Build a `Combatant` component value from authored stats.
+ * The five `Combatant` fields that are a function of `base` + `mods`, and
+ * nothing else.
+ *
+ * A transient value: never stored, never hashed. It exists so that
+ * {@link makeCombatant} (a constructor) and {@link refitCombatant} (a refit)
+ * cannot drift apart. When the attack-speed stat starts folding into
+ * `attackIntervalTicks`, exactly one expression below changes and both callers
+ * move together — a second copy of this derivation is the bug this type exists
+ * to prevent.
+ */
+interface DerivedCombatStats {
+  maxLife: number
+  damage: number
+  armor: number
+  moveSpeed: number
+  attackIntervalTicks: number
+}
+
+/**
+ * The one place authored stats become combat numbers.
  *
  * The numeric stats route through {@link computeStats} (decision 0005):
  * `life` → `max-life`, `armor` → `armor`, `damage` → `damage`, `moveSpeed` →
- * `move-speed`. `mods` defaults to empty — monsters have no gear or buffs
- * yet — but the seam exists so items and buffs later plug in here instead of
- * forcing a combat rewrite.
- *
- * `attackIntervalSeconds` is converted with `secondsToTicks` here, once;
- * everything downstream sees integer ticks only.
+ * `move-speed`. `attackIntervalSeconds` is converted with `secondsToTicks`
+ * here, once; everything downstream sees integer ticks only.
  */
-export function makeCombatant(
-  monsterId: string,
-  level: number,
-  base: CombatantBaseStats,
-  mods: readonly StatMod[] = [],
-): Combatant {
+function deriveCombatStats(base: CombatantBaseStats, mods: readonly StatMod[]): DerivedCombatStats {
   const stats = computeStats(
     {
       'max-life': base.life,
@@ -100,19 +110,107 @@ export function makeCombatant(
     },
     mods,
   )
-  const maxLife = stats['max-life']
   return {
-    monsterId,
-    life: maxLife,
-    maxLife,
-    damageDealt: 0,
+    maxLife: stats['max-life'],
     damage: stats.damage,
-    damageType: base.damageType,
     armor: stats.armor,
-    level,
     moveSpeed: stats['move-speed'],
     attackIntervalTicks: secondsToTicks(base.attackIntervalSeconds),
+  }
+}
+
+/**
+ * Build a `Combatant` component value from authored stats.
+ *
+ * `mods` defaults to empty — monsters have no gear or buffs yet — but the seam
+ * exists so items and buffs plug in here instead of forcing a combat rewrite.
+ *
+ * **This is a constructor, not a refit.** It returns `life === maxLife`,
+ * `damageDealt: 0` and `ticksUntilAttack: 0` on every row, so calling it to
+ * re-apply gear to a character already in play is a free full heal, a
+ * `damageDealt` wipe and a swing-timer reset at once. {@link refitCombatant} is
+ * the function for that (decision 0068).
+ */
+export function makeCombatant(
+  monsterId: string,
+  level: number,
+  base: CombatantBaseStats,
+  mods: readonly StatMod[] = [],
+): Combatant {
+  const derived = deriveCombatStats(base, mods)
+  return {
+    monsterId,
+    life: derived.maxLife,
+    maxLife: derived.maxLife,
+    damageDealt: 0,
+    damage: derived.damage,
+    damageType: base.damageType,
+    armor: derived.armor,
+    level,
+    moveSpeed: derived.moveSpeed,
+    attackIntervalTicks: derived.attackIntervalTicks,
     ticksUntilAttack: 0,
+  }
+}
+
+/**
+ * Recompute a live combatant's derived stats against a new modifier list,
+ * preserving everything a fight is in the middle of.
+ *
+ * Gear changes stats the moment it changes (decision 0068); this is the
+ * function that does it. It returns a **new** value and never mutates
+ * `current`. The five derived fields come from {@link deriveCombatStats}, the
+ * same expression {@link makeCombatant} uses. The other six are ruled
+ * individually, and three of them are traps:
+ *
+ * - **`life` is never raised: `min(current.life, newMaxLife)`.** Decision 0068
+ *   rules that an equip is neither a heal nor a hit, leaving decision 0060's
+ *   level-up heal the only heal in the game. Rebuilding instead is worth
+ *   **+273 life** on the decision-0030 avatar at `59/200` wearing one chest,
+ *   per equip and repeatable at will (0068's measurement).
+ * - **`damageDealt` is copied and never written.** It is part of the public
+ *   observable surface named at the top of this file, and the crawl and duel
+ *   scenarios fail their runs when it falls below the life they killed —
+ *   today's crawl sits exactly at that boundary, so a single wipe fails the
+ *   scenario rather than a unit test.
+ * - **`ticksUntilAttack` is preserved, and clamped down to the new interval**
+ *   (decision 0074). Equipping a faster weapon shortens the *next* swing; it
+ *   does not skip the current one. Resetting it to 0 would let a player swing
+ *   every tick by re-equipping what they already wear — against the avatar's
+ *   36-tick interval, a 36× damage rate — silently repealing decision 0010's
+ *   cadence. Without the clamp, a slow-to-fast swap is momentarily slower than
+ *   either weapon.
+ *
+ * `monsterId` and `level` are identity, fixed at spawn. **`damageType` is
+ * copied from `current`, not read from `base`**: no `StatKey` maps to damage
+ * type, so gear cannot change it through `computeStats` at all, and reading it
+ * from `base` would let a stale stored statline silently change a character's
+ * element. Note `level` here is decision 0004's *attacker* level in the armor
+ * curve — not `Progression.level` (decision 0069).
+ *
+ * The caller owns which mods to pass: everything the character has, gear and
+ * level grants alike (decision 0056 already routes the level life grant through
+ * this same argument), because the fold is over the whole list at once and is
+ * not linear in it.
+ */
+export function refitCombatant(
+  current: Combatant,
+  base: CombatantBaseStats,
+  mods: readonly StatMod[] = [],
+): Combatant {
+  const derived = deriveCombatStats(base, mods)
+  return {
+    monsterId: current.monsterId,
+    life: Math.min(current.life, derived.maxLife),
+    maxLife: derived.maxLife,
+    damageDealt: current.damageDealt,
+    damage: derived.damage,
+    damageType: current.damageType,
+    armor: derived.armor,
+    level: current.level,
+    moveSpeed: derived.moveSpeed,
+    attackIntervalTicks: derived.attackIntervalTicks,
+    ticksUntilAttack: Math.min(current.ticksUntilAttack, derived.attackIntervalTicks),
   }
 }
 
