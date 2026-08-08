@@ -289,8 +289,12 @@ failure mode in this repo.
       whose `Equipment` came from `equip` then `unequip` hashes equal to one
       that never wore the item, **and equal again after a save/load round
       trip** — the criterion that fails if the slot is emptied by assigning
-      `undefined`. Mutation-tested: it is the only assertion in the suite that
-      fails when the presence guard is removed.
+      `undefined`. Mutation-tested — `rebuildSlots` has **two** presence
+      guards, and which one is removed changes the answer: dropping the `worn`
+      guard (the one carrying other slots forward) fails **this test alone**;
+      dropping the `put` guard (the one that empties the unequipped slot) fails
+      **this test and `unequip > leaves the other slots alone`**, which
+      deep-equals `Object.keys(slots)`. Dropping both fails the same two.
 - [x] `makeCombatant` is unchanged in behaviour: `npm run replay:check`
       reports all six `ok` after the Requirement 1 extraction.
 - [x] `equip` into an empty slot returns `ok: true` with `displaced` deep-equal
@@ -476,16 +480,33 @@ failure mode in this repo.
     which the empty three-dot replay diff above is the check for.
   - **Mutation-tested eleven ways**, each reverted after, in two passes.
     Pass 1, `refitCombatant`/`equip`/`unequip` (54 tests at the time):
-    (1) `unequip` assigning `slots[slot]` through instead of guarding presence
-    → **1 failure, the world-hash test, and only that one**, which is the whole
-    point of that criterion; (2) `ticksUntilAttack: 0` → 3; (3) preserve without
-    the clamp → 1; (4) full rebuild (`life = maxLife`, `damageDealt = 0`) → 2;
+    (1) the `rebuildSlots` presence guard — see below, it is not one mutation
+    but three; (2) `ticksUntilAttack: 0` → 3; (3) preserve without the clamp
+    → 1; (4) full rebuild (`life = maxLife`, `damageDealt = 0`) → 2;
     (5) `damageType` read from `base` → 1; (6) level gate checked before the
     slot → 1; (7) `displaced` always `[]` → 1. Pass 2, `equippedMods` (38
     tests): (8) fold `Object.keys(slots)` instead of `EQUIPMENT_SLOTS` → 4;
     (9) inline the flatten so the result aliases the worn item → 1;
     (10) reverse each item's mods → 3; (11) emit only the first worn slot → 4.
-    Restored both times to `Tests 38 passed (38)`.
+    Restored each time.
+  - **Mutation 1, re-measured after review, on the 61-test merged suite.**
+    `rebuildSlots` has **two** presence guards and the count depends on which
+    goes:
+
+    | mutation | failures |
+    |---|---|
+    | drop the `worn` guard (carries other slots forward) | **1** — `unequip > leaves a world hashing exactly as if the item had never been equipped` |
+    | drop the `put` guard (empties the unequipped slot) | **2** — that test, plus `unequip > leaves the other slots alone` |
+    | drop both | **2** — the same two |
+
+    **A uniqueness claim was wrong here and is withdrawn.** This file previously
+    said the world-hash test "is the only assertion in the suite that fails when
+    the presence guard is removed". That is true only of the `worn` guard, which
+    is the variant I happened to run; `leaves the other slots alone` deep-equals
+    `Object.keys(slots)` and so also catches an `undefined` key arriving through
+    the `put` path. The error is from the first sitting, not drift — the second
+    test is byte-identical in `260c9fe`. The hazard itself is unaffected: an
+    `undefined` slot is still caught, by more tests rather than fewer.
   - **The order-independence assertion cannot fail on a change to
     `equippedMods`, and it is labelled as such.** Mutations 8 and 10 both
     reorder the emitted list and both leave `computeStats(base, mods)` equal to
@@ -495,16 +516,46 @@ failure mode in this repo.
     writes its slots in **reverse** order and gives each slot **distinguishable
     mod values**; with the obvious fixture (built through `equip`, using
     `itemFor`) mutation 8 passes. The criterion is amended to say so.
-  - **Citations: the 2 I added are the only ones I checked.** Both are anchored
-    (`packages/core/src/loot/equipment.ts#equip` and
-    `packages/core/src/loot/mods.ts#itemMods`); this file's third anchor
+  - **Citations: the 2 distinct anchors I added are the only ones I checked.**
+    Both resolve: `packages/core/src/loot/equipment.ts#equip` and
+    `packages/core/src/loot/mods.ts#itemMods`. This file's third anchor
     (`hash.ts#stableStringify`) arrived with the Notes section and is not mine.
-    `citations:check` reports `7 anchored, 262 by line` and is green. Decision
-    0074 adds no anchored citation — it names two task files in prose, which is
-    deliberately not a citation. I did **not** re-check the citations this file
-    already carried, nor any elsewhere. One of them was corrected on `main`
-    while I worked (task 0590's worked-example pointer, now that 0590 is in
-    `tasks/done/`); that correction is not mine either.
+    Decision 0074 adds no anchored citation — it names two task files in prose,
+    which is deliberately not a citation.
+
+    **The arithmetic, corrected and re-measured on both refs.** The checker
+    counts **occurrences, not distinct targets**, and I cite each of my two
+    twice:
+
+    ```
+    origin/main   citations: 5 anchored, 262 by line
+    this branch   citations: 9 anchored, 262 by line
+    ```
+
+    5 + (2 targets × 2 occurrences) = 9. An earlier draft of this section said
+    7, taken from a run made partway through editing rather than from the final
+    tree. Both refs above were measured after the fact — `origin/main` in a
+    detached worktree, not inferred by subtraction.
+
+    I did **not** re-check the citations this file already carried, nor any
+    elsewhere. One of them was corrected on `main` while I worked (task 0590's
+    worked-example pointer, now that 0590 is in `tasks/done/`); that correction
+    is not mine either.
+
+  - **What the three corrections above have in common, recorded because it is
+    the whole lesson of this task file: a number inherited from someone else is
+    still a claim you are making.** Every figure this task *derived* — all four
+    rows of Requirement 4, the `+273` heal, the `36×` and `4.92×` sticks in
+    decision 0074, the mutation counts in pass 2, the empty three-dot replay
+    diff — survived independent re-checking. All three that were wrong arrived
+    **pre-formed**: one carried forward from an earlier sitting without re-
+    running it against the merged suite (mutation 1), one read off a run made
+    partway through editing rather than the final tree (the citation count), and
+    one handed to me in a message and passed on verbatim (the "~20" sweep
+    figure, which was `tasks/open/` only). None was a reasoning error; each was
+    a measurement not taken. The cheap defence is the one the repo already
+    names — if the raw output is not pasted, it is not `MEASURED` — and it has
+    to apply to numbers arriving from outside just as strictly as to my own.
 
 - **Replays re-blessed:** none. Nothing calls these functions yet, and the
   Requirement 1 extraction is behaviour-neutral — `replay:check` reported all
@@ -525,8 +576,13 @@ failure mode in this repo.
     in `packages/core/src/loot/equipment.ts#equip`'s doc comment, with the note
     that task 0890's handedness refusal goes after both, and it is pinned by a
     test. Not minted, because both arms are refusals that leave the equipment
-    untouched, so the downstream contract is a diagnostic string. If a reviewer
-    disagrees it is one short entry.
+    untouched, so the downstream contract is a diagnostic string.
+    **Raised for review and ruled on: it stays a documented implementation
+    detail.** `docs/decisions/README.md` excludes implementation detail with no
+    downstream contract, and the only observable difference is that diagnostic
+    string on an item both malformed *and* over-level — reachable only from a
+    corrupted save. **Decision 0074 is this task's only entry; 0075 stays
+    free.**
   - **Two acceptance criteria were amended and one added**, all marked inline:
     the replay diffstat corrected to its three-dot form (the original could not
     fail); the `equippedMods` order criterion given the fixture constraints that
@@ -541,7 +597,27 @@ failure mode in this repo.
     reading `base`. A real limit on what "loot is the story" can express through
     this path; named as a follow-up by
     `tasks/done/0800-scout-the-equipment-chain.md` and left unfixed here.
-  - **Roughly 20 task files carry the working-tree replay diffstat**
+  - **38 other task files carry the working-tree replay diffstat**
     (`git diff --stat packages/sim/replays/` with no revisions). It passes
     trivially once work is committed and cannot catch a moved replay. Worth one
     sweep to the three-dot form; only this file's copy was corrected here.
+
+    *Measured on this branch, counting the literal string across `tasks/`:*
+
+    ```
+      59 git diff --stat packages/sim/replays/
+       4 git diff --stat origin/main...HEAD -- packages/sim/replays/
+       3 git diff --stat main -- packages/sim/replays
+       1 git diff --stat origin/main -- packages/sim/replays/
+    ```
+
+    **39 files / 59 occurrences** carry the revisionless form, **27 of them on
+    a checkbox line** — i.e. as a live acceptance criterion. Excluding this
+    file, whose 2 remaining occurrences are the prose describing the bug rather
+    than a use of it: **38 files / 57 occurrences**, all 27 checkbox lines.
+    Split **18 in `tasks/open/`, 21 in `tasks/done/`**; only the 18 open ones
+    can still mislead an agent, which is the sweep worth cutting.
+
+    An earlier draft said "roughly 20". That figure was handed to me and I
+    passed it on without measuring; it counted `tasks/open/` only and called
+    the result "task files".
